@@ -28,22 +28,34 @@
 // ### General
 const char SARA_R5_COMMAND_AT[] = "AT";      // AT "Test"
 const char SARA_R5_COMMAND_ECHO[] = "E";     // Local Echo
+const char SARA_R5_COMMAND_MANU_ID[] = "+CGMI"; // Manufacturer identification
+const char SARA_R5_COMMAND_MODEL_ID[] = "+CGMM"; // Model identification
+const char SARA_R5_COMMAND_FW_VER_ID[] = "+CGMR"; // Firmware version identification
 const char SARA_R5_COMMAND_IMEI[] = "+CGSN"; // IMEI identification
 const char SARA_R5_COMMAND_IMSI[] = "+CIMI"; // IMSI identification
 const char SARA_R5_COMMAND_CCID[] = "+CCID"; // SIM CCID
+const char SARA_R5_COMMAND_REQ_CAP[] = "+GCAP"; // Request capabilities list
 // ### Control and status
+const char SARA_R5_COMMAND_POWER_OFF[] = "+CPWROFF"; // Module switch off
 const char SARA_R5_COMMAND_FUNC[] = "+CFUN";    // Functionality (reset, etc.)
-const char SARA_R5_COMMAND_CLOCK[] = "+CCLK";   // Clock
+const char SARA_R5_COMMAND_CLOCK[] = "+CCLK";   // Real-time clock
 const char SARA_R5_COMMAND_AUTO_TZ[] = "+CTZU"; // Automatic time zone update
+const char SARA_R5_COMMAND_TZ_REPORT[] = "+CTZR"; // Time zone reporting
 // ### Network service
-const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
+const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
 const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
-const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
-const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT";
-const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
 const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
+const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
+const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
+const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
+// ### SMS
+const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
+const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
 // V24 control and V25ter (UART interface)
 const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
+// ### Packet switched data services
+const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT";
+const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
 // ### GPIO
 const char SARA_R5_COMMAND_GPIO[] = "+UGPIOC"; // GPIO Configuration
 // ### IP
@@ -53,13 +65,10 @@ const char SARA_R5_CONNECT_SOCKET[] = "+USOCO"; // Connect to server on socket
 const char SARA_R5_WRITE_SOCKET[] = "+USOWR";   // Write data to a socket
 const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
-// ### SMS
-const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
-const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
 // ### GPS
 const char SARA_R5_GPS_POWER[] = "+UGPS";
-const char SARA_R5_GPS_REQUEST_LOCATION[] = "+ULOC";
 const char SARA_R5_GPS_GPRMC[] = "+UGRMC";
+const char SARA_R5_GPS_REQUEST_LOCATION[] = "+ULOC";
 
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 
@@ -1577,7 +1586,8 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 
     _baud = baud;
     setGpioMode(GPIO1, NETWORK_STATUS);
-    setGpioMode(GPIO2, GNSS_SUPPLY_ENABLE);
+    //setGpioMode(GPIO2, GNSS_SUPPLY_ENABLE);
+    setGpioMode(GPIO6, TIME_PULSE_OUTPUT);
     setSMSMessageFormat(SARA_R5_MESSAGE_FORMAT_TEXT);
     autoTimeZone(true);
     for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
@@ -1590,18 +1600,24 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 
 void SARA_R5::powerOn(void)
 {
+  if (_powerPin >= 0)
+  {
     pinMode(_powerPin, OUTPUT);
     digitalWrite(_powerPin, LOW);
     delay(SARA_R5_POWER_PULSE_PERIOD);
     pinMode(_powerPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
+  }
 }
 
 void SARA_R5::hwReset(void)
 {
+  if (_resetPin >= 0)
+  {
     pinMode(_resetPin, OUTPUT);
     digitalWrite(_resetPin, LOW);
     delay(SARA_R5_RESET_PULSE_PERIOD);
     pinMode(_resetPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
+  }
 }
 
 SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
