@@ -90,7 +90,7 @@ socketWrite	KEYWORD2
 socketRead	KEYWORD2
 socketListen	KEYWORD2
 IPAddress lastRemoteIP	KEYWORD2
-boolean gpsOn	KEYWORD2
+boolean isGPSon	KEYWORD2
 gpsPower	KEYWORD2
 gpsEnableClock	KEYWORD2
 gpsGetClock	KEYWORD2

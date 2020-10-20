@@ -14,7 +14,7 @@
 
 */
 
-#include <SparkFun_SARA_R5_Arduino_Library.h>
+#include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>
 
 #define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
 #define SARA_R5_SET_BAUD_TIMEOUT 500
@@ -65,10 +65,14 @@ const char SARA_R5_CONNECT_SOCKET[] = "+USOCO"; // Connect to server on socket
 const char SARA_R5_WRITE_SOCKET[] = "+USOWR";   // Write data to a socket
 const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
-// ### GPS
-const char SARA_R5_GPS_POWER[] = "+UGPS";
-const char SARA_R5_GPS_GPRMC[] = "+UGRMC";
-const char SARA_R5_GPS_REQUEST_LOCATION[] = "+ULOC";
+// ### GNSS
+const char SARA_R5_GNSS_POWER[] = "+UGPS"; // GNSS power management configuration
+const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND"; // Assisted GNSS unsolicited indication
+const char SARA_R5_GNSS_REQUEST_LOCATION[] = "+ULOC"; // Ask for localization information
+const char SARA_R5_GNSS_GPRMC[] = "+UGRMC"; // Ask for localization information
+const char SARA_R5_GNSS_REQUEST_TIME[] = "+UTIME"; // Ask for time information from cellular modem (CellTime)
+const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
+const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
 
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 
@@ -92,11 +96,11 @@ const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
         230400};
 #define SARA_R5_DEFAULT_BAUD_RATE 115200
 
-char lteShieldRXBuffer[128];
+char saraRXBuffer[128];
 
 static boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
 
-SARA_R5::SARA_R5(uint8_t powerPin, uint8_t resetPin)
+SARA_R5::SARA_R5(int powerPin, int resetPin)
 {
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
     _softSerial = NULL;
@@ -110,7 +114,7 @@ SARA_R5::SARA_R5(uint8_t powerPin, uint8_t resetPin)
     _lastRemoteIP = {0, 0, 0, 0};
     _lastLocalIP = {0, 0, 0, 0};
 
-    memset(lteShieldRXBuffer, 0, 128);
+    memset(saraRXBuffer, 0, 128);
 }
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -149,7 +153,7 @@ boolean SARA_R5::poll(void)
     char c = 0;
     bool handled = false;
 
-    memset(lteShieldRXBuffer, 0, 128);
+    memset(saraRXBuffer, 0, 128);
 
     if (hwAvailable())
     {
@@ -158,12 +162,12 @@ boolean SARA_R5::poll(void)
             if (hwAvailable())
             {
                 c = readChar();
-                lteShieldRXBuffer[avail++] = c;
+                saraRXBuffer[avail++] = c;
             }
         }
         {
             int socket, length;
-            if (sscanf(lteShieldRXBuffer, "+UUSORD: %d,%d", &socket, &length) == 2)
+            if (sscanf(saraRXBuffer, "+UUSORD: %d,%d", &socket, &length) == 2)
             {
                 parseSocketReadIndication(socket, length);
                 handled = true;
@@ -174,7 +178,7 @@ boolean SARA_R5::poll(void)
             unsigned int port, listenPort;
             IPAddress remoteIP, localIP;
 
-            if (sscanf(lteShieldRXBuffer,
+            if (sscanf(saraRXBuffer,
                        "+UUSOLI: %d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
                        &socket,
                        &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3],
@@ -189,7 +193,7 @@ boolean SARA_R5::poll(void)
         {
             int socket;
 
-            if (sscanf(lteShieldRXBuffer,
+            if (sscanf(saraRXBuffer,
                        "+UUSOCL: %d", &socket) == 1)
             {
                 if ((socket >= 0) && (socket <= 6))
@@ -208,28 +212,31 @@ boolean SARA_R5::poll(void)
             SpeedData spd;
             unsigned long uncertainty;
             int scanNum;
-            unsigned int latH, lonH, altU, speedU, trackU;
+            unsigned int latH, lonH, altU, speedU, cogU;
             char latL[10], lonL[10];
 
-            if (strstr(lteShieldRXBuffer, "+UULOC"))
+            // Maybe we should also scan for +UUGIND and extract the activated gnss system?
+
+            if (strstr(saraRXBuffer, "+UULOC"))
             {
                 // Found a Location string!
-                scanNum = sscanf(lteShieldRXBuffer,
+                // This assumes the ULOC response type is "1". TO DO: check that is true...
+                scanNum = sscanf(saraRXBuffer,
                                  "+UULOC: %hhu/%hhu/%u,%hhu:%hhu:%hhu.%u,%u.%[^,],%u.%[^,],%u,%lu,%u,%u,*%s",
                                  &clck.date.day, &clck.date.month, &clck.date.year,
                                  &clck.time.hour, &clck.time.minute, &clck.time.second, &clck.time.ms,
                                  &latH, latL, &lonH, lonL, &altU, &uncertainty,
-                                 &speedU, &trackU);
+                                 &speedU, &cogU);
                 if (scanNum < 13)
                     return false; // Break out if we didn't find enough
 
                 gps.lat = (float)latH + ((float)atol(latL) / pow(10, strlen(latL)));
                 gps.lon = (float)lonH + ((float)atol(lonL) / pow(10, strlen(lonL)));
                 gps.alt = (float)altU;
-                if (scanNum == 15) // If detailed response, get speed data
+                if (scanNum >= 15) // If detailed response, get speed data
                 {
                     spd.speed = (float)speedU;
-                    spd.track = (float)trackU;
+                    spd.cog = (float)cogU;
                 }
 
                 if (_gpsRequestCallback != NULL)
@@ -239,9 +246,9 @@ boolean SARA_R5::poll(void)
             }
         }
 
-        if ((handled == false) && (strlen(lteShieldRXBuffer) > 2))
+        if ((handled == false) && (strlen(saraRXBuffer) > 2))
         {
-            //Serial.println("Poll: " + String(lteShieldRXBuffer));
+            //Serial.println("Poll: " + String(saraRXBuffer));
         }
         else
         {
@@ -457,7 +464,11 @@ String SARA_R5::clock(void)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
         return "";
+    }
 
     // Response format: \r\n+CCLK: "YY/MM/DD,HH:MM:SS-TZ"\r\n\r\nOK\r\n
     clockBegin = strchr(response, '\"'); // Find first quote
@@ -525,6 +536,8 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
         }
     }
 
+    free(command);
+    free(response);
     return err;
 }
 
@@ -540,6 +553,7 @@ SARA_R5_error_t SARA_R5::autoTimeZone(boolean enable)
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
     return err;
 }
 
@@ -565,7 +579,11 @@ int8_t SARA_R5::rssi(void)
     err = sendCommandWithResponse(command,
                                   SARA_R5_RESPONSE_OK, response, 10000, AT_COMMAND);
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
         return -1;
+    }
 
     if (sscanf(response, "\r\n+CSQ: %d,%*d", &rssi) != 1)
     {
@@ -599,7 +617,11 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   response, SARA_R5_STANDARD_RESPONSE_TIMEOUT, AT_COMMAND);
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
         return SARA_R5_REGISTRATION_INVALID;
+    }
 
     if (sscanf(response, "\r\n+CREG: %*d,%d", &status) != 1)
     {
@@ -672,6 +694,7 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
     switch (pdpType)
     {
     case PDP_TYPE_INVALID:
+        free(command);
         return SARA_R5_ERROR_UNEXPECTED_PARAM;
         break;
     case PDP_TYPE_IP:
@@ -899,6 +922,7 @@ SARA_R5_error_t SARA_R5::registerOperator(struct operator_stats oper)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
                                   180000);
 
+    free(command);
     return err;
 }
 
@@ -977,6 +1001,7 @@ SARA_R5_error_t SARA_R5::deregisterOperator(void)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
+    free(command);
     return err;
 }
 
@@ -1034,13 +1059,14 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
 
         err = sendCommandWithResponse(messageCStr, SARA_R5_RESPONSE_OK,
                                       NULL, 180000, NOT_AT_COMMAND);
+
+        free(messageCStr);
     }
     else
     {
+        free(numberCStr);
         err = SARA_R5_ERROR_OUT_OF_MEMORY;
     }
-
-    free(messageCStr);
 
     return err;
 }
@@ -1131,12 +1157,13 @@ SARA_R5::SARA_R5_gpio_mode_t SARA_R5::getGpioMode(SARA_R5_gpio_t gpio)
 
     sprintf(gpioChar, "%d", gpio);          // Convert GPIO to char array
     gpioStart = strstr(response, gpioChar); // Find first occurence of GPIO in response
-    if (gpioStart == NULL)
-        return GPIO_MODE_INVALID; // If not found return invalid
-    sscanf(gpioStart, "%*d,%d\r\n", &gpioMode);
 
     free(command);
     free(response);
+
+    if (gpioStart == NULL)
+        return GPIO_MODE_INVALID; // If not found return invalid
+    sscanf(gpioStart, "%*d,%d\r\n", &gpioMode);
 
     return (SARA_R5_gpio_mode_t)gpioMode;
 }
@@ -1318,17 +1345,17 @@ IPAddress SARA_R5::lastRemoteIP(void)
     return _lastRemoteIP;
 }
 
-boolean SARA_R5::gpsOn(void)
+boolean SARA_R5::isGPSon(void)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
     boolean on = false;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_GPS_POWER) + 2);
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 2);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s?", SARA_R5_GPS_POWER);
+    sprintf(command, "%s?", SARA_R5_GNSS_POWER);
 
     response = sara_r5_calloc_char(24);
     if (response == NULL)
@@ -1343,9 +1370,14 @@ boolean SARA_R5::gpsOn(void)
     if (err == SARA_R5_ERROR_SUCCESS)
     {
         // Example response: "+UGPS: 0" for off "+UGPS: 1,0,1" for on
-        // May be too lazy/simple, but just search for a '1'
-        if (strchr(response, '1') != NULL)
+        // Search for a ':' followed by a '1' or ' 1'
+        char * pch1 = strchr(response, ':');
+        if (pch1 != NULL)
+        {
+          char * pch2 = strchr(response, '1');
+          if ((pch2 != NULL) && ((pch2 == pch1 + 1) || (pch2 == pch1 + 2)))
             on = true;
+        }
     }
 
     free(command);
@@ -1354,29 +1386,30 @@ boolean SARA_R5::gpsOn(void)
     return on;
 }
 
-SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys)
+SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_aiding_mode_t gnss_aiding)
 {
     SARA_R5_error_t err;
     char *command;
     boolean gpsState;
 
     // Don't turn GPS on/off if it's already on/off
-    gpsState = gpsOn();
+    gpsState = isGPSon();
     if ((enable && gpsState) || (!enable && !gpsState))
     {
         return SARA_R5_ERROR_SUCCESS;
     }
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_GPS_POWER) + 8);
+    // GPS power management
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 10); // gnss_sys could be up to three digits
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (enable)
     {
-        sprintf(command, "%s=1,0,%d", SARA_R5_GPS_POWER, gnss_sys);
+        sprintf(command, "%s=1,%d,%d", SARA_R5_GNSS_POWER, gnss_aiding, gnss_sys);
     }
     else
     {
-        sprintf(command, "%s=0", SARA_R5_GPS_POWER);
+        sprintf(command, "%s=0", SARA_R5_GNSS_POWER);
     }
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
@@ -1447,7 +1480,7 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
     SARA_R5_error_t err;
     char *command;
 
-    if (!gpsOn())
+    if (!isGPSon())
     {
         err = gpsPower(true);
         if (err != SARA_R5_ERROR_SUCCESS)
@@ -1456,10 +1489,10 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
         }
     }
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_GPS_GPRMC) + 3);
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_GPRMC) + 3);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=%d", SARA_R5_GPS_GPRMC, enable ? 1 : 0);
+    sprintf(command, "%s=%d", SARA_R5_GNSS_GPRMC, enable ? 1 : 0);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
 
@@ -1475,10 +1508,10 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
     char *response;
     char *rmcBegin;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_GPS_GPRMC) + 2);
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_GPRMC) + 2);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s?", SARA_R5_GPS_GPRMC);
+    sprintf(command, "%s?", SARA_R5_GNSS_GPRMC);
 
     response = sara_r5_calloc_char(96);
     if (response == NULL)
@@ -1529,7 +1562,7 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     char *command;
 
     // This function will only work if the GPS module is initially turned off.
-    if (gpsOn())
+    if (isGPSon())
     {
         gpsPower(false);
     }
@@ -1539,10 +1572,10 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     if (accuracy > 999999)
         accuracy = 999999;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_GPS_REQUEST_LOCATION) + 24);
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_LOCATION) + 24);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=2,3,%d,%d,%d", SARA_R5_GPS_REQUEST_LOCATION,
+    sprintf(command, "%s=2,3,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
             detailed ? 1 : 0, timeout, accuracy);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
@@ -1642,7 +1675,6 @@ SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno)
 {
     SARA_R5_error_t err;
     char *command;
-    char *response;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_MNO) + 3);
     if (command == NULL)
@@ -1653,7 +1685,6 @@ SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno)
                                   NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
     free(command);
-    free(response);
 
     return err;
 }
@@ -1681,12 +1712,18 @@ SARA_R5_error_t SARA_R5::getMno(mobile_network_operator_t *mno)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
         return err;
+    }
 
     i = strcspn(response, mno_keys); // Find first occurence of MNO key
     if (i == strlen(response))
     {
         *mno = MNO_INVALID;
+        free(command);
+        free(response);
         return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
     *mno = (mobile_network_operator_t)(response[i] - 0x30); // Convert to integer
@@ -1846,7 +1883,10 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
 
     err = socketRead(socket, length, readDest);
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(readDest);
         return err;
+    }
 
     if (_socketReadCallback != NULL)
     {
@@ -2100,8 +2140,9 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     // Next comma should be present and not the next position
     if ((search != NULL) && (search != ptr))
     {
-        pos->utc = atof(tempData);
-        tTemp = pos->utc;
+        pos->utc = atof(tempData); // Extract hhmmss.ss as float
+        tTemp = pos->utc; // Convert to unsigned long (discard the digits beyond the decimal point)
+        clk->time.ms = ((unsigned int)(pos->utc * 100)) % 100; // Extract the milliseconds
         clk->time.hour = tTemp / 10000;
         tTemp -= ((unsigned long)clk->time.hour * 10000);
         clk->time.minute = tTemp / 100;
@@ -2119,7 +2160,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
 
     // Find status character:
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
-    // Should be a single character
+    // Should be a single character: V = Data invalid, A = Data valid
     if ((search != NULL) && (search == ptr + 1))
     {
         pos->status = *ptr; // Assign char at ptr to status
@@ -2134,7 +2175,11 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search != ptr))
     {
-        pos->lat = atof(tempData);
+        pos->lat = atof(tempData); // Extract ddmm.mmmmm as float
+        unsigned long lat_deg = pos->lat / 100; // Extract the degrees
+        pos->lat -= (float)lat_deg * 60.0; // Subtract the degrees leaving only the minutes
+        pos->lat /= 60.0; // Convert minutes into degrees
+        pos->lat += (float)lat_deg; // Finally add the degrees back on again
     }
     else
     {
@@ -2145,11 +2190,8 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
     {
-        pos->latDir = *ptr; // Assign char at ptr to status
-    }
-    else
-    {
-        pos->latDir = 'X';
+        if (*ptr == 'S') // Is the latitude South
+        pos->lat *= -1.0; // Make lat negative
     }
     ptr = search + 1;
 
@@ -2157,7 +2199,11 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search != ptr))
     {
-        pos->lon = atof(tempData);
+      pos->lon = atof(tempData); // Extract dddmm.mmmmm as float
+      unsigned long lon_deg = pos->lon / 100; // Extract the degrees
+      pos->lon -= (float)lon_deg * 60.0; // Subtract the degrees leaving only the minutes
+      pos->lon /= 60.0; // Convert minutes into degrees
+      pos->lon += (float)lon_deg; // Finally add the degrees back on again
     }
     else
     {
@@ -2168,11 +2214,8 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
     {
-        pos->lonDir = *ptr; // Assign char at ptr to status
-    }
-    else
-    {
-        pos->lonDir = 'X';
+        if (*ptr == 'W') // Is the longitude West
+        pos->lon *= -1.0; // Make lon negative
     }
     ptr = search + 1;
 
@@ -2180,22 +2223,23 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search != ptr))
     {
-        spd->speed = atof(tempData);
+        spd->speed = atof(tempData); // Extract speed over ground in knots
+        spd->speed *= 0.514444; // Convert to m/s
     }
     else
     {
         spd->speed = 0.0;
     }
     ptr = search + 1;
-    // Find track
+    // Find course over ground
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search != ptr))
     {
-        spd->track = atof(tempData);
+        spd->cog = atof(tempData);
     }
     else
     {
-        spd->track = 0.0;
+        spd->cog = 0.0;
     }
     ptr = search + 1;
 
@@ -2233,15 +2277,14 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
     {
-        spd->magVarDir = *ptr; // Assign char at ptr to status
-    }
-    else
-    {
-        spd->magVarDir = 'X';
+        if (*ptr == 'W') // Is the magnetic variation West
+        spd->magVar *= -1.0; // Make magnetic variation negative
     }
     ptr = search + 1;
 
     // Find position system mode
+    // Possible values for posMode: N = No fix, E = Estimated/Dead reckoning fix, A = Autonomous GNSS fix,
+    //                              D = Differential GNSS fix, F = RTK float, R = RTK fixed
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, '*');
     if ((search != NULL) && (search = ptr + 1))
     {

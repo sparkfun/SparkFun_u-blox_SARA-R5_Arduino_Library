@@ -115,10 +115,8 @@ struct ClockData
 struct PositionData
 {
     float utc;
-    float lat;
-    char latDir;
-    float lon;
-    char lonDir;
+    float lat; // Degrees: +/- 90
+    float lon; // Degrees: +/- 180
     float alt;
     char mode;
     char status;
@@ -126,10 +124,9 @@ struct PositionData
 
 struct SpeedData
 {
-    float speed;
-    float track;
-    float magVar;
-    char magVarDir;
+    float speed; // m/s
+    float cog; // Degrees
+    float magVar; // Degrees
 };
 
 struct operator_stats
@@ -157,7 +154,7 @@ class SARA_R5 : public Print
 {
 public:
     //  Constructor
-    SARA_R5(uint8_t powerPin = SARA_R5_POWER_PIN, uint8_t resetPin = SARA_R5_RESET_PIN);
+    SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN);
 
     // Begin -- initialize BT module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -303,9 +300,18 @@ public:
         GNSS_SYSTEM_QZSS = 32,
         GNSS_SYSTEM_GLONASS = 64
     } gnss_system_t;
-    boolean gpsOn(void);
+    typedef enum
+    {
+        GNSS_AIDING_MODE_NONE = 0,
+        GNSS_AIDING_MODE_AUTOMATIC = 1,
+        GNSS_AIDING_MODE_ASSISTNOW_OFFLINE = 2,
+        GNSS_AIDING_MODE_ASSISTNOW_ONLINE = 4,
+        GNSS_AIDING_MODE_ASSISTNOW_AUTONOMOUS = 8
+    } gnss_aiding_mode_t;
+    boolean isGPSon(void);
     SARA_R5_error_t gpsPower(boolean enable = true,
-                                gnss_system_t gnss_sys = GNSS_SYSTEM_GPS);
+                                gnss_system_t gnss_sys = GNSS_SYSTEM_GPS,
+                                gnss_aiding_mode_t gnss_aiding = GNSS_AIDING_MODE_AUTOMATIC);
     SARA_R5_error_t gpsEnableClock(boolean enable = true);
     SARA_R5_error_t gpsGetClock(struct ClockData *clock);
     SARA_R5_error_t gpsEnableFix(boolean enable = true);
@@ -330,8 +336,8 @@ private:
     SoftwareSerial *_softSerial;
 #endif
 
-    uint8_t _powerPin;
-    uint8_t _resetPin;
+    int _powerPin;
+    int _resetPin;
     unsigned long _baud;
     IPAddress _lastRemoteIP;
     IPAddress _lastLocalIP;
