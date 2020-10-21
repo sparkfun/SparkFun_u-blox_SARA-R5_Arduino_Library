@@ -843,8 +843,18 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
         return SARA_R5_ERROR_UNEXPECTED_PARAM;
         break;
     }
-    sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MESSAGE_PDP_DEF,
+    if (apn == NULL)
+    {
+      if (_printDebug == true) _debugPort->println("APN: NULL");
+      sprintf(command, "%s=%d,\"%s\",\"\"", SARA_R5_MESSAGE_PDP_DEF,
+            cid, pdpStr);
+    }
+    else
+    {
+      if (_printDebug == true) _debugPort->println("APN: " + ((String)apn));
+      sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MESSAGE_PDP_DEF,
             cid, pdpStr, apn.c_str());
+    }
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);

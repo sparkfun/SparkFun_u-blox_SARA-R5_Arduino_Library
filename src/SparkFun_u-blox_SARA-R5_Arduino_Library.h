@@ -48,16 +48,31 @@
 #define SARA_R5_POWER_PIN -1
 #define SARA_R5_RESET_PIN -1
 
+// The standard Europe profile should be used as the basis for all other MNOs in Europe outside of Vodafone
+// and Deutsche Telekom. However, there may be changes that need to be applied to the module for proper
+// operation with any given European MNO such as attach type, RAT preference, band selection, etc. Please
+// consult with the preferred network provider.
 typedef enum
 {
     MNO_INVALID = -1,
     MNO_SW_DEFAULT = 0,
-    MNO_SIM_ICCD = 1,
-    MNO_ATT = 2,
+    MNO_SIM_ICCID = 1,
+    MNO_ATT = 2,        // AT&T
     MNO_VERIZON = 3,
     MNO_TELSTRA = 4,
-    MNO_TMO = 5,
-    MNO_CT = 6
+    MNO_TMO = 5,        // T-Mobile US
+    MNO_CT = 6,         // China Telecom
+    MNO_SPRINT = 8,
+    MNO_VODAFONE = 19,
+    MNO_NTT_DOCOMO = 20,
+    MNO_TELUS = 21,
+    MNO_SOFTBANK = 28,
+    MNO_DT = 31,        // Deutsche Telekom
+    MNO_US_CELLULAR = 32,
+    MNO_SKT = 39,
+    MNO_GLOBAL = 90,
+    MNO_STD_EUROPE = 100,
+    MNO_STD_EU_NOEPCO = 101
 } mobile_network_operator_t;
 
 typedef enum
