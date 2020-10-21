@@ -840,7 +840,7 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
         break;
     default:
         free(command);
-        return LTE_SHIELD_ERROR_UNEXPECTED_PARAM;
+        return SARA_R5_ERROR_UNEXPECTED_PARAM;
         break;
     }
     sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MESSAGE_PDP_DEF,
@@ -2162,7 +2162,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 		if (hwAvailable())
     {
 			char c = readChar();
-      if (_printDebug == true) _debugPort->print((String)c));
+      if (_printDebug == true) _debugPort->print((String)c);
 			if (responseDest != NULL)
       {
 				responseDest[destIndex++] = c;
