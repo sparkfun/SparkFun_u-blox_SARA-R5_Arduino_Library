@@ -107,7 +107,7 @@ char saraResponseBacklog[RXBuffSize];
 
 static boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
 
-SARA_R5::SARA_R5(int powerPin, int resetPin)
+SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
 {
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
     _softSerial = NULL;
@@ -116,6 +116,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin)
     _baud = 0;
     _resetPin = resetPin;
     _powerPin = powerPin;
+    _maxInitDepth = maxInitDepth;
     _socketReadCallback = NULL;
     _socketCloseCallback = NULL;
     _lastRemoteIP = {0, 0, 0, 0};
@@ -1885,10 +1886,21 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 {
     SARA_R5_error_t err;
 
+    //If we have recursively called init too many times, bail
+    _currentInitDepth++;
+    if (_currentInitDepth == _maxInitDepth)
+    {
+        if (_printDebug == true) _debugPort->println(F("Module failed to init. Exiting."));
+        return (SARA_R5_ERROR_NO_RESPONSE);
+    }
+
+    if (_printDebug == true) _debugPort->println(F("Begin module init."));
+
     beginSerial(baud); // Begin serial
 
     if (initType == SARA_R5_INIT_AUTOBAUD)
     {
+        if (_printDebug == true) _debugPort->println(F("Attempting autobaud connection to module."));
         if (autobaud(baud) != SARA_R5_ERROR_SUCCESS)
         {
             return init(baud, SARA_R5_INIT_RESET);
@@ -1896,7 +1908,9 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     }
     else if (initType == SARA_R5_INIT_RESET)
     {
+        if (_printDebug == true) _debugPort->println(F("Power cycling module."));
         powerOn();
+        delay(1000);
         if (at() != SARA_R5_ERROR_SUCCESS)
         {
             return init(baud, SARA_R5_INIT_AUTOBAUD);
@@ -1907,7 +1921,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     err = enableEcho(false);
 
     if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        if (_printDebug == true) _debugPort->println(F("Module failed echo test."));
         return init(baud, SARA_R5_INIT_AUTOBAUD);
+    }
+
+    if (_printDebug == true) _debugPort->println(F("Module responded successfully."));
 
     _baud = baud;
     setGpioMode(GPIO1, NETWORK_STATUS);
@@ -1931,6 +1950,8 @@ void SARA_R5::powerOn(void)
     digitalWrite(_powerPin, LOW);
     delay(SARA_R5_POWER_PULSE_PERIOD);
     pinMode(_powerPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
+    delay(2000);               //Wait before sending AT commands to module. 100 is too short.
+    if (_printDebug == true) _debugPort->println(F("Power cycle complete."));
   }
 }
 
@@ -2136,6 +2157,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 		if (hwAvailable())
     {
 			char c = readChar();
+      if (_printDebug == true) _debugPort->print((String)c));
 			if (responseDest != NULL)
       {
 				responseDest[destIndex++] = c;

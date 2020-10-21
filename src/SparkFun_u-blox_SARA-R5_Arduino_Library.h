@@ -155,7 +155,7 @@ class SARA_R5 : public Print
 {
 public:
     //  Constructor
-    SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN);
+    SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitDepth = 9);
 
     // Begin -- initialize BT module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -354,6 +354,8 @@ private:
     unsigned long _baud;
     IPAddress _lastRemoteIP;
     IPAddress _lastLocalIP;
+    uint8_t _maxInitDepth;
+    uint8_t _currentInitDepth = 0;
 
     void (*_socketReadCallback)(int, String);
     void (*_socketCloseCallback)(int);
