@@ -24,6 +24,7 @@ SARA_R5_message_format_t	KEYWORD1
 #######################################
 
 begin	KEYWORD2
+enableDebugging	KEYWORD2
 day	KEYWORD2
 month	KEYWORD2
 year	KEYWORD2

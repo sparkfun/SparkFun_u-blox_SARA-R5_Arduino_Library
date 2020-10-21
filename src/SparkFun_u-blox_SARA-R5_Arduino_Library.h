@@ -69,7 +69,8 @@ typedef enum
     SARA_R5_ERROR_UNEXPECTED_PARAM,    // 3
     SARA_R5_ERROR_UNEXPECTED_RESPONSE, // 4
     SARA_R5_ERROR_NO_RESPONSE,         // 5
-    SARA_R5_ERROR_DEREGISTERED         // 6
+    SARA_R5_ERROR_DEREGISTERED,        // 6
+	  SARA_R5_ERROR_ERROR				         // 7
 } SARA_R5_error_t;
 #define SARA_R5_SUCCESS SARA_R5_ERROR_SUCCESS
 
@@ -162,7 +163,12 @@ public:
 #endif
     boolean begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
 
+    // Debug prints
+    void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
+
     // Loop polling and polling setup
+    boolean bufferedPoll(void);
+	  boolean processReadEvent(char* event);
     boolean poll(void);
     void setSocketReadCallback(void (*socketReadCallback)(int, String));
     void setSocketCloseCallback(void (*socketCloseCallback)(int));
@@ -285,8 +291,12 @@ public:
     SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
     SARA_R5_error_t socketWrite(int socket, const char *str);
     SARA_R5_error_t socketWrite(int socket, String str);
+    SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
+	  SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
     SARA_R5_error_t socketRead(int socket, int length, char *readDest);
+    SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest);
     SARA_R5_error_t socketListen(int socket, unsigned int port);
+    int socketGetLastError();
     IPAddress lastRemoteIP(void);
 
     // GPS
@@ -336,6 +346,9 @@ private:
     SoftwareSerial *_softSerial;
 #endif
 
+    Stream *_debugPort;			 //The stream to send debug messages to if enabled. Usually Serial.
+    boolean _printDebug = false; //Flag to print debugging variables
+
     int _powerPin;
     int _resetPin;
     unsigned long _baud;
@@ -373,21 +386,23 @@ private:
     SARA_R5_error_t getMno(mobile_network_operator_t *mno);
 
     // Wait for an expected response (don't send a command)
-    SARA_R5_error_t waitForResponse(const char *expectedResponse, uint16_t timeout);
+    SARA_R5_error_t waitForResponse(const char *expectedResponse, const char *expectedError, uint16_t timeout);
 
     // Send command with an expected (potentially partial) response, store entire response
     SARA_R5_error_t sendCommandWithResponse(const char *command, const char *expectedResponse,
                                                char *responseDest, unsigned long commandTimeout, boolean at = true);
 
     // Send a command -- prepend AT if at is true
-    boolean sendCommand(const char *command, boolean at);
+    int sendCommand(const char *command, boolean at);
 
     SARA_R5_error_t parseSocketReadIndication(int socket, int length);
-    SARA_R5_error_t parseSocketListenIndication(IPAddress localIP, IPAddress remoteIP);
+    SARA_R5_error_t parseSocketReadIndicationUDP(int socket, int length);
+	  SARA_R5_error_t parseSocketListenIndication(IPAddress localIP, IPAddress remoteIP);
     SARA_R5_error_t parseSocketCloseIndication(String *closeIndication);
 
     // UART Functions
     size_t hwPrint(const char *s);
+    size_t hwWriteData(const char* buff, int len);
     size_t hwWrite(const char c);
     int readAvailable(char *inString);
     char readChar(void);
@@ -399,6 +414,8 @@ private:
     SARA_R5_error_t autobaud(unsigned long desiredBaud);
 
     char *sara_r5_calloc_char(size_t num);
+
+    void pruneBacklog(void);
 };
 
 #endif //SPARKFUN_SARA_R5_ARDUINO_LIBRARY_H
