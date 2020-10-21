@@ -484,7 +484,7 @@ SARA_R5_error_t SARA_R5::enableEcho(boolean enable)
 String SARA_R5::imei(void)
 {
     char *response;
-    char imeiResponse[16];
+    char imeiResponse[16] = { 0x00 };
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(imeiResponse) + 16);
@@ -506,7 +506,7 @@ String SARA_R5::imei(void)
 String SARA_R5::imsi(void)
 {
     char *response;
-    char imsiResponse[16];
+    char imsiResponse[16] = { 0x00 };
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(imsiResponse) + 16);
@@ -527,7 +527,7 @@ String SARA_R5::imsi(void)
 String SARA_R5::ccid(void)
 {
     char *response;
-    char ccidResponse[21];
+    char ccidResponse[21] = { 0x00 };
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(ccidResponse) + 16);
@@ -662,6 +662,7 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
             *s = is;
             *tz = itz;
         }
+        else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
     free(command);
@@ -836,6 +837,10 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
         break;
     case PDP_TYPE_IPV6:
         memcpy(pdpStr, "IPV6", 2);
+        break;
+    default:
+        free(command);
+        return LTE_SHIELD_ERROR_UNEXPECTED_PARAM;
         break;
     }
     sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MESSAGE_PDP_DEF,
