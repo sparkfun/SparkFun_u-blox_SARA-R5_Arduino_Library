@@ -481,13 +481,55 @@ SARA_R5_error_t SARA_R5::enableEcho(boolean enable)
     return err;
 }
 
+String SARA_R5::manufacturerID(void)
+{
+    char *response;
+    char idResponse[16] = { 0x00 };
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_MANU_ID,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+        {
+            memset(idResponse, 0, 16);
+        }
+    }
+    free(response);
+    return String(idResponse);
+}
+
+String SARA_R5::modelID(void)
+{
+    char *response;
+    char idResponse[16] = { 0x00 };
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_MODEL_ID,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+        {
+            memset(idResponse, 0, 16);
+        }
+    }
+    free(response);
+    return String(idResponse);
+}
+
 String SARA_R5::imei(void)
 {
     char *response;
     char imeiResponse[16] = { 0x00 };
     SARA_R5_error_t err;
 
-    response = sara_r5_calloc_char(sizeof(imeiResponse) + 16);
+    response = sara_r5_calloc_char(sizeof(imeiResponse) + 16); // E.g. 004999010640000
 
     err = sendCommandWithResponse(SARA_R5_COMMAND_IMEI,
                                   SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -500,7 +542,6 @@ String SARA_R5::imei(void)
     }
     free(response);
     return String(imeiResponse);
-    ;
 }
 
 String SARA_R5::imsi(void)

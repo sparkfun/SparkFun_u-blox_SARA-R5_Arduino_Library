@@ -198,6 +198,8 @@ public:
     // General AT Commands
     SARA_R5_error_t at(void);
     SARA_R5_error_t enableEcho(boolean enable = true);
+    String manufacturerID(void);
+    String modelID(void);
     String imei(void);
     String imsi(void);
     String ccid(void);
