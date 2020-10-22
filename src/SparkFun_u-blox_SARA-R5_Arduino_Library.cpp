@@ -16,95 +16,6 @@
 
 #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>
 
-#define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
-#define SARA_R5_SET_BAUD_TIMEOUT 500
-#define SARA_R5_POWER_PULSE_PERIOD 3200
-#define SARA_R5_RESET_PULSE_PERIOD 10000
-#define SARA_R5_IP_CONNECT_TIMEOUT 60000
-#define SARA_R5_POLL_DELAY 1
-#define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
-
-// ## Suported AT Commands
-// ### General
-const char SARA_R5_COMMAND_AT[] = "AT";      // AT "Test"
-const char SARA_R5_COMMAND_ECHO[] = "E";     // Local Echo
-const char SARA_R5_COMMAND_MANU_ID[] = "+CGMI"; // Manufacturer identification
-const char SARA_R5_COMMAND_MODEL_ID[] = "+CGMM"; // Model identification
-const char SARA_R5_COMMAND_FW_VER_ID[] = "+CGMR"; // Firmware version identification
-const char SARA_R5_COMMAND_IMEI[] = "+CGSN"; // IMEI identification
-const char SARA_R5_COMMAND_IMSI[] = "+CIMI"; // IMSI identification
-const char SARA_R5_COMMAND_CCID[] = "+CCID"; // SIM CCID
-const char SARA_R5_COMMAND_REQ_CAP[] = "+GCAP"; // Request capabilities list
-// ### Control and status
-const char SARA_R5_COMMAND_POWER_OFF[] = "+CPWROFF"; // Module switch off
-const char SARA_R5_COMMAND_FUNC[] = "+CFUN";    // Functionality (reset, etc.)
-const char SARA_R5_COMMAND_CLOCK[] = "+CCLK";   // Real-time clock
-const char SARA_R5_COMMAND_AUTO_TZ[] = "+CTZU"; // Automatic time zone update
-const char SARA_R5_COMMAND_TZ_REPORT[] = "+CTZR"; // Time zone reporting
-// ### Network service
-const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
-const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
-const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
-const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
-const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
-const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
-// ### SMS
-const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
-const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
-// V24 control and V25ter (UART interface)
-const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
-// ### Packet switched data services
-const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT";
-const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
-// ### GPIO
-const char SARA_R5_COMMAND_GPIO[] = "+UGPIOC"; // GPIO Configuration
-// ### IP
-const char SARA_R5_CREATE_SOCKET[] = "+USOCR";  // Create a new socket
-const char SARA_R5_CLOSE_SOCKET[] = "+USOCL";   // Close a socket
-const char SARA_R5_CONNECT_SOCKET[] = "+USOCO"; // Connect to server on socket
-const char SARA_R5_WRITE_SOCKET[] = "+USOWR";   // Write data to a socket
-const char SARA_R5_WRITE_UDP_SOCKET[] = "+USOST"; // Write data to a UDP socket
-const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
-const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket.
-const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
-const char SARA_R5_GET_ERROR[] = "+USOER"; // Get last socket error.
-// ### GNSS
-const char SARA_R5_GNSS_POWER[] = "+UGPS"; // GNSS power management configuration
-const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND"; // Assisted GNSS unsolicited indication
-const char SARA_R5_GNSS_REQUEST_LOCATION[] = "+ULOC"; // Ask for localization information
-const char SARA_R5_GNSS_GPRMC[] = "+UGRMC"; // Ask for localization information
-const char SARA_R5_GNSS_REQUEST_TIME[] = "+UTIME"; // Ask for time information from cellular modem (CellTime)
-const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
-const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
-
-const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
-const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
-
-// CTRL+Z and ESC ASCII codes for SMS message sends
-const char ASCII_CTRL_Z = 0x1A;
-const char ASCII_ESC = 0x1B;
-
-#define NOT_AT_COMMAND false
-#define AT_COMMAND true
-
-#define SARA_R5_NUM_SOCKETS 6
-
-#define NUM_SUPPORTED_BAUD 6
-const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
-    {
-        115200,
-        9600,
-        19200,
-        38400,
-        57600,
-        230400};
-#define SARA_R5_DEFAULT_BAUD_RATE 115200
-
-const int RXBuffSize = 2056;
-const int rxWindowUS = 1000;
-char saraRXBuffer[RXBuffSize];
-char saraResponseBacklog[RXBuffSize];
-
 static boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
 
 SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
@@ -481,10 +392,10 @@ SARA_R5_error_t SARA_R5::enableEcho(boolean enable)
     return err;
 }
 
-String SARA_R5::manufacturerID(void)
+String SARA_R5::getManufacturerID(void)
 {
     char *response;
-    char idResponse[16] = { 0x00 };
+    char idResponse[16] = { 0x00 }; // E.g. u-blox
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(idResponse) + 16);
@@ -502,10 +413,10 @@ String SARA_R5::manufacturerID(void)
     return String(idResponse);
 }
 
-String SARA_R5::modelID(void)
+String SARA_R5::getModelID(void)
 {
     char *response;
-    char idResponse[16] = { 0x00 };
+    char idResponse[16] = { 0x00 }; // E.g. SARA-R510M8Q
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(idResponse) + 16);
@@ -523,13 +434,55 @@ String SARA_R5::modelID(void)
     return String(idResponse);
 }
 
-String SARA_R5::imei(void)
+String SARA_R5::getFirmwareVersion(void)
 {
     char *response;
-    char imeiResponse[16] = { 0x00 };
+    char idResponse[16] = { 0x00 }; // E.g. 11.40
     SARA_R5_error_t err;
 
-    response = sara_r5_calloc_char(sizeof(imeiResponse) + 16); // E.g. 004999010640000
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_FW_VER_ID,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+        {
+            memset(idResponse, 0, 16);
+        }
+    }
+    free(response);
+    return String(idResponse);
+}
+
+String SARA_R5::getSerialNo(void)
+{
+    char *response;
+    char idResponse[16] = { 0x00 }; // E.g. 357520070120767
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_SERIAL_NO,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+        {
+            memset(idResponse, 0, 16);
+        }
+    }
+    free(response);
+    return String(idResponse);
+}
+
+String SARA_R5::getIMEI(void)
+{
+    char *response;
+    char imeiResponse[16] = { 0x00 }; // E.g. 004999010640000
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(imeiResponse) + 16);
 
     err = sendCommandWithResponse(SARA_R5_COMMAND_IMEI,
                                   SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -544,10 +497,10 @@ String SARA_R5::imei(void)
     return String(imeiResponse);
 }
 
-String SARA_R5::imsi(void)
+String SARA_R5::getIMSI(void)
 {
     char *response;
-    char imsiResponse[16] = { 0x00 };
+    char imsiResponse[16] = { 0x00 }; // E.g. 222107701772423
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(imsiResponse) + 16);
@@ -565,10 +518,10 @@ String SARA_R5::imsi(void)
     return String(imsiResponse);
 }
 
-String SARA_R5::ccid(void)
+String SARA_R5::getCCID(void)
 {
     char *response;
-    char ccidResponse[21] = { 0x00 };
+    char ccidResponse[21] = { 0x00 }; // E.g. +CCID: 8939107900010087330
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(ccidResponse) + 16);
@@ -584,6 +537,48 @@ String SARA_R5::ccid(void)
     }
     free(response);
     return String(ccidResponse);
+}
+
+String SARA_R5::getSubscriberNo(void)
+{
+    char *response;
+    char idResponse[21] = { 0x00 };
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_CNUM,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n+CCID: %s", idResponse) != 1)
+        {
+            memset(idResponse, 0, 21);
+        }
+    }
+    free(response);
+    return String(idResponse);
+}
+
+String SARA_R5::getCapabilities(void)
+{
+    char *response;
+    char idResponse[128] = { 0x00 }; // E.g. +GCAP: +FCLASS, +CGSM
+    SARA_R5_error_t err;
+
+    response = sara_r5_calloc_char(sizeof(idResponse) + 16);
+
+    err = sendCommandWithResponse(SARA_R5_COMMAND_REQ_CAP,
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+        if (sscanf(response, "\r\n+GCAP: %s", idResponse) != 1)
+        {
+            memset(idResponse, 0, 128);
+        }
+    }
+    free(response);
+    return String(idResponse);
 }
 
 SARA_R5_error_t SARA_R5::reset(void)

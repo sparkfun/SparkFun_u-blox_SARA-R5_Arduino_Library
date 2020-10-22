@@ -45,8 +45,95 @@
 
 #include <IPAddress.h>
 
-#define SARA_R5_POWER_PIN -1
+#define SARA_R5_POWER_PIN -1 // Default to no pin
 #define SARA_R5_RESET_PIN -1
+
+// Timing
+#define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
+#define SARA_R5_SET_BAUD_TIMEOUT 500
+#define SARA_R5_POWER_PULSE_PERIOD 3200
+#define SARA_R5_RESET_PULSE_PERIOD 10000
+#define SARA_R5_IP_CONNECT_TIMEOUT 60000
+#define SARA_R5_POLL_DELAY 1
+#define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
+
+// ## Suported AT Commands
+// ### General
+const char SARA_R5_COMMAND_AT[] = "AT";      // AT "Test"
+const char SARA_R5_COMMAND_ECHO[] = "E";     // Local Echo
+const char SARA_R5_COMMAND_MANU_ID[] = "+CGMI"; // Manufacturer identification
+const char SARA_R5_COMMAND_MODEL_ID[] = "+CGMM"; // Model identification
+const char SARA_R5_COMMAND_FW_VER_ID[] = "+CGMR"; // Firmware version identification
+const char SARA_R5_COMMAND_SERIAL_NO[] = "+CGSN"; // Product serial number
+const char SARA_R5_COMMAND_IMEI[] = "+CSN"; // IMEI identification
+const char SARA_R5_COMMAND_IMSI[] = "+CIMI"; // IMSI identification
+const char SARA_R5_COMMAND_CCID[] = "+CCID"; // SIM CCID
+const char SARA_R5_COMMAND_REQ_CAP[] = "+GCAP"; // Request capabilities list
+// ### Control and status
+const char SARA_R5_COMMAND_POWER_OFF[] = "+CPWROFF"; // Module switch off
+const char SARA_R5_COMMAND_FUNC[] = "+CFUN";    // Functionality (reset, etc.)
+const char SARA_R5_COMMAND_CLOCK[] = "+CCLK";   // Real-time clock
+const char SARA_R5_COMMAND_AUTO_TZ[] = "+CTZU"; // Automatic time zone update
+const char SARA_R5_COMMAND_TZ_REPORT[] = "+CTZR"; // Time zone reporting
+// ### Network service
+const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
+const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
+const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
+const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
+const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
+const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
+// ### SMS
+const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
+const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
+// V24 control and V25ter (UART interface)
+const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
+// ### Packet switched data services
+const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT";
+const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
+// ### GPIO
+const char SARA_R5_COMMAND_GPIO[] = "+UGPIOC"; // GPIO Configuration
+// ### IP
+const char SARA_R5_CREATE_SOCKET[] = "+USOCR";  // Create a new socket
+const char SARA_R5_CLOSE_SOCKET[] = "+USOCL";   // Close a socket
+const char SARA_R5_CONNECT_SOCKET[] = "+USOCO"; // Connect to server on socket
+const char SARA_R5_WRITE_SOCKET[] = "+USOWR";   // Write data to a socket
+const char SARA_R5_WRITE_UDP_SOCKET[] = "+USOST"; // Write data to a UDP socket
+const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
+const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket.
+const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
+const char SARA_R5_GET_ERROR[] = "+USOER"; // Get last socket error.
+// ### GNSS
+const char SARA_R5_GNSS_POWER[] = "+UGPS"; // GNSS power management configuration
+const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND"; // Assisted GNSS unsolicited indication
+const char SARA_R5_GNSS_REQUEST_LOCATION[] = "+ULOC"; // Ask for localization information
+const char SARA_R5_GNSS_GPRMC[] = "+UGRMC"; // Ask for localization information
+const char SARA_R5_GNSS_REQUEST_TIME[] = "+UTIME"; // Ask for time information from cellular modem (CellTime)
+const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
+const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
+// ### Response
+const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
+const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
+
+// CTRL+Z and ESC ASCII codes for SMS message sends
+const char ASCII_CTRL_Z = 0x1A;
+const char ASCII_ESC = 0x1B;
+
+#define NOT_AT_COMMAND false
+#define AT_COMMAND true
+
+#define SARA_R5_NUM_SOCKETS 6
+
+#define NUM_SUPPORTED_BAUD 6
+const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
+    {
+        115200,
+        9600,
+        19200,
+        38400,
+        57600,
+        230400};
+#define SARA_R5_DEFAULT_BAUD_RATE 115200
+
 
 // The standard Europe profile should be used as the basis for all other MNOs in Europe outside of Vodafone
 // and Deutsche Telekom. However, there may be changes that need to be applied to the module for proper
@@ -166,9 +253,16 @@ typedef enum
     SARA_R5_MESSAGE_FORMAT_TEXT = 1
 } SARA_R5_message_format_t;
 
+const int RXBuffSize = 2056;
+const int rxWindowUS = 1000;
+
 class SARA_R5 : public Print
 {
 public:
+
+    char saraRXBuffer[RXBuffSize];
+    char saraResponseBacklog[RXBuffSize];
+
     //  Constructor
     SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitDepth = 9);
 
@@ -198,11 +292,15 @@ public:
     // General AT Commands
     SARA_R5_error_t at(void);
     SARA_R5_error_t enableEcho(boolean enable = true);
-    String manufacturerID(void);
-    String modelID(void);
-    String imei(void);
-    String imsi(void);
-    String ccid(void);
+    String getManufacturerID(void);
+    String getModelID(void);
+    String getFirmwareVersion(void);
+    String getSerialNo(void);
+    String getIMEI(void);
+    String getIMSI(void);
+    String getCCID(void);
+    String getSubscriberNo(void);
+    String getCapabilities(void);
 
     // Control and status AT commands
     SARA_R5_error_t reset(void);

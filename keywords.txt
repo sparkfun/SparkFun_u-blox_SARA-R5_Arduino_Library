@@ -23,8 +23,6 @@ SARA_R5_message_format_t	KEYWORD1
 # Methods and Functions 	KEYWORD2
 #######################################
 
-begin	KEYWORD2
-enableDebugging	KEYWORD2
 day	KEYWORD2
 month	KEYWORD2
 year	KEYWORD2
@@ -54,6 +52,9 @@ longOp	KEYWORD2
 numOp	KEYWORD2
 act	KEYWORD2
 begin	KEYWORD2
+enableDebugging	KEYWORD2
+bufferedPoll
+processReadEvent
 poll	KEYWORD2
 setSocketReadCallback	KEYWORD2
 setSocketCloseCallback	KEYWORD2
@@ -61,9 +62,15 @@ setGpsReadCallback	KEYWORD2
 write	KEYWORD2
 at	KEYWORD2
 enableEcho	KEYWORD2
-imei	KEYWORD2
-imsi	KEYWORD2
-ccid	KEYWORD2
+getManufacturerID	KEYWORD2
+getModelID	KEYWORD2
+getFirmwareVersion	KEYWORD2
+getSerialNo	KEYWORD2
+getIMEI	KEYWORD2
+getIMSI	KEYWORD2
+getCCID	KEYWORD2
+getSubscriberNo	KEYWORD2
+getCapabilities	KEYWORD2
 reset	KEYWORD2
 clock	KEYWORD2
 autoTimeZone	KEYWORD2
@@ -87,16 +94,16 @@ socketOpen	KEYWORD2
 socketClose	KEYWORD2
 socketConnect	KEYWORD2
 socketWrite	KEYWORD2
-socketWrite	KEYWORD2
 socketRead	KEYWORD2
+socketReadUDP	KEYWORD2
 socketListen	KEYWORD2
-IPAddress lastRemoteIP	KEYWORD2
+socketGetLastError	KEYWORD2
+lastRemoteIP	KEYWORD2
 boolean isGPSon	KEYWORD2
 gpsPower	KEYWORD2
 gpsEnableClock	KEYWORD2
 gpsGetClock	KEYWORD2
 gpsEnableFix	KEYWORD2
-gpsGetFix	KEYWORD2
 gpsGetFix	KEYWORD2
 gpsEnablePos	KEYWORD2
 gpsGetPos	KEYWORD2
