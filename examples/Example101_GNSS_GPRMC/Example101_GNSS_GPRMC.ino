@@ -25,7 +25,17 @@
 //SoftwareSerial saraSerial(8, 9);
 
 // Create a SARA_R5 object to use throughout the sketch
+// Usually we would tell the library which GPIO pin to use to control the SARA power (see below),
+// but we can start the SARA without a power pin. It just means we need to use a finger to 
+// turn the power on manually if required! ;-D
 SARA_R5 assetTracker;
+
+// Create a SARA_R5 object to use throughout the sketch
+// We need to tell the library what GPIO pin is connected to the SARA power pin.
+// If you're using the MicroMod Asset Tracker and the MicroMod Artemis Processor Board,
+// the pin number is GPIO2 which is connected to AD34. TO DO: Check this!
+// Change the pin number if required.
+//SARA_R5 assetTracker(34);
 
 PositionData gps;
 SpeedData spd;

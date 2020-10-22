@@ -30,7 +30,10 @@
 //SoftwareSerial saraSerial(8, 9);
 
 // Create a SARA_R5 object to use throughout the sketch
-SARA_R5 assetTracker;
+// We need to tell the library what GPIO pin is connected to the SARA power pin.
+// If you're using the MicroMod Asset Tracker and the MicroMod Artemis Processor Board,
+// the pin number is GPIO2 which is connected to AD34. TO DO: Check this!
+SARA_R5 assetTracker(34);
 
 // Map registration status messages to more readable strings
 String registrationString[] =
