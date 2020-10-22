@@ -10,10 +10,12 @@
     Manufacturer identification
     Model identification
     Firmware version identification
+    Product Serial No.
     IMEI identification
     IMSI identification
     SIM CCID
-    Subscriber number  
+    Subscriber number
+    Capabilities
 
   This code is intend to run on the MicroMod Asset Tracker Carrier Board
   using (e.g.) the MicroMod Artemis Processor Board
@@ -60,7 +62,7 @@ void setup() {
   Serial.println("Product Serial No.:  " + String(assetTracker.getSerialNo()));
   Serial.println("IMEI:                " + String(assetTracker.getIMEI()));
   Serial.println("IMSI:                " + String(assetTracker.getIMSI()));
-  Serial.println("CCID:                " + String(assetTracker.getCCID()));
+  Serial.println("SIM CCID:            " + String(assetTracker.getCCID()));
   Serial.println("Subscriber No.:      " + String(assetTracker.getSubscriberNo()));
   Serial.println("Capabilities:        " + String(assetTracker.getCapabilities()));
 }

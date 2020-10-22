@@ -542,7 +542,7 @@ String SARA_R5::getCCID(void)
 String SARA_R5::getSubscriberNo(void)
 {
     char *response;
-    char idResponse[21] = { 0x00 };
+    char idResponse[128] = { 0x00 }; // E.g. +CNUM: "ABCD . AAA","123456789012",129
     SARA_R5_error_t err;
 
     response = sara_r5_calloc_char(sizeof(idResponse) + 16);
@@ -551,9 +551,9 @@ String SARA_R5::getSubscriberNo(void)
                                   SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
     if (err == SARA_R5_ERROR_SUCCESS)
     {
-        if (sscanf(response, "\r\n+CCID: %s", idResponse) != 1)
+        if (sscanf(response, "\r\n+CNUM: %s", idResponse) != 1)
         {
-            memset(idResponse, 0, 21);
+            memset(idResponse, 0, 128);
         }
     }
     free(response);

@@ -63,6 +63,7 @@ const mobile_network_operator_t MOBILE_NETWORK_OPERATOR = MNO_SIM_ICCID;
 // APN -- Access Point Name. Gateway between GPRS MNO
 // and another computer network. E.g. "hologram
 //const String APN = "hologram";
+
 // The APN can be omitted: this is the so-called "blank APN" setting that may be suggested by
 // network operators (e.g. to roaming devices); in this case the APN string is not included in
 // the message sent to the network.
