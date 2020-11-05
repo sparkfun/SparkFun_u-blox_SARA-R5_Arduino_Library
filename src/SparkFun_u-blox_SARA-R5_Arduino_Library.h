@@ -118,6 +118,9 @@ const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
 const char ASCII_CTRL_Z = 0x1A;
 const char ASCII_ESC = 0x1B;
 
+// NMEA data size - used by parseGPRMCString
+#define TEMP_NMEA_DATA_SIZE 16
+
 #define NOT_AT_COMMAND false
 #define AT_COMMAND true
 
@@ -274,6 +277,11 @@ public:
 
     // Debug prints
     void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
+
+    // Invert the polarity of the power pin - if required
+    // Normally the SARA's power pin is pulled low and released to toggle the power
+    // But the Asset Tracker needs this to be pulled high and released instead
+    void invertPowerPin(boolean invert = false);
 
     // Loop polling and polling setup
     boolean bufferedPoll(void);
@@ -466,6 +474,8 @@ private:
 
     int _powerPin;
     int _resetPin;
+    boolean _invertPowerPin = false;
+
     unsigned long _baud;
     IPAddress _lastRemoteIP;
     IPAddress _lastLocalIP;
@@ -533,6 +543,11 @@ private:
     char *sara_r5_calloc_char(size_t num);
 
     void pruneBacklog(void);
+
+    // GPS Helper functions
+    char *readDataUntil(char *destination, unsigned int destSize, char *source, char delimiter);
+    boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
+
 };
 
 #endif //SPARKFUN_SARA_R5_ARDUINO_LIBRARY_H

@@ -16,8 +16,6 @@
 
 #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>
 
-static boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
-
 SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
 {
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -27,6 +25,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
     _baud = 0;
     _resetPin = resetPin;
     _powerPin = powerPin;
+    _invertPowerPin = false;
     _maxInitDepth = maxInitDepth;
     _socketReadCallback = NULL;
     _socketCloseCallback = NULL;
@@ -1993,14 +1992,26 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     return SARA_R5_ERROR_SUCCESS;
 }
 
+void SARA_R5::invertPowerPin(boolean invert)
+{
+  _invertPowerPin = invert;
+}
+
 void SARA_R5::powerOn(void)
 {
   if (_powerPin >= 0)
   {
+    if (_invertPowerPin) // Set the pin state before making it an output
+      digitalWrite(_powerPin, HIGH);
+    else
+      digitalWrite(_powerPin, LOW);
     pinMode(_powerPin, OUTPUT);
-    digitalWrite(_powerPin, LOW);
+    if (_invertPowerPin) // Set the pin state
+      digitalWrite(_powerPin, HIGH);
+    else
+      digitalWrite(_powerPin, LOW);
     delay(SARA_R5_POWER_PULSE_PERIOD);
-    pinMode(_powerPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
+    pinMode(_powerPin, INPUT); // Return to high-impedance, rely on (e.g.) SARA module internal pull-up
     delay(2000);               //Wait before sending AT commands to module. 100 is too short.
     if (_printDebug == true) _debugPort->println(F("Power cycle complete."));
   }
@@ -2595,7 +2606,7 @@ void SARA_R5::pruneBacklog()
 // GPS Helper Functions:
 
 // Read a source string until a delimiter is hit, store the result in destination
-static char *readDataUntil(char *destination, unsigned int destSize,
+char *SARA_R5::readDataUntil(char *destination, unsigned int destSize,
                            char *source, char delimiter)
 {
 
@@ -2614,14 +2625,18 @@ static char *readDataUntil(char *destination, unsigned int destSize,
     return strEnd;
 }
 
-#define TEMP_NMEA_DATA_SIZE 16
-
-static boolean parseGPRMCString(char *rmcString, PositionData *pos,
+boolean SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
                                 ClockData *clk, SpeedData *spd)
 {
     char *ptr, *search;
     unsigned long tTemp;
     char tempData[TEMP_NMEA_DATA_SIZE];
+
+    if (_printDebug == true)
+    {
+      _debugPort->println(F("parseGPRMCString: rmcString: "));
+      _debugPort->println(rmcString);
+    }
 
     // Fast-forward test to first value:
     ptr = strchr(rmcString, ',');
@@ -2670,7 +2685,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     {
         pos->lat = atof(tempData); // Extract ddmm.mmmmm as float
         unsigned long lat_deg = pos->lat / 100; // Extract the degrees
-        pos->lat -= (float)lat_deg * 60.0; // Subtract the degrees leaving only the minutes
+        pos->lat -= (float)lat_deg * 100.0; // Subtract the degrees leaving only the minutes
         pos->lat /= 60.0; // Convert minutes into degrees
         pos->lat += (float)lat_deg; // Finally add the degrees back on again
     }
@@ -2679,6 +2694,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
         pos->lat = 0.0;
     }
     ptr = search + 1;
+
     // Find latitude hemishpere
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
@@ -2694,7 +2710,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
     {
       pos->lon = atof(tempData); // Extract dddmm.mmmmm as float
       unsigned long lon_deg = pos->lon / 100; // Extract the degrees
-      pos->lon -= (float)lon_deg * 60.0; // Subtract the degrees leaving only the minutes
+      pos->lon -= (float)lon_deg * 100.0; // Subtract the degrees leaving only the minutes
       pos->lon /= 60.0; // Convert minutes into degrees
       pos->lon += (float)lon_deg; // Finally add the degrees back on again
     }
@@ -2703,7 +2719,8 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
         pos->lon = 0.0;
     }
     ptr = search + 1;
-    // Find latitude hemishpere
+
+    // Find longitude hemishpere
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
     {
@@ -2724,6 +2741,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
         spd->speed = 0.0;
     }
     ptr = search + 1;
+
     // Find course over ground
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search != ptr))
@@ -2766,6 +2784,7 @@ static boolean parseGPRMCString(char *rmcString, PositionData *pos,
         spd->magVar = 0.0;
     }
     ptr = search + 1;
+    
     // Find magnetic variation direction
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))
