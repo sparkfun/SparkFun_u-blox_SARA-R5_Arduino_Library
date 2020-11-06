@@ -283,8 +283,24 @@ boolean SARA_R5::poll(void)
                 }
             }
         }
+        {
+            SARA_R5_sim_states_t state;
+            int scanNum;
 
-        if ((handled == false) && (strlen(saraRXBuffer) > 2))
+            if (strstr(saraRXBuffer, "+UUSIMSTAT"))
+            {
+                scanNum = sscanf(saraRXBuffer, "+UUSIMSTAT:%d", &state);
+                if (scanNum < 1)
+                    return false; // Break out if we didn't find enough
+
+                if (_simStateRequestCallback != NULL)
+                {
+                    _simStateRequestCallback(state);
+                }
+            }
+        }
+
+        if ((handled == false) && (strlen(saraRXBuffer) > 0)) // Was > 2
         {
             if (_printDebug == true) _debugPort->println("Poll: " + String(saraRXBuffer));
         }
@@ -309,6 +325,12 @@ void SARA_R5::setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
               PositionData gps, SpeedData spd, unsigned long uncertainty))
 {
     _gpsRequestCallback = gpsRequestCallback;
+}
+
+void SARA_R5::setSIMstateReadCallback(void (*simStateRequestCallback)
+              (SARA_R5_sim_states_t state))
+{
+    _simStateRequestCallback = simStateRequestCallback;
 }
 
 size_t SARA_R5::write(uint8_t c)
@@ -584,7 +606,7 @@ SARA_R5_error_t SARA_R5::reset(void)
 {
     SARA_R5_error_t err;
 
-    err = functionality(SILENT_RESET);
+    err = functionality(SILENT_RESET_WITH_SIM);
     if (err == SARA_R5_ERROR_SUCCESS)
     {
         // Reset will set the baud rate back to 115200
@@ -705,6 +727,183 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
     return err;
 }
 
+SARA_R5_error_t SARA_R5::setUtimeMode(SARA_R5_utime_mode_t mode, SARA_R5_utime_sensor_t sensor)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_TIME) + 5);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  if (mode == SARA_R5_UTIME_MODE_STOP) // stop UTIME does not require a sensor
+    sprintf(command, "%s=%d", SARA_R5_GNSS_REQUEST_TIME, mode);
+  else
+    sprintf(command, "%s=%d,%d", SARA_R5_GNSS_REQUEST_TIME, mode, sensor);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  SARA_R5_utime_mode_t m;
+  SARA_R5_utime_sensor_t s;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_TIME) + 2);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s?", SARA_R5_GNSS_REQUEST_TIME);
+
+  response = sara_r5_calloc_char(48);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  // Response format: \r\n+UTIME: <mode>[,<sensor>]\r\n\r\nOK\r\n
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+      int scanned = sscanf(response, "\r\n+UTIME: %d,%d\r\n", &m, &s);
+      if (scanned == 2)
+      {
+          *mode = m;
+          *sensor = s;
+      }
+      else if (scanned == 1)
+      {
+          *mode = m;
+          *sensor = SARA_R5_UTIME_SENSOR_NONE;
+      }
+      else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setUtimeIndication(SARA_R5_utime_urc_configuration_t config)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_INDICATION) + 3);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_GNSS_TIME_INDICATION, config);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getUtimeIndication(SARA_R5_utime_urc_configuration_t *config)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  SARA_R5_utime_urc_configuration_t c;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_INDICATION) + 2);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s?", SARA_R5_GNSS_TIME_INDICATION);
+
+  response = sara_r5_calloc_char(48);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  // Response format: \r\n+UTIMEIND: <mode>\r\n\r\nOK\r\n
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+      int scanned = sscanf(response, "\r\n+UTIMEIND: %d\r\n", &c);
+      if (scanned == 1)
+      {
+          *config = c;
+      }
+      else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setUtimeConfiguration(int32_t offsetNanoseconds, int32_t offsetSeconds)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 48);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,%d", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32_t *offsetSeconds)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  int32_t ons;
+  int32_t os;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 2);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s?", SARA_R5_GNSS_TIME_CONFIGURATION);
+
+  response = sara_r5_calloc_char(48);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  // Response format: \r\n+UTIMECFG: <offset_nano>,<offset_sec>\r\n\r\nOK\r\n
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+      int scanned = sscanf(response, "\r\n+UTIMECFG: %d,%d\r\n", &ons, &os);
+      if (scanned == 2)
+      {
+          *offsetNanoseconds = ons;
+          *offsetSeconds = os;
+      }
+      else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::autoTimeZone(boolean enable)
 {
     SARA_R5_error_t err;
@@ -796,7 +995,7 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return (SARA_R5_registration_status_t)status;
 }
 
-boolean SARA_R5::setNetwork(mobile_network_operator_t mno)
+boolean SARA_R5::setNetwork(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
 {
     mobile_network_operator_t currentMno;
 
@@ -810,12 +1009,13 @@ boolean SARA_R5::setNetwork(mobile_network_operator_t mno)
         return true;
     }
 
+    // Disable transmit and receive so we can change operator
     if (functionality(MINIMUM_FUNCTIONALITY) != SARA_R5_ERROR_SUCCESS)
     {
         return false;
     }
 
-    if (setMno(mno) != SARA_R5_ERROR_SUCCESS)
+    if (setMno(mno, autoReset, urcNotification) != SARA_R5_ERROR_SUCCESS)
     {
         return false;
     }
@@ -969,6 +1169,60 @@ SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
     return err;
 }
 
+SARA_R5_error_t SARA_R5::setSIMstateReportingMode(int mode)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SIM_STATE) + 4);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_SIM_STATE, mode);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getSIMstateReportingMode(int *mode)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  int m;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SIM_STATE) + 3);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s?", SARA_R5_SIM_STATE);
+
+  response = sara_r5_calloc_char(48);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+      int scanned = sscanf(response, "\r\n+USIMSTAT: %d\r\n", &m);
+      if (scanned == 1)
+      {
+          *mode = m;
+      }
+      else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
 const char *PPP_L2P[5] = {
     "",
     "PPP",
@@ -1022,7 +1276,7 @@ uint8_t SARA_R5::getOperators(struct operator_stats *opRet, int maxOps)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=?", SARA_R5_OPERATOR_SELECTION);
 
-    response = sara_r5_calloc_char(maxOps * 48 + 16);
+    response = sara_r5_calloc_char((maxOps + 1) * 48);
     if (response == NULL)
     {
         free(command);
@@ -1031,11 +1285,18 @@ uint8_t SARA_R5::getOperators(struct operator_stats *opRet, int maxOps)
 
     // AT+COPS maximum response time is 3 minutes (180000 ms)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
-                                  180000);
+                                  SARA_R5_3_MIN_TIMEOUT);
 
     // Sample responses:
     // +COPS: (3,"Verizon Wireless","VzW","311480",8),,(0,1,2,3,4),(0,1,2)
     // +COPS: (1,"313 100","313 100","313100",8),(2,"AT&T","AT&T","310410",8),(3,"311 480","311 480","311480",8),,(0,1,2,3,4),(0,1,2)
+
+    if (_printDebug == true)
+    {
+      _debugPort->print("getOperators: Response: {");
+      _debugPort->print(response);
+      _debugPort->println("}");
+    }
 
     if (err == SARA_R5_ERROR_SUCCESS)
     {
@@ -1098,7 +1359,7 @@ SARA_R5_error_t SARA_R5::registerOperator(struct operator_stats oper)
 
     // AT+COPS maximum response time is 3 minutes (180000 ms)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
-                                  180000);
+                                  SARA_R5_3_MIN_TIMEOUT);
 
     free(command);
     return err;
@@ -1126,7 +1387,7 @@ SARA_R5_error_t SARA_R5::getOperator(String *oper)
 
     // AT+COPS maximum response time is 3 minutes (180000 ms)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
-                                  180000);
+                                  SARA_R5_3_MIN_TIMEOUT);
 
     if (err == SARA_R5_ERROR_SUCCESS)
     {
@@ -1236,7 +1497,7 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
         messageCStr[message.length()] = ASCII_CTRL_Z;
 
         err = sendCommandWithResponse(messageCStr, SARA_R5_RESPONSE_OK,
-                                      NULL, 180000, NOT_AT_COMMAND);
+                                      NULL, SARA_R5_3_MIN_TIMEOUT, NOT_AT_COMMAND);
 
         free(messageCStr);
     }
@@ -2039,22 +2300,25 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     sprintf(command, "%s=%d", SARA_R5_COMMAND_FUNC, function);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
-                                  NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  NULL, SARA_R5_3_MIN_TIMEOUT);
 
     free(command);
 
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno)
+SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
 {
     SARA_R5_error_t err;
     char *command;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_MNO) + 3);
+    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_MNO) + 9);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=%d", SARA_R5_COMMAND_MNO, (uint8_t)mno);
+    if (mno == MNO_SIM_ICCID) // Only add autoReset and urcNotification if mno is MNO_SIM_ICCID
+      sprintf(command, "%s=%d,%d,%d", SARA_R5_COMMAND_MNO, (uint8_t)mno, (uint8_t) autoReset, (uint8_t) urcNotification);
+    else
+      sprintf(command, "%s=%d", SARA_R5_COMMAND_MNO, (uint8_t)mno);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -2069,15 +2333,18 @@ SARA_R5_error_t SARA_R5::getMno(mobile_network_operator_t *mno)
     SARA_R5_error_t err;
     char *command;
     char *response;
-    const char *mno_keys = "0123456"; // Valid MNO responses
-    int i;
+    //const char *mno_keys = "0123456"; // Valid MNO responses - out of date!
+    mobile_network_operator_t o;
+    mobile_network_operator_t d;
+    int r;
+    int u;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_MNO) + 2);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s?", SARA_R5_COMMAND_MNO);
 
-    response = sara_r5_calloc_char(24);
+    response = sara_r5_calloc_char(48);
     if (response == NULL)
     {
         free(command);
@@ -2093,15 +2360,32 @@ SARA_R5_error_t SARA_R5::getMno(mobile_network_operator_t *mno)
         return err;
     }
 
-    i = strcspn(response, mno_keys); // Find first occurence of MNO key
-    if (i == strlen(response))
+    // i = strcspn(response, mno_keys); // Find first occurence of MNO key
+    // if (i == strlen(response))
+    // {
+    //     *mno = MNO_INVALID;
+    //     free(command);
+    //     free(response);
+    //     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    // }
+    //*mno = (mobile_network_operator_t)(response[i] - 0x30); // Convert to integer
+
+    int ret = sscanf(response, "\r\n+UMNOPROF: %d,%d,%d,%d", &o, &d, &r, &u);
+		if (ret >= 1)
+		{
+			if (_printDebug == true)
+      {
+        _debugPort->print("getMno: ret is: ");
+        _debugPort->print(ret);
+        _debugPort->print(" MNO is: ");
+        _debugPort->println(o);
+      }
+      *mno = o;
+		}
+    else
     {
-        *mno = MNO_INVALID;
-        free(command);
-        free(response);
-        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      err = SARA_R5_ERROR_INVALID;
     }
-    *mno = (mobile_network_operator_t)(response[i] - 0x30); // Convert to integer
 
     free(command);
     free(response);
@@ -2784,7 +3068,7 @@ boolean SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
         spd->magVar = 0.0;
     }
     ptr = search + 1;
-    
+
     // Find magnetic variation direction
     search = readDataUntil(tempData, TEMP_NMEA_DATA_SIZE, ptr, ',');
     if ((search != NULL) && (search == ptr + 1))

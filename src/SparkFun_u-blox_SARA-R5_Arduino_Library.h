@@ -50,6 +50,7 @@
 
 // Timing
 #define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
+#define SARA_R5_3_MIN_TIMEOUT 180000
 #define SARA_R5_SET_BAUD_TIMEOUT 500
 #define SARA_R5_POWER_PULSE_PERIOD 3200
 #define SARA_R5_RESET_PULSE_PERIOD 10000
@@ -82,6 +83,8 @@ const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
 const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
 const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
 const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
+// ### SIM
+const char SARA_R5_SIM_STATE[] = "+USIMSTAT";
 // ### SMS
 const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
 const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
@@ -108,6 +111,8 @@ const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND"; // Assisted GNSS unsolicited 
 const char SARA_R5_GNSS_REQUEST_LOCATION[] = "+ULOC"; // Ask for localization information
 const char SARA_R5_GNSS_GPRMC[] = "+UGRMC"; // Ask for localization information
 const char SARA_R5_GNSS_REQUEST_TIME[] = "+UTIME"; // Ask for time information from cellular modem (CellTime)
+const char SARA_R5_GNSS_TIME_INDICATION[] = "+UTIMEIND"; // Time information request status unsolicited indication
+const char SARA_R5_GNSS_TIME_CONFIGURATION[] = "+UTIMECFG"; // Sets time configuration
 const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
 const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
 // ### Response
@@ -145,7 +150,7 @@ const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
 typedef enum
 {
     MNO_INVALID = -1,
-    MNO_SW_DEFAULT = 0,
+    MNO_SW_DEFAULT = 0, // Undefined / regulatory
     MNO_SIM_ICCID = 1,
     MNO_ATT = 2,        // AT&T
     MNO_VERIZON = 3,
@@ -256,6 +261,45 @@ typedef enum
     SARA_R5_MESSAGE_FORMAT_TEXT = 1
 } SARA_R5_message_format_t;
 
+typedef enum
+{
+    SARA_R5_UTIME_MODE_STOP = 0,
+    SARA_R5_UTIME_MODE_PPS,
+    SARA_R5_UTIME_MODE_ONE_SHOT,
+    SARA_R5_UTIME_MODE_EXT_INT
+} SARA_R5_utime_mode_t;
+
+typedef enum
+{
+    SARA_R5_UTIME_SENSOR_NONE = 0,
+    SARA_R5_UTIME_SENSOR_GNSS_LTE = 1,
+    SARA_R5_UTIME_SENSOR_LTE
+} SARA_R5_utime_sensor_t;
+
+typedef enum
+{
+    SARA_R5_UTIME_URC_CONFIGURATION_DISABLED = 0,
+    SARA_R5_UTIME_URC_CONFIGURATION_ENABLED
+} SARA_R5_utime_urc_configuration_t;
+
+typedef enum
+{
+    SARA_R5_SIM_NOT_PRESENT = 0,
+    SARA_R5_SIM_PIN_NEEDED,
+    SARA_R5_SIM_PIN_BLOCKED,
+    SARA_R5_SIM_PUK_BLOCKED,
+    SARA_R5_SIM_NOT_OPERATIONAL,
+    SARA_R5_SIM_RESTRICTED,
+    SARA_R5_SIM_OPERATIONAL
+    //SARA_R5_SIM_PHONEBOOK_READY, // Not reported by SARA-R5
+    //SARA_R5_SIM_USIM_PHONEBOOK_READY, // Not reported by SARA-R5
+    //SARA_R5_SIM_TOOLKIT_REFRESH_SUCCESSFUL, // Not reported by SARA-R5
+    //SARA_R5_SIM_TOOLKIT_REFRESH_UNSUCCESSFUL, // Not reported by SARA-R5
+    //SARA_R5_SIM_PPP_CONNECTION_ACTIVE, // Not reported by SARA-R5
+    //SARA_R5_SIM_VOICE_CALL_ACTIVE, // Not reported by SARA-R5
+    //SARA_R5_SIM_CSD_CALL_ACTIVE // Not reported by SARA-R5
+} SARA_R5_sim_states_t;
+
 const int RXBuffSize = 2056;
 const int rxWindowUS = 1000;
 
@@ -291,6 +335,7 @@ public:
     void setSocketCloseCallback(void (*socketCloseCallback)(int));
     void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
                                                        PositionData gps, SpeedData spd, unsigned long uncertainty));
+    void setSIMstateReadCallback(void (*simStateRequestCallback)(SARA_R5_sim_states_t state));
 
     // Direct write/print to cell serial port
     virtual size_t write(uint8_t c);
@@ -317,11 +362,17 @@ public:
     SARA_R5_error_t clock(uint8_t *y, uint8_t *mo, uint8_t *d,
                              uint8_t *h, uint8_t *min, uint8_t *s, uint8_t *tz);
     SARA_R5_error_t autoTimeZone(boolean enable);
+    SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE);
+    SARA_R5_error_t getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor);
+    SARA_R5_error_t setUtimeIndication(SARA_R5_utime_urc_configuration_t config = SARA_R5_UTIME_URC_CONFIGURATION_ENABLED);
+    SARA_R5_error_t getUtimeIndication(SARA_R5_utime_urc_configuration_t *config);
+    SARA_R5_error_t setUtimeConfiguration(int32_t offsetNanoseconds = 0, int32_t offsetSeconds = 0);
+    SARA_R5_error_t getUtimeConfiguration(int32_t *offsetNanoseconds, int32_t *offsetSeconds);
 
     // Network service AT commands
     int8_t rssi(void);
     SARA_R5_registration_status_t registration(void);
-    boolean setNetwork(mobile_network_operator_t mno);
+    boolean setNetwork(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
     mobile_network_operator_t getNetwork(void);
     typedef enum
     {
@@ -333,6 +384,16 @@ public:
     } SARA_R5_pdp_type;
     SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP);
     SARA_R5_error_t getAPN(String *apn, IPAddress *ip);
+
+    // SIM
+    // Status report Mode:
+    // Bit   States reported
+    // 0     Reports the (U)SIM initialization status (<state>'s from 0 to 6 may be reported)
+    // 1     Reports the (U)SIM phonebook initialization status (<state>'s from 7 to 8 may be reported)
+    // 2     Reports the (U)SIM toolkit REFRESH proactive command execution result (<state>'s from 9 to 13 may be reported)
+    // Note: For the SARA-R5: <state>=7, 8, 9, 10, 11, 12 and 13 are not reported.
+    SARA_R5_error_t setSIMstateReportingMode(int mode);
+    SARA_R5_error_t getSIMstateReportingMode(int *mode);
 
     typedef enum
     {
@@ -485,6 +546,7 @@ private:
     void (*_socketReadCallback)(int, String);
     void (*_socketCloseCallback)(int);
     void (*_gpsRequestCallback)(ClockData, PositionData, SpeedData, unsigned long);
+    void (*_simStateRequestCallback)(SARA_R5_sim_states_t);
 
     typedef enum
     {
@@ -495,10 +557,17 @@ private:
 
     typedef enum
     {
-        MINIMUM_FUNCTIONALITY = 0,
+        MINIMUM_FUNCTIONALITY = 0, // (disable both transmit and receive RF circuits by deactivating both CS and PS services)
         FULL_FUNCTIONALITY = 1,
-        SILENT_RESET = 15,
-        SILENT_RESET_W_SIM = 16
+        AIRPLANE_MODE = 4,
+        SIM_TOOLKIT_ENABLE_DEDICATED = 6,
+        SIM_TOOLKIT_DISABLE_DEDICATED = 7,
+        SIM_TOOLKIT_ENABLE_RAW = 9,
+        FAST_SAFE_POWER_OFF = 10,
+        //SILENT_RESET_WITHOUT_SIM = 15, // Not supported on SARA-R5
+        SILENT_RESET_WITH_SIM = 16
+        //MINIMUM_FUNCTIONALITY = 19, // Not supported on SARA-R5
+        //DEEP_LOW_POWER_STATE = 127 // Not supported on SARA-R5
     } SARA_R5_functionality_t;
 
     SARA_R5_error_t init(unsigned long baud, SARA_R5_init_type_t initType = SARA_R5_INIT_STANDARD);
@@ -509,7 +578,7 @@ private:
 
     SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
 
-    SARA_R5_error_t setMno(mobile_network_operator_t mno);
+    SARA_R5_error_t setMno(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
     SARA_R5_error_t getMno(mobile_network_operator_t *mno);
 
     // Wait for an expected response (don't send a command)

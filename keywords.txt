@@ -18,6 +18,8 @@ SpeedData	KEYWORD1
 operator_stats	KEYWORD1
 SARA_R5_socket_protocol_t	KEYWORD1
 SARA_R5_message_format_t	KEYWORD1
+SARA_R5_utime_mode_t	KEYWORD1
+SARA_R5_utime_sensor_t	KEYWORD1
 
 #######################################
 # Methods and Functions 	KEYWORD2
