@@ -50,11 +50,13 @@
 
 // Timing
 #define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
+#define SARA_R5_10_SEC_TIMEOUT 10000
+#define SARA_R5_2_MIN_TIMEOUT 120000
 #define SARA_R5_3_MIN_TIMEOUT 180000
 #define SARA_R5_SET_BAUD_TIMEOUT 500
 #define SARA_R5_POWER_PULSE_PERIOD 3200
 #define SARA_R5_RESET_PULSE_PERIOD 10000
-#define SARA_R5_IP_CONNECT_TIMEOUT 60000
+#define SARA_R5_IP_CONNECT_TIMEOUT 130000
 #define SARA_R5_POLL_DELAY 1
 #define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
 
@@ -471,7 +473,7 @@ public:
 
     // IP Transport Layer
     int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0);
-    SARA_R5_error_t socketClose(int socket, int timeout = 1000);
+    SARA_R5_error_t socketClose(int socket, int timeout = SARA_R5_2_MIN_TIMEOUT);
     SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
     SARA_R5_error_t socketWrite(int socket, const char *str);
     SARA_R5_error_t socketWrite(int socket, String str);

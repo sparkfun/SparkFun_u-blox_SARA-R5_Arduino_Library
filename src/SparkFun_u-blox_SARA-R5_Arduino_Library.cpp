@@ -569,7 +569,7 @@ String SARA_R5::getSubscriberNo(void)
     response = sara_r5_calloc_char(sizeof(idResponse) + 16);
 
     err = sendCommandWithResponse(SARA_R5_COMMAND_CNUM,
-                                  SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  SARA_R5_RESPONSE_OK, response, SARA_R5_10_SEC_TIMEOUT);
     if (err == SARA_R5_ERROR_SUCCESS)
     {
         if (sscanf(response, "\r\n+CNUM: %s", idResponse) != 1)
@@ -741,7 +741,7 @@ SARA_R5_error_t SARA_R5::setUtimeMode(SARA_R5_utime_mode_t mode, SARA_R5_utime_s
     sprintf(command, "%s=%d,%d", SARA_R5_GNSS_REQUEST_TIME, mode, sensor);
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
-                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                NULL, SARA_R5_10_SEC_TIMEOUT);
   free(command);
   return err;
 }
@@ -768,7 +768,7 @@ SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_
   }
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
-                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                response, SARA_R5_10_SEC_TIMEOUT);
 
   // Response format: \r\n+UTIME: <mode>[,<sensor>]\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -1498,7 +1498,7 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
         sprintf(command, "%s=\"%s\"", SARA_R5_SEND_TEXT, numberCStr);
 
         err = sendCommandWithResponse(command, ">", NULL,
-                                      SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                      SARA_R5_3_MIN_TIMEOUT);
         free(command);
         free(numberCStr);
         if (err != SARA_R5_ERROR_SUCCESS)
@@ -1573,7 +1573,7 @@ SARA_R5_error_t SARA_R5::setGpioMode(SARA_R5_gpio_t gpio,
     sprintf(command, "%s=%d,%d", SARA_R5_COMMAND_GPIO, gpio, mode);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
-                                  NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  NULL, SARA_R5_10_SEC_TIMEOUT);
 
     free(command);
 
@@ -1743,7 +1743,7 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     sprintf(command, "%s=%d,%d", SARA_R5_WRITE_SOCKET, socket, strlen(str));
 
     err = sendCommandWithResponse(command, "@", response,
-                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  SARA_R5_2_MIN_TIMEOUT);
 
     if (err == SARA_R5_ERROR_SUCCESS)
     {
@@ -1786,7 +1786,7 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int por
 
 	sprintf(command, "%s=%d,\"%s\",%d,%d", SARA_R5_WRITE_UDP_SOCKET,
 										socket, address, port, dataLen);
-	err = sendCommandWithResponse(command, "@", response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+	err = sendCommandWithResponse(command, "@", response, SARA_R5_IP_CONNECT_TIMEOUT);
 
 	if (err == SARA_R5_ERROR_SUCCESS)
   {
@@ -1986,7 +1986,7 @@ boolean SARA_R5::isGPSon(void)
     }
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
-                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  SARA_R5_10_SEC_TIMEOUT);
 
     if (err == SARA_R5_ERROR_SUCCESS)
     {
@@ -2115,7 +2115,7 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d", SARA_R5_GNSS_GPRMC, enable ? 1 : 0);
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
 
     free(command);
     return err;
@@ -2141,7 +2141,7 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     }
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, 10000);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, SARA_R5_10_SEC_TIMEOUT);
     if (err == SARA_R5_ERROR_SUCCESS)
     {
         // Fast-forward response string to $GPRMC starter
@@ -2199,7 +2199,7 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     sprintf(command, "%s=2,3,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
             detailed ? 1 : 0, timeout, accuracy);
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
 
     free(command);
     return err;
