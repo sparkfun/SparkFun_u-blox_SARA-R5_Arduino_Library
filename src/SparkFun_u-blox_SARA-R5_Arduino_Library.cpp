@@ -1099,12 +1099,12 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
     return err;
 }
 
+// Return the first non-zero-length apn
 SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
-    char *searchPtr;
     int ipOctets[4];
 
     command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_DEF) + 3);
@@ -1112,7 +1112,7 @@ SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s?", SARA_R5_MESSAGE_PDP_DEF);
 
-    response = sara_r5_calloc_char(128);
+    response = sara_r5_calloc_char(1024);
     if (response == NULL)
     {
         free(command);
@@ -1124,43 +1124,60 @@ SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
 
     if (err == SARA_R5_ERROR_SUCCESS)
     {
-        // Example: +CGDCONT: 1,"IP","hologram","10.170.241.191",0,0,0,0
-        searchPtr = strstr(response, "+CGDCONT: ");
+      // Example:
+      // +CGDCONT: 0,"IP","","0.0.0.0",0,0,0,0,0,0,0,0,0,0
+      // +CGDCONT: 1,"IP","payandgo.o2.co.uk.mnc010.mcc234.gprs","10.160.182.234",0,0,0,2,0,0,0,0,0,0
+
+      char *searchPtr = response;
+
+      boolean keepGoing = true;
+      while (keepGoing == true)
+      {
+        int apnLen = 0;
+        int scanned = 0;
+        // Find the first/next occurrence of +CGDCONT:
+        searchPtr = strstr(searchPtr, "+CGDCONT: ");
         if (searchPtr != NULL)
         {
-            searchPtr += strlen("+CGDCONT: ");
-            // Search to the third double-quote
-            for (int i = 0; i < 3; i++)
-            {
-                searchPtr = strchr(++searchPtr, '\"');
-            }
-            if (searchPtr != NULL)
-            {
-                // Fill in the APN:
-                searchPtr = strchr(searchPtr, '\"'); // Move to first quote
-                while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
-                {
-                    apn->concat(*(searchPtr));
-                }
-                // Now get the IP:
-                if (searchPtr != NULL)
-                {
-                    int scanned = sscanf(searchPtr, "\",\"%d.%d.%d.%d\"",
-                                         &ipOctets[0], &ipOctets[1], &ipOctets[2], &ipOctets[3]);
-                    if (scanned == 4)
-                    {
-                        for (int octet = 0; octet < 4; octet++)
-                        {
-                            (*ip)[octet] = (uint8_t)ipOctets[octet];
-                        }
-                    }
-                }
-            }
+          searchPtr += strlen("+CGDCONT: "); // Point to the cid
+          // Search to the third double-quote
+          for (int i = 0; i < 3; i++)
+          {
+              searchPtr = strchr(++searchPtr, '\"');
+          }
+          if (searchPtr != NULL)
+          {
+              // Fill in the APN:
+              //searchPtr = strchr(searchPtr, '\"'); // Move to first quote
+              while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
+              {
+                  apn->concat(*(searchPtr));
+                  apnLen++;
+              }
+              // Now get the IP:
+              if (searchPtr != NULL)
+              {
+                  scanned = sscanf(searchPtr, "\",\"%d.%d.%d.%d\"",
+                                       &ipOctets[0], &ipOctets[1], &ipOctets[2], &ipOctets[3]);
+                  if (scanned == 4)
+                  {
+                      for (int octet = 0; octet < 4; octet++)
+                      {
+                          (*ip)[octet] = (uint8_t)ipOctets[octet];
+                      }
+                  }
+              }
+          }
         }
-        else
+        if ((apnLen > 0) || (scanned != 4) || (searchPtr == NULL) || (*searchPtr == '\0')) // Stop searching
         {
-            err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+          keepGoing = false;
         }
+      }
+    }
+    else
+    {
+        err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
     free(command);
@@ -1438,7 +1455,7 @@ SARA_R5_error_t SARA_R5::deregisterOperator(void)
     sprintf(command, "%s=2", SARA_R5_OPERATOR_SELECTION);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
-                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                  SARA_R5_3_MIN_TIMEOUT);
 
     free(command);
     return err;
