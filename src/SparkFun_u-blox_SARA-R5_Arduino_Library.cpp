@@ -1527,6 +1527,165 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
     return err;
 }
 
+SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, String memory)
+{
+    SARA_R5_error_t err;
+    char *command;
+    char *response;
+    int u;
+    int t;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_PREF_MESSAGE_STORE) + 6);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=\"%s\"", SARA_R5_PREF_MESSAGE_STORE, memory.c_str());
+
+    response = sara_r5_calloc_char(48);
+    if (response == NULL)
+    {
+        free(command);
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                  SARA_R5_3_MIN_TIMEOUT);
+
+    if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
+        return err;
+    }
+
+    int ret = sscanf(response, "\r\n+CPMS: %d,%d", &u, &t);
+		if (ret == 2)
+		{
+			if (_printDebug == true)
+      {
+        _debugPort->print("getPreferredMessageStorage: memory: ");
+        _debugPort->print(memory);
+        _debugPort->print(" used: ");
+        _debugPort->print(u);
+        _debugPort->print(" total: ");
+        _debugPort->println(t);
+      }
+      *used = u;
+      *total = t;
+		}
+    else
+    {
+      err = SARA_R5_ERROR_INVALID;
+    }
+
+    free(response);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::readSMSmessage(int location, String *unread, String *from, String *dateTime, String *message)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_READ_TEXT_MESSAGE) + 5);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_READ_TEXT_MESSAGE, location);
+
+  response = sara_r5_calloc_char(1024);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_10_SEC_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    char *searchPtr = response;
+
+    // Find the first occurrence of +CGDCONT:
+    searchPtr = strstr(searchPtr, "+CMGR: ");
+    if (searchPtr != NULL)
+    {
+      searchPtr += strlen("+CMGR: "); // Point to the originator address
+      int pointer = 0;
+      while ((*(++searchPtr) != '\"') && (*searchPtr != '\0') && (pointer < 12))
+      {
+        unread->concat(*(searchPtr));
+        pointer++;
+      }
+      if ((*searchPtr == '\0') || (pointer == 12))
+      {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+      // Search to the next quote
+      searchPtr = strchr(++searchPtr, '\"');
+      pointer = 0;
+      while ((*(++searchPtr) != '\"') && (*searchPtr != '\0') && (pointer < 24))
+      {
+        from->concat(*(searchPtr));
+        pointer++;
+      }
+      if ((*searchPtr == '\0') || (pointer == 24))
+      {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+      // Skip two commas
+      searchPtr = strchr(++searchPtr, ',');
+      searchPtr = strchr(++searchPtr, ',');
+      // Search to the next quote
+      searchPtr = strchr(++searchPtr, '\"');
+      pointer = 0;
+      while ((*(++searchPtr) != '\"') && (*searchPtr != '\0') && (pointer < 24))
+      {
+        dateTime->concat(*(searchPtr));
+        pointer++;
+      }
+      if ((*searchPtr == '\0') || (pointer == 24))
+      {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+      // Search to the next new line
+      searchPtr = strchr(++searchPtr, '\n');
+      pointer = 0;
+      while ((*(++searchPtr) != '\r') && (*searchPtr != '\n') && (*searchPtr != '\0') && (pointer < 512))
+      {
+        message->concat(*(searchPtr));
+        pointer++;
+      }
+      if ((*searchPtr == '\0') || (pointer == 512))
+      {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+    }
+    else
+    {
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+  }
+  else
+  {
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::setBaud(unsigned long baud)
 {
     SARA_R5_error_t err;
@@ -2450,11 +2609,12 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
   timeIn = millis();
 
-  while ((!found) && (timeIn + timeout > millis()))
+  while ((!found) && ((timeIn + timeout) > millis()))
   {
     if (hwAvailable())
     {
       char c = readChar();
+      if (_printDebug == true) _debugPort->print((String)c);
       if (c == expectedResponse[responseIndex])
       {
           if (++responseIndex == strlen(expectedResponse))
@@ -2515,7 +2675,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 	int backlogIndex = sendCommand(command, at);//Sending command needs to dump data to backlog buffer as well.
 	unsigned long timeIn = millis();
 
-	while ((!found) && (timeIn + commandTimeout > millis()))
+	while ((!found) && ((timeIn + commandTimeout) > millis()))
   {
 		if (hwAvailable())
     {
@@ -2933,11 +3093,11 @@ boolean SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
     unsigned long tTemp;
     char tempData[TEMP_NMEA_DATA_SIZE];
 
-    if (_printDebug == true)
-    {
-      _debugPort->println(F("parseGPRMCString: rmcString: "));
-      _debugPort->println(rmcString);
-    }
+    // if (_printDebug == true)
+    // {
+    //   _debugPort->println(F("parseGPRMCString: rmcString: "));
+    //   _debugPort->println(rmcString);
+    // }
 
     // Fast-forward test to first value:
     ptr = strchr(rmcString, ',');

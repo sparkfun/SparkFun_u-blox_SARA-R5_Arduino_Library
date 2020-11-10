@@ -90,6 +90,9 @@ const char SARA_R5_SIM_STATE[] = "+USIMSTAT";
 // ### SMS
 const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF"; // Set SMS message format
 const char SARA_R5_SEND_TEXT[] = "+CMGS";      // Send SMS message
+const char SARA_R5_NEW_MESSAGE_IND[] = "+CNMI"; // New [SMS] message indication
+const char SARA_R5_PREF_MESSAGE_STORE[] = "+CPMS"; // Preferred message storage
+const char SARA_R5_READ_TEXT_MESSAGE[] = "+CMGR"; // Read message
 // V24 control and V25ter (UART interface)
 const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
 // ### Packet switched data services
@@ -416,6 +419,8 @@ public:
     // SMS -- Short Messages Service
     SARA_R5_error_t setSMSMessageFormat(SARA_R5_message_format_t textMode = SARA_R5_MESSAGE_FORMAT_TEXT);
     SARA_R5_error_t sendSMS(String number, String message);
+    SARA_R5_error_t getPreferredMessageStorage(int *used, int *total, String memory = "ME");
+    SARA_R5_error_t readSMSmessage(int location, String *unread, String *from, String *dateTime, String *message);
 
     // V24 Control and V25ter (UART interface) AT commands
     SARA_R5_error_t setBaud(unsigned long baud);
