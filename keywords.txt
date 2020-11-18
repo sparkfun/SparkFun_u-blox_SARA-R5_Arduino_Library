@@ -78,8 +78,8 @@ clock	KEYWORD2
 autoTimeZone	KEYWORD2
 rssi	KEYWORD2
 registration	KEYWORD2
-setNetwork	KEYWORD2
-getNetwork	KEYWORD2
+setNetworkProfile	KEYWORD2
+getNetworkProfile	KEYWORD2
 setAPN	KEYWORD2
 getAPN	KEYWORD2
 enterPPP	KEYWORD2
@@ -87,6 +87,7 @@ getOperators	KEYWORD2
 registerOperator	KEYWORD2
 getOperator	KEYWORD2
 deregisterOperator	KEYWORD2
+automaticOperatorSelection	KEYWORD2
 setSMSMessageFormat	KEYWORD2
 sendSMS	KEYWORD2
 setBaud	KEYWORD2

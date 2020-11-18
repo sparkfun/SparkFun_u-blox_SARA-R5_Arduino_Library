@@ -29,6 +29,11 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
     _maxInitDepth = maxInitDepth;
     _socketReadCallback = NULL;
     _socketCloseCallback = NULL;
+    _gpsRequestCallback = NULL;
+    _simStateReportCallback = NULL;
+    _psdActionRequestCallback = NULL;
+    _pingRequestCallback = NULL;
+    _httpCommandRequestCallback = NULL;
     _lastRemoteIP = {0, 0, 0, 0};
     _lastLocalIP = {0, 0, 0, 0};
 
@@ -281,6 +286,8 @@ boolean SARA_R5::poll(void)
                 {
                     _gpsRequestCallback(clck, gps, spd, uncertainty);
                 }
+
+                handled = true;
             }
         }
         {
@@ -293,14 +300,108 @@ boolean SARA_R5::poll(void)
                 if (scanNum < 1)
                     return false; // Break out if we didn't find enough
 
-                if (_simStateRequestCallback != NULL)
+                if (_simStateReportCallback != NULL)
                 {
-                    _simStateRequestCallback(state);
+                    _simStateReportCallback(state);
                 }
+
+                handled = true;
+            }
+        }
+        {
+            int result;
+            IPAddress remoteIP = (0,0,0,0);
+            int scanNum;
+
+            if (strstr(saraRXBuffer, "+UUPSDA"))
+            {
+                scanNum = sscanf(saraRXBuffer, "+UUPSDA: %d,\"%d.%d.%d.%d\"",
+                        &result, &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3]);
+                if (scanNum < 1)
+                    return false; // Break out if we didn't find enough
+
+                if (_psdActionRequestCallback != NULL)
+                {
+                    _psdActionRequestCallback(result, remoteIP);
+                }
+
+                handled = true;
+            }
+        }
+        {
+            int retry = 0;
+            int p_size = 0;
+            int ttl = 0;
+            String remote_host = "";
+            IPAddress remoteIP = (0,0,0,0);
+            long rtt = 0;
+            int scanNum;
+            char *searchPtr = saraRXBuffer;
+
+            // Find the first/next occurrence of +UUPING:
+            searchPtr = strstr(searchPtr, "+UUPING: ");
+            if (searchPtr != NULL)
+            {
+                // if (_printDebug == true)
+                // {
+                //   _debugPort->print("poll +UUPING: saraRXBuffer: ");
+                //   _debugPort->println(saraRXBuffer);
+                // }
+
+                // Extract the retries and payload size
+                scanNum = sscanf(searchPtr, "+UUPING: %d,%d,", &retry, &p_size);
+
+                if (scanNum < 2)
+                    return false; // Break out if we didn't find enough
+
+                searchPtr = strchr(++searchPtr, '\"'); // Search to the first quote
+
+                // Extract the remote host name, stop at the next quote
+                while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
+                {
+                    remote_host.concat(*(searchPtr));
+                }
+
+                if (*searchPtr == '\0')
+                  return false; // Break out if we didn't find enough
+
+                scanNum = sscanf(searchPtr, "\",\"%d.%d.%d.%d\",%d,%d",
+                        &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3], &ttl, &rtt);
+
+                if (scanNum < 6)
+                    return false; // Break out if we didn't find enough
+
+                if (_pingRequestCallback != NULL)
+                {
+                    _pingRequestCallback(retry, p_size, remote_host, remoteIP, ttl, rtt);
+                }
+
+                handled = true;
+            }
+        }
+        {
+            int profile, command, result;
+            int scanNum;
+
+            if (strstr(saraRXBuffer, "+UUHTTPCR"))
+            {
+                scanNum = sscanf(saraRXBuffer, "+UUHTTPCR: %d,%d,%d", &profile, &command, &result);
+                if (scanNum < 3)
+                    return false; // Break out if we didn't find enough
+
+                if ((profile >= 0) && (profile < SARA_R5_NUM_HTTP_PROFILES))
+                {
+                    if (_httpCommandRequestCallback != NULL)
+                    {
+                        _httpCommandRequestCallback(profile, command, result);
+                    }
+                }
+
+                handled = true;
             }
         }
 
-        if ((handled == false) && (strlen(saraRXBuffer) > 0)) // Was > 2
+        if ((handled == false) && (strlen(saraRXBuffer) > 2))
         {
             if (_printDebug == true) _debugPort->println("Poll: " + String(saraRXBuffer));
         }
@@ -327,10 +428,28 @@ void SARA_R5::setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
     _gpsRequestCallback = gpsRequestCallback;
 }
 
-void SARA_R5::setSIMstateReadCallback(void (*simStateRequestCallback)
+void SARA_R5::setSIMstateReportCallback(void (*simStateReportCallback)
               (SARA_R5_sim_states_t state))
 {
-    _simStateRequestCallback = simStateRequestCallback;
+    _simStateReportCallback = simStateReportCallback;
+}
+
+void SARA_R5::setPSDActionCallback(void (*psdActionRequestCallback)
+              (int result, IPAddress ip))
+{
+    _psdActionRequestCallback = psdActionRequestCallback;
+}
+
+void SARA_R5::setPingCallback(void (*pingRequestCallback)
+              (int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt))
+{
+    _pingRequestCallback = pingRequestCallback;
+}
+
+void SARA_R5::setHTTPCommandCallback(void (*httpCommandRequestCallback)
+              (int profile, int command, int result))
+{
+    _httpCommandRequestCallback = httpCommandRequestCallback;
 }
 
 size_t SARA_R5::write(uint8_t c)
@@ -995,15 +1114,16 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return (SARA_R5_registration_status_t)status;
 }
 
-boolean SARA_R5::setNetwork(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+boolean SARA_R5::setNetworkProfile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
 {
     mobile_network_operator_t currentMno;
 
-    // Check currently set MNO
-    if (getMno(&currentMno) != SARA_R5_ERROR_SUCCESS)
+    // Check currently set MNO profile
+    if (getMNOprofile(&currentMno) != SARA_R5_ERROR_SUCCESS)
     {
         return false;
     }
+
     if (currentMno == mno)
     {
         return true;
@@ -1015,7 +1135,7 @@ boolean SARA_R5::setNetwork(mobile_network_operator_t mno, boolean autoReset, bo
         return false;
     }
 
-    if (setMno(mno, autoReset, urcNotification) != SARA_R5_ERROR_SUCCESS)
+    if (setMNOprofile(mno, autoReset, urcNotification) != SARA_R5_ERROR_SUCCESS)
     {
         return false;
     }
@@ -1028,12 +1148,12 @@ boolean SARA_R5::setNetwork(mobile_network_operator_t mno, boolean autoReset, bo
     return true;
 }
 
-mobile_network_operator_t SARA_R5::getNetwork(void)
+mobile_network_operator_t SARA_R5::getNetworkProfile(void)
 {
     mobile_network_operator_t mno;
     SARA_R5_error_t err;
 
-    err = getMno(&mno);
+    err = getMNOprofile(&mno);
     if (err != SARA_R5_ERROR_SUCCESS)
     {
         return MNO_INVALID;
@@ -1099,13 +1219,17 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
     return err;
 }
 
-// Return the first non-zero-length apn
-SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
+// Return the Access Point Name and IP address for the chosen context identifier
+SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
     int ipOctets[4];
+    int rcid;
+
+    if (cid > SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
+      return SARA_R5_ERROR_ERROR;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_DEF) + 3);
     if (command == NULL)
@@ -1125,7 +1249,7 @@ SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
     if (err == SARA_R5_ERROR_SUCCESS)
     {
       // Example:
-      // +CGDCONT: 0,"IP","","0.0.0.0",0,0,0,0,0,0,0,0,0,0
+      // +CGDCONT: 0,"IP","payandgo.o2.co.uk","0.0.0.0",0,0,0,0,0,0,0,0,0,0
       // +CGDCONT: 1,"IP","payandgo.o2.co.uk.mnc010.mcc234.gprs","10.160.182.234",0,0,0,2,0,0,0,0,0,0
 
       char *searchPtr = response;
@@ -1140,36 +1264,52 @@ SARA_R5_error_t SARA_R5::getAPN(String *apn, IPAddress *ip)
         if (searchPtr != NULL)
         {
           searchPtr += strlen("+CGDCONT: "); // Point to the cid
-          // Search to the third double-quote
-          for (int i = 0; i < 3; i++)
+          rcid = (*searchPtr) - '0'; // Get the first/only digit of cid
+          searchPtr++;
+          if (*searchPtr != ',') // Get the second digit of cid - if there is one
           {
-              searchPtr = strchr(++searchPtr, '\"');
+            rcid *= 10;
+            rcid += (*searchPtr) - '0';
           }
-          if (searchPtr != NULL)
+          if (_printDebug == true) _debugPort->println("getAPN: cid is " + ((String)rcid));
+          if (rcid == cid) // If we have a match
           {
-              // Fill in the APN:
-              //searchPtr = strchr(searchPtr, '\"'); // Move to first quote
-              while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
-              {
-                  apn->concat(*(searchPtr));
-                  apnLen++;
-              }
-              // Now get the IP:
-              if (searchPtr != NULL)
-              {
-                  scanned = sscanf(searchPtr, "\",\"%d.%d.%d.%d\"",
-                                       &ipOctets[0], &ipOctets[1], &ipOctets[2], &ipOctets[3]);
-                  if (scanned == 4)
-                  {
-                      for (int octet = 0; octet < 4; octet++)
-                      {
-                          (*ip)[octet] = (uint8_t)ipOctets[octet];
-                      }
-                  }
-              }
+            // Search to the third double-quote
+            for (int i = 0; i < 3; i++)
+            {
+                searchPtr = strchr(++searchPtr, '\"');
+            }
+            if (searchPtr != NULL)
+            {
+                // Fill in the APN:
+                //searchPtr = strchr(searchPtr, '\"'); // Move to first quote
+                while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
+                {
+                    apn->concat(*(searchPtr));
+                    apnLen++;
+                }
+                // Now get the IP:
+                if (searchPtr != NULL)
+                {
+                    scanned = sscanf(searchPtr, "\",\"%d.%d.%d.%d\"",
+                                         &ipOctets[0], &ipOctets[1], &ipOctets[2], &ipOctets[3]);
+                    if (scanned == 4)
+                    {
+                        for (int octet = 0; octet < 4; octet++)
+                        {
+                            (*ip)[octet] = (uint8_t)ipOctets[octet];
+                        }
+                    }
+                }
+            }
+          }
+          else // We don't have a match so let's clear the APN and IP address
+          {
+            *apn = "";
+            *ip = (0,0,0,0);
           }
         }
-        if ((apnLen > 0) || (scanned != 4) || (searchPtr == NULL) || (*searchPtr == '\0')) // Stop searching
+        if ((rcid == cid) || (searchPtr == NULL) || (*searchPtr == '\0')) // Stop searching
         {
           keepGoing = false;
         }
@@ -1373,6 +1513,24 @@ SARA_R5_error_t SARA_R5::registerOperator(struct operator_stats oper)
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=1,2,\"%lu\"", SARA_R5_OPERATOR_SELECTION, oper.numOp);
+
+    // AT+COPS maximum response time is 3 minutes (180000 ms)
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_3_MIN_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::automaticOperatorSelection()
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_OPERATOR_SELECTION) + 6);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=0,0", SARA_R5_OPERATOR_SELECTION);
 
     // AT+COPS maximum response time is 3 minutes (180000 ms)
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
@@ -2125,6 +2283,388 @@ IPAddress SARA_R5::lastRemoteIP(void)
     return _lastRemoteIP;
 }
 
+SARA_R5_error_t SARA_R5::resetHTTPprofile(int profile)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 3);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_HTTP_PROFILE, profile);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPserverIPaddress(int profile, IPAddress address)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_IP,
+            address[0], address[1], address[2], address[3]);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPserverName(int profile, String server)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12 + server.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_NAME,
+            server.c_str());
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPusername(int profile, String username)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12 + username.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_USERNAME,
+            username.c_str());
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPpassword(int profile, String password)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12 + password.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_PASSWORD,
+            password.c_str());
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, boolean authenticate)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_AUTHENTICATION,
+            authenticate);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPserverPort(int profile, int port)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_PORT,
+            port);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, boolean secure)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
+            secure);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::ping(String remote_host, int retry, int p_size,
+                          unsigned long timeout, int ttl)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_PING_COMMAND) + 48 +
+            remote_host.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=\"%s\",%d,%d,%d,%d", SARA_R5_PING_COMMAND,
+            remote_host.c_str(), retry, p_size, timeout, ttl);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::sendHTTPGET(int profile, String path, String responseFilename)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_COMMAND) + 24 +
+            path.length() + responseFilename.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\",\"%s\"", SARA_R5_HTTP_COMMAND, profile, SARA_R5_HTTP_COMMAND_GET,
+            path.c_str(), responseFilename.c_str());
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::sendHTTPPOSTdata(int profile, String path, String responseFilename,
+            String data, SARA_R5_http_content_types_t httpContentType)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_COMMAND) + 24 +
+            path.length() + responseFilename.length() + data.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\",\"%s\",\"%s\",%d", SARA_R5_HTTP_COMMAND, profile, SARA_R5_HTTP_COMMAND_POST_DATA,
+            path.c_str(), responseFilename.c_str(), data.c_str(), httpContentType);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int *error_code)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  int rprofile, eclass, ecode;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROTOCOL_ERROR) + 4);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_HTTP_PROTOCOL_ERROR, profile);
+
+  response = sara_r5_calloc_char(48);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+      if (sscanf(response, "\r\n+UHTTPER: %d,%d,%d\r\n",
+                 &rprofile, &eclass, &ecode) == 3)
+      {
+          *error_class = eclass;
+          *error_code = ecode;
+      }
+      else err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_PSD_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,%d", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
+            value);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, SARA_R5_pdp_protocol_type_t value)
+{
+    return (setPDPconfiguration(profile, parameter, (int)value));
+}
+
+SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, String value)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_PSD_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
+            value.c_str());
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_PSD_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
+            value[0], value[1], value[2], value[3]);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::performPDPaction(int profile, SARA_R5_pdp_actions_t action)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (profile >= SARA_R5_NUM_PSD_PROFILES)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_ACTION) + 12);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d", SARA_R5_MESSAGE_PDP_ACTION, profile, action);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    if (cid >= SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
+      return SARA_R5_ERROR_ERROR;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE) + 12);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    if (cid == -1)
+      sprintf(command, "%s=%d", SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE, status);
+    else
+      sprintf(command, "%s=%d,%d", SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE, status, cid);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
 boolean SARA_R5::isGPSon(void)
 {
     SARA_R5_error_t err;
@@ -2364,6 +2904,78 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     return err;
 }
 
+SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
+{
+    SARA_R5_error_t err;
+    char *command;
+    char *response;
+    char *contentsPtr;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + 8 + filename.length());
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=\"%s\"", SARA_R5_FILE_SYSTEM_READ_FILE, filename.c_str());
+
+    response = sara_r5_calloc_char(1072); // Hopefully this should be way more than enough?! (1024 + 48 extra)
+    if (response == NULL)
+    {
+        free(command);
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                  response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
+        return err;
+    }
+
+    // Response format: \r\n+URDFILE: "filename",36,"these bytes are the data of the file"\r\n\r\nOK\r\n
+    contentsPtr = strchr(response, '\"'); // Find the third quote
+    contentsPtr = strchr(contentsPtr+1, '\"');
+    contentsPtr = strchr(contentsPtr+1, '\"');
+
+    if (contentsPtr == NULL)
+    {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    boolean keepGoing = true;
+    int bytesRead = 0;
+
+    if (_printDebug == true) _debugPort->print(F("getFileContents: file contents are \""));
+
+    while (keepGoing)
+    {
+      char c = *(++contentsPtr); // Increment contentsPtr then copy file char into c
+      if ((c == '\0') || (c == '\"') || (bytesRead == 1024))
+      {
+        keepGoing = false;
+      }
+      else
+      {
+        bytesRead++;
+        contents->concat(c); // Append c to contents
+        if (_printDebug == true) _debugPort->print(c);
+      }
+    }
+    if (_printDebug == true)
+    {
+      _debugPort->println(F("\""));
+      _debugPort->print(F("getFileContents: total bytes read: "));
+      _debugPort->println(bytesRead);
+    }
+
+    free(command);
+    free(response);
+
+    return SARA_R5_ERROR_SUCCESS;
+}
+
 /////////////
 // Private //
 /////////////
@@ -2483,7 +3095,7 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2504,12 +3116,11 @@ SARA_R5_error_t SARA_R5::setMno(mobile_network_operator_t mno, boolean autoReset
     return err;
 }
 
-SARA_R5_error_t SARA_R5::getMno(mobile_network_operator_t *mno)
+SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
-    //const char *mno_keys = "0123456"; // Valid MNO responses - out of date!
     mobile_network_operator_t o;
     mobile_network_operator_t d;
     int r;
@@ -2536,24 +3147,12 @@ SARA_R5_error_t SARA_R5::getMno(mobile_network_operator_t *mno)
         return err;
     }
 
-    // i = strcspn(response, mno_keys); // Find first occurence of MNO key
-    // if (i == strlen(response))
-    // {
-    //     *mno = MNO_INVALID;
-    //     free(command);
-    //     free(response);
-    //     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
-    // }
-    //*mno = (mobile_network_operator_t)(response[i] - 0x30); // Convert to integer
-
     int ret = sscanf(response, "\r\n+UMNOPROF: %d,%d,%d,%d", &o, &d, &r, &u);
 		if (ret >= 1)
 		{
 			if (_printDebug == true)
       {
-        _debugPort->print("getMno: ret is: ");
-        _debugPort->print(ret);
-        _debugPort->print(" MNO is: ");
+        _debugPort->print("getMNOprofile: MNO is: ");
         _debugPort->println(o);
       }
       *mno = o;

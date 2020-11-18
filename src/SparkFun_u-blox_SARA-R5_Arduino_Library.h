@@ -96,7 +96,10 @@ const char SARA_R5_READ_TEXT_MESSAGE[] = "+CMGR"; // Read message
 // V24 control and V25ter (UART interface)
 const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
 // ### Packet switched data services
-const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT";
+const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT"; // Packet switched Data Profile context definition
+const char SARA_R5_MESSAGE_PDP_CONFIG[] = "+UPSD"; // Packet switched Data Profile configuration
+const char SARA_R5_MESSAGE_PDP_ACTION[] = "+UPSDA"; // Perform the action for the specified PSD profile
+const char SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE[] = "+CGACT"; // Activates or deactivates the specified PDP context
 const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
 // ### GPIO
 const char SARA_R5_COMMAND_GPIO[] = "+UGPIOC"; // GPIO Configuration
@@ -107,9 +110,15 @@ const char SARA_R5_CONNECT_SOCKET[] = "+USOCO"; // Connect to server on socket
 const char SARA_R5_WRITE_SOCKET[] = "+USOWR";   // Write data to a socket
 const char SARA_R5_WRITE_UDP_SOCKET[] = "+USOST"; // Write data to a UDP socket
 const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
-const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket.
+const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
 const char SARA_R5_GET_ERROR[] = "+USOER"; // Get last socket error.
+// ### Ping
+const char SARA_R5_PING_COMMAND[] = "+UPING"; // Ping
+// ### HTTP
+const char SARA_R5_HTTP_PROFILE[] = "+UHTTP"; // Configure the HTTP profile. Up to 4 different profiles can be defined
+const char SARA_R5_HTTP_COMMAND[] = "+UHTTPC"; // Trigger the specified HTTP command
+const char SARA_R5_HTTP_PROTOCOL_ERROR[] = "+UHTTPER"; // Retrieves the error class and code of the latest HTTP operation on the specified HTTP profile.
 // ### GNSS
 const char SARA_R5_GNSS_POWER[] = "+UGPS"; // GNSS power management configuration
 const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND"; // Assisted GNSS unsolicited indication
@@ -120,6 +129,8 @@ const char SARA_R5_GNSS_TIME_INDICATION[] = "+UTIMEIND"; // Time information req
 const char SARA_R5_GNSS_TIME_CONFIGURATION[] = "+UTIMECFG"; // Sets time configuration
 const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
 const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
+// ### File System
+const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE"; // Read a file
 // ### Response
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
@@ -308,6 +319,77 @@ typedef enum
 const int RXBuffSize = 2056;
 const int rxWindowUS = 1000;
 
+#define SARA_R5_NUM_PSD_PROFILES 6 // Number of supported PSD profiles
+#define SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS 11 // Number of supported PDP context identifiers
+#define SARA_R5_NUM_HTTP_PROFILES 4 // Number of supported HTTP profiles
+
+typedef enum
+{
+    SARA_R5_HTTP_OP_CODE_SERVER_IP = 0,
+    SARA_R5_HTTP_OP_CODE_SERVER_NAME,
+    SARA_R5_HTTP_OP_CODE_USERNAME,
+    SARA_R5_HTTP_OP_CODE_PASSWORD,
+    SARA_R5_HTTP_OP_CODE_AUTHENTICATION,
+    SARA_R5_HTTP_OP_CODE_SERVER_PORT,
+    SARA_R5_HTTP_OP_CODE_SECURE,
+    SARA_R5_HTTP_OP_CODE_REQUEST_TIMEOUT,
+    SARA_R5_HTTP_OP_CODE_ADD_CUSTOM_HEADERS = 9
+} SARA_R5_http_op_codes_t;
+
+typedef enum
+{
+    SARA_R5_HTTP_COMMAND_HEAD = 0,
+    SARA_R5_HTTP_COMMAND_GET,
+    SARA_R5_HTTP_COMMAND_DELETE,
+    SARA_R5_HTTP_COMMAND_PUT,
+    SARA_R5_HTTP_COMMAND_POST_FILE,
+    SARA_R5_HTTP_COMMAND_POST_DATA,
+    SARA_R5_HTTP_COMMAND_GET_FOTA = 100
+} SARA_R5_http_commands_t;
+
+typedef enum
+{
+    SARA_R5_HTTP_CONTENT_APPLICATION_X_WWW = 0,
+    SARA_R5_HTTP_CONTENT_TEXT_PLAIN,
+    SARA_R5_HTTP_CONTENT_APPLICATION_OCTET,
+    SARA_R5_HTTP_CONTENT_MULTIPART_FORM,
+    SARA_R5_HTTP_CONTENT_APPLICATION_JSON,
+    SARA_R5_HTTP_CONTENT_APPLICATION_XML,
+    SARA_R5_HTTP_CONTENT_USER_DEFINED
+} SARA_R5_http_content_types_t;
+
+typedef enum
+{
+    SARA_R5_PSD_CONFIG_PARAM_PROTOCOL = 0,
+    SARA_R5_PSD_CONFIG_PARAM_APN,
+    //SARA_R5_PSD_CONFIG_PARAM_USERNAME, // Not allowed on SARA-R5
+    //SARA_R5_PSD_CONFIG_PARAM_PASSWORD, // Not allowed on SARA-R5
+    SARA_R5_PSD_CONFIG_PARAM_DNS1 = 4,
+    SARA_R5_PSD_CONFIG_PARAM_DNS2,
+    //SARA_R5_PSD_CONFIG_PARAM_AUTHENTICATION, // Not allowed on SARA-R5
+    //SARA_R5_PSD_CONFIG_PARAM_IP_ADDRESS, // Not allowed on SARA-R5
+    //SARA_R5_PSD_CONFIG_PARAM_DATA_COMPRESSION, // Not allowed on SARA-R5
+    //SARA_R5_PSD_CONFIG_PARAM_HEADER_COMPRESSION, // Not allowed on SARA-R5
+    SARA_R5_PSD_CONFIG_PARAM_MAP_TO_CID = 100
+} SARA_R5_pdp_configuration_parameter_t;
+
+typedef enum
+{
+    SARA_R5_PSD_PROTOCOL_IPV4 = 0,
+    SARA_R5_PSD_PROTOCOL_IPV6,
+    SARA_R5_PSD_PROTOCOL_IPV4V6_V4_PREF,
+    SARA_R5_PSD_PROTOCOL_IPV4V6_V6_PREF
+} SARA_R5_pdp_protocol_type_t;
+
+typedef enum
+{
+  SARA_R5_PSD_ACTION_RESET = 0,
+  SARA_R5_PSD_ACTION_STORE,
+  SARA_R5_PSD_ACTION_LOAD,
+  SARA_R5_PSD_ACTION_ACTIVATE,
+  SARA_R5_PSD_ACTION_DEACTIVATE
+} SARA_R5_pdp_actions_t;
+
 class SARA_R5 : public Print
 {
 public:
@@ -340,7 +422,10 @@ public:
     void setSocketCloseCallback(void (*socketCloseCallback)(int));
     void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
                                                        PositionData gps, SpeedData spd, unsigned long uncertainty));
-    void setSIMstateReadCallback(void (*simStateRequestCallback)(SARA_R5_sim_states_t state));
+    void setSIMstateReportCallback(void (*simStateRequestCallback)(SARA_R5_sim_states_t state));
+    void setPSDActionCallback(void (*psdActionRequestCallback)(int result, IPAddress ip));
+    void setPingCallback(void (*pingRequestCallback)(int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt));
+    void setHTTPCommandCallback(void (*httpCommandRequestCallback)(int profile, int command, int result));
 
     // Direct write/print to cell serial port
     virtual size_t write(uint8_t c);
@@ -377,8 +462,8 @@ public:
     // Network service AT commands
     int8_t rssi(void);
     SARA_R5_registration_status_t registration(void);
-    boolean setNetwork(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
-    mobile_network_operator_t getNetwork(void);
+    boolean setNetworkProfile(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
+    mobile_network_operator_t getNetworkProfile(void);
     typedef enum
     {
         PDP_TYPE_INVALID = -1,
@@ -387,8 +472,8 @@ public:
         PDP_TYPE_IPV4V6 = 2,
         PDP_TYPE_IPV6 = 3
     } SARA_R5_pdp_type;
-    SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP);
-    SARA_R5_error_t getAPN(String *apn, IPAddress *ip);
+    SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
+    SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip); // Return the apn and IP address for the chosen context identifier
 
     // SIM
     // Status report Mode:
@@ -413,6 +498,7 @@ public:
 
     uint8_t getOperators(struct operator_stats *op, int maxOps = 3);
     SARA_R5_error_t registerOperator(struct operator_stats oper);
+    SARA_R5_error_t automaticOperatorSelection();
     SARA_R5_error_t getOperator(String *oper);
     SARA_R5_error_t deregisterOperator(void);
 
@@ -490,6 +576,31 @@ public:
     int socketGetLastError();
     IPAddress lastRemoteIP(void);
 
+    // Ping
+    SARA_R5_error_t ping(String remote_host, int retry = 4, int p_size = 32, unsigned long timeout = 5000, int ttl = 32);
+
+    // HTTP
+    SARA_R5_error_t resetHTTPprofile(int profile); // Reset the HTTP profile. Note: The configured HTTP profile parameters are not saved in the non volatile memory.
+    SARA_R5_error_t setHTTPserverIPaddress(int profile, IPAddress address); // Default: empty string
+    SARA_R5_error_t setHTTPserverName(int profile, String server); // Default: empty string
+    SARA_R5_error_t setHTTPusername(int profile, String username); // Default: empty string
+    SARA_R5_error_t setHTTPpassword(int profile, String password); // Default: empty string
+    SARA_R5_error_t setHTTPauthentication(int profile, boolean authenticate); // Default: no authentication
+    SARA_R5_error_t setHTTPserverPort(int profile, int port); // Default: 80
+    SARA_R5_error_t setHTTPsecure(int profile, boolean secure); // Default: disabled (HTTP on port 80). Set to true for HTTPS on port 443
+    // TO DO: Add custom request headers
+    SARA_R5_error_t getHTTPprotocolError(int profile, int *error_class, int *error_code); // Read the most recent HTTP protocol error for this profile
+    SARA_R5_error_t sendHTTPGET(int profile, String path, String responseFilename);
+    SARA_R5_error_t sendHTTPPOSTdata(int profile, String path, String responseFilename, String data, SARA_R5_http_content_types_t httpContentType);
+
+    // Packet Switched Data
+    SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value); // Set parameters in the chosen PSD profile
+    SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, SARA_R5_pdp_protocol_type_t value); // Set parameters in the chosen PSD profile
+    SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, String value); // Set parameters in the chosen PSD profile
+    SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value); // Set parameters in the chosen PSD profile
+    SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action); // Performs the requested action for the specified PSD profile.
+    SARA_R5_error_t activatePDPcontext(boolean status, int cid = -1); // Activates or deactivates the specified PDP context. Default to all (cid = -1)
+
     // GPS
     typedef enum
     {
@@ -531,6 +642,9 @@ public:
 
     SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, boolean detailed = true);
 
+    // File system
+    SARA_R5_error_t getFileContents(String filename, String *contents);
+
 private:
     HardwareSerial *_hardSerial;
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -553,7 +667,10 @@ private:
     void (*_socketReadCallback)(int, String);
     void (*_socketCloseCallback)(int);
     void (*_gpsRequestCallback)(ClockData, PositionData, SpeedData, unsigned long);
-    void (*_simStateRequestCallback)(SARA_R5_sim_states_t);
+    void (*_simStateReportCallback)(SARA_R5_sim_states_t);
+    void (*_psdActionRequestCallback)(int, IPAddress);
+    void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
+    void (*_httpCommandRequestCallback)(int, int, int);
 
     typedef enum
     {
@@ -585,8 +702,8 @@ private:
 
     SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
 
-    SARA_R5_error_t setMno(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
-    SARA_R5_error_t getMno(mobile_network_operator_t *mno);
+    SARA_R5_error_t setMNOprofile(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
+    SARA_R5_error_t getMNOprofile(mobile_network_operator_t *mno);
 
     // Wait for an expected response (don't send a command)
     SARA_R5_error_t waitForResponse(const char *expectedResponse, const char *expectedError, uint16_t timeout);
