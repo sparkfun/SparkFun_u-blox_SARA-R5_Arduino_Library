@@ -3457,7 +3457,7 @@ size_t SARA_R5::hwWriteData(const char* buff, int len)
 {
 	if (_hardSerial != NULL)
   {
-		return _hardSerial->write(buff, len);
+		return _hardSerial->write((const uint8_t *)buff, len);
 	}
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   else if (_softSerial != NULL)
