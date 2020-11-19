@@ -1,12 +1,21 @@
 /*
-  Use the GPS RMC sentence read feature to get position, speed, and clock data
-  By: Paul Clark
-  SparkFun Electronics
-  Date: October 20th 2020
 
-  Please see LICENSE.md for the license information
+  SARA-R5 Example
+  ===============
 
-  This example demonstrates how to use the gpsGetRmc feature.
+  GNSS GPRMC
+  
+  Written by: Paul Clark
+  Date: November 18th 2020
+
+  This example enables the SARA-R5nnM8S' built-in GNSS receiver and reads the GPRMC message to
+  get position, speed and time data.
+
+  Feel like supporting open source hardware?
+  Buy a board from SparkFun!
+
+  Licence: MIT
+  Please see LICENSE.md for full details
 
 */
 
@@ -20,8 +29,8 @@
 
 // Create a SARA_R5 object to use throughout the sketch
 // Usually we would tell the library which GPIO pin to use to control the SARA power (see below),
-// but we can start the SARA without a power pin. It just means we need to use a finger to 
-// turn the power on manually if required! ;-D
+// but we can start the SARA without a power pin. It just means we need to manually 
+// turn the power on if required! ;-D
 SARA_R5 mySARA;
 
 // Create a SARA_R5 object to use throughout the sketch
@@ -31,7 +40,7 @@ SARA_R5 mySARA;
 // Change the pin number if required.
 //SARA_R5 mySARA(34);
 
-// If you're using the MicroMod Asset Tracker then we need to define which pin controls the active antenna power.
+// If you're using the MicroMod Asset Tracker then we need to define which pin controls the active antenna power for the GNSS.
 // If you're using the MicroMod Artemis Processor Board, the pin name is G6 which is connected to pin D14.
 // Change the pin number if required.
 //const int antennaPowerEnablePin = 14; // Uncomment this line to define the pin number for the antenna power enable
@@ -42,21 +51,25 @@ SpeedData spd;
 ClockData clk;
 boolean valid;
 
-#define GPS_POLL_RATE 5000 // Read GPS every 2 seconds
+#define GPS_POLL_RATE 5000 // Read GPS every 5 seconds
 unsigned long lastGpsPoll = 0;
 
-void setup() {
-  Serial.begin(115200);
+void setup()
+{
+  Serial.begin(115200); // Start the serial console
 
-  // Wait for user to press key in terminal to begin
+  // Wait for user to press key to begin
   Serial.println(F("SARA-R5 Example"));
   Serial.println(F("Press any key to begin GPS'ing"));
-  while (!Serial.available()) ;
-  while (Serial.available()) Serial.read();
+  
+  while (!Serial.available()) // Wait for the user to press a key (send any serial character)
+    ;
+  while (Serial.available()) // Empty the serial RX buffer
+    Serial.read();
 
-  //mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages
+  //mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
 
-  // For the Asset Tracker, we need to invert the power pin so it pulls high instead of low
+  // For the MicroMod Asset Tracker, we need to invert the power pin so it pulls high instead of low
   // Comment the next line if required
   mySARA.invertPowerPin(true); 
 
@@ -74,9 +87,26 @@ void setup() {
 
   // Enable power for the GNSS active antenna
   enableGNSSAntennaPower();
+
+  // From the u-blox SARA-R5 Positioning Implementation Application Note UBX-20012413 - R01
+  // To enable the PPS output we need to:
+  // Configure GPIO6 for TIME_PULSE_OUTPUT: .init does this
+  // Enable the timing information request with +UTIMEIND=1
+  // Reset the time offset configuration with +UTIMECFG=0,0
+  // Request PPS output using GNSS+LTE (Best effort) with +UTIME=1,1
+
+  // Enable the timing information request (URC)
+  //mySARA.setUtimeIndication(); // Use default (SARA_R5_UTIME_URC_CONFIGURATION_ENABLED)
+  
+  // Clear the time offset
+  mySARA.setUtimeConfiguration(); // Use default offset (offsetNanoseconds = 0, offsetSeconds = 0)
+  
+  // Set the UTIME mode to pulse-per-second output using a best effort from GNSS and LTE
+  mySARA.setUtimeMode(); // Use defaults (mode = SARA_R5_UTIME_MODE_PPS, sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE)
 }
 
-void loop() {
+void loop()
+{
   if ((lastGpsPoll == 0) || (lastGpsPoll + GPS_POLL_RATE < millis()))
   {
     // Call (mySARA.gpsGetRmc to get coordinate, speed, and timing data
