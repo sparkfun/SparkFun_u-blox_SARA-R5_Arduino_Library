@@ -39,6 +39,10 @@
 #define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
 #endif
 
+#ifdef ARDUINO_ARCH_ESP32                  // ESP32 based boards
+#define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial
+#endif
+
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
 #include <SoftwareSerial.h>
 #endif
