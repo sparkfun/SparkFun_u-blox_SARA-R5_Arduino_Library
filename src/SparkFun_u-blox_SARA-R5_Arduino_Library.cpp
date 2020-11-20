@@ -2009,9 +2009,14 @@ SARA_R5_error_t SARA_R5::socketClose(int socket, int timeout)
     char *response;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_CLOSE_SOCKET) + 10);
-    response = sara_r5_calloc_char(128);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
+    response = sara_r5_calloc_char(128);
+    if (response == NULL)
+    {
+        free(command);
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
     sprintf(command, "%s=%d", SARA_R5_CLOSE_SOCKET, socket);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, timeout);
@@ -2053,10 +2058,15 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     SARA_R5_error_t err;
     unsigned long writeDelay;
 
-    response = sara_r5_calloc_char(128);
     command = sara_r5_calloc_char(strlen(SARA_R5_WRITE_SOCKET) + 8);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
+    response = sara_r5_calloc_char(128);
+    if (response == NULL)
+    {
+        free(command);
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
     sprintf(command, "%s=%d,%d", SARA_R5_WRITE_SOCKET, socket, strlen(str));
 
     err = sendCommandWithResponse(command, "@", response,
@@ -2098,8 +2108,15 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int por
 	SARA_R5_error_t err;
 	int dataLen = len == -1 ? strlen(str) : len;
 
-	response = sara_r5_calloc_char(128);
 	command = sara_r5_calloc_char(64);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  response = sara_r5_calloc_char(128);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
 
 	sprintf(command, "%s=%d,\"%s\",%d,%d", SARA_R5_WRITE_UDP_SOCKET,
 										socket, address, port, dataLen);
@@ -2260,7 +2277,15 @@ int SARA_R5::socketGetLastError()
 	int errorCode = -1;
 
 	command=sara_r5_calloc_char(64);
-	response=sara_r5_calloc_char(128);
+  if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+  response=sara_r5_calloc_char(128);
+  if (response == NULL)
+  {
+      free(command);
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
 
 	sprintf(command, "%s", SARA_R5_GET_ERROR);
 
@@ -3399,6 +3424,7 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
 	err = socketReadUDP(socket, length, readDest);
 	if (err != SARA_R5_ERROR_SUCCESS)
   {
+    free(readDest);
 		return err;
 	}
 
