@@ -1877,6 +1877,24 @@ SARA_R5_error_t SARA_R5::setBaud(unsigned long baud)
     return err;
 }
 
+SARA_R5_error_t SARA_R5::setFlowControl(SARA_R5_flow_control_t value)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_FLOW_CONTROL) + 3);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s%d", SARA_R5_FLOW_CONTROL, value);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                  NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+
+    return err;
+}
+
 SARA_R5_error_t SARA_R5::setGpioMode(SARA_R5_gpio_t gpio,
                                            SARA_R5_gpio_mode_t mode)
 {
@@ -3193,37 +3211,6 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
     return err;
 }
 
-/*SARA_R5_error_t SARA_R5::sendCommandWithResponseAndTimeout(const char * command,
-    char * expectedResponse, uint16_t commandTimeout, boolean at)
-{
-    unsigned long timeIn = millis();
-    char * response;
-
-    sendCommand(command, at);
-
-    // Wait until we've receved the requested number of characters
-    while (hwAvailable() < strlen(expectedResponse))
-    {
-        if (millis() > timeIn + commandTimeout)
-        {
-            return SARA_R5_ERROR_TIMEOUT;
-        }
-    }
-    response = sara_r5_calloc_char(hwAvailable() + 1);
-    if (response == NULL)
-    {
-        return SARA_R5_ERROR_OUT_OF_MEMORY;
-    }
-    readAvailable(response);
-
-    // Check for expected response
-    if (strcmp(response, expectedResponse) == 0)
-    {
-        return SARA_R5_ERROR_SUCCESS;
-    }
-    return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
-}*/
-
 SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const char *expectedError, uint16_t timeout)
 {
   unsigned long timeIn;
@@ -3341,6 +3328,13 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   {
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
+}
+
+// Send a custom command with an expected (potentially partial) response, store entire response
+SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
+                                           char *responseDest, unsigned long commandTimeout, boolean at)
+{
+  return sendCommandWithResponse(command, expectedResponse, responseDest, commandTimeout, at);
 }
 
 int SARA_R5::sendCommand(const char *command, boolean at)

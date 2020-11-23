@@ -98,6 +98,7 @@ const char SARA_R5_NEW_MESSAGE_IND[] = "+CNMI"; // New [SMS] message indication
 const char SARA_R5_PREF_MESSAGE_STORE[] = "+CPMS"; // Preferred message storage
 const char SARA_R5_READ_TEXT_MESSAGE[] = "+CMGR"; // Read message
 // V24 control and V25ter (UART interface)
+const char SARA_R5_FLOW_CONTROL[] = "&K"; // Flow control
 const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
 // ### Packet switched data services
 const char SARA_R5_MESSAGE_PDP_DEF[] = "+CGDCONT"; // Packet switched Data Profile context definition
@@ -162,6 +163,13 @@ const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
         230400};
 #define SARA_R5_DEFAULT_BAUD_RATE 115200
 
+// Flow control definitions for AT&K
+// Note: SW (XON/XOFF) flow control is not supported on the SARA_R5
+typedef enum
+{
+  SARA_R5_DISABLE_FLOW_CONTROL = 0,
+  SARA_R5_ENABLE_FLOW_CONTROL = 3
+} SARA_R5_flow_control_t;
 
 // The standard Europe profile should be used as the basis for all other MNOs in Europe outside of Vodafone
 // and Deutsche Telekom. However, there may be changes that need to be applied to the module for proper
@@ -394,6 +402,21 @@ typedef enum
   SARA_R5_PSD_ACTION_DEACTIVATE
 } SARA_R5_pdp_actions_t;
 
+typedef enum
+{
+    MINIMUM_FUNCTIONALITY = 0, // (disable both transmit and receive RF circuits by deactivating both CS and PS services)
+    FULL_FUNCTIONALITY = 1,
+    AIRPLANE_MODE = 4,
+    SIM_TOOLKIT_ENABLE_DEDICATED = 6,
+    SIM_TOOLKIT_DISABLE_DEDICATED = 7,
+    SIM_TOOLKIT_ENABLE_RAW = 9,
+    FAST_SAFE_POWER_OFF = 10,
+    //SILENT_RESET_WITHOUT_SIM = 15, // Not supported on SARA-R5
+    SILENT_RESET_WITH_SIM = 16
+    //MINIMUM_FUNCTIONALITY = 19, // Not supported on SARA-R5
+    //DEEP_LOW_POWER_STATE = 127 // Not supported on SARA-R5
+} SARA_R5_functionality_t;
+
 class SARA_R5 : public Print
 {
 public:
@@ -514,6 +537,7 @@ public:
 
     // V24 Control and V25ter (UART interface) AT commands
     SARA_R5_error_t setBaud(unsigned long baud);
+    SARA_R5_error_t setFlowControl(SARA_R5_flow_control_t value = SARA_R5_ENABLE_FLOW_CONTROL);
 
     // GPIO
     // GPIO pin map
@@ -649,6 +673,13 @@ public:
     // File system
     SARA_R5_error_t getFileContents(String filename, String *contents);
 
+    // Functionality
+    SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
+
+    // Send a custom command with an expected (potentially partial) response, store entire response
+    SARA_R5_error_t sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
+                                               char *responseDest, unsigned long commandTimeout = SARA_R5_STANDARD_RESPONSE_TIMEOUT, boolean at = true);
+
 private:
     HardwareSerial *_hardSerial;
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -683,28 +714,11 @@ private:
         SARA_R5_INIT_RESET
     } SARA_R5_init_type_t;
 
-    typedef enum
-    {
-        MINIMUM_FUNCTIONALITY = 0, // (disable both transmit and receive RF circuits by deactivating both CS and PS services)
-        FULL_FUNCTIONALITY = 1,
-        AIRPLANE_MODE = 4,
-        SIM_TOOLKIT_ENABLE_DEDICATED = 6,
-        SIM_TOOLKIT_DISABLE_DEDICATED = 7,
-        SIM_TOOLKIT_ENABLE_RAW = 9,
-        FAST_SAFE_POWER_OFF = 10,
-        //SILENT_RESET_WITHOUT_SIM = 15, // Not supported on SARA-R5
-        SILENT_RESET_WITH_SIM = 16
-        //MINIMUM_FUNCTIONALITY = 19, // Not supported on SARA-R5
-        //DEEP_LOW_POWER_STATE = 127 // Not supported on SARA-R5
-    } SARA_R5_functionality_t;
-
     SARA_R5_error_t init(unsigned long baud, SARA_R5_init_type_t initType = SARA_R5_INIT_STANDARD);
 
     void powerOn(void);
 
     void hwReset(void);
-
-    SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
 
     SARA_R5_error_t setMNOprofile(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
     SARA_R5_error_t getMNOprofile(mobile_network_operator_t *mno);
