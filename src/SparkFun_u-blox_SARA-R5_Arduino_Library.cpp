@@ -1896,16 +1896,20 @@ SARA_R5_error_t SARA_R5::setFlowControl(SARA_R5_flow_control_t value)
 }
 
 SARA_R5_error_t SARA_R5::setGpioMode(SARA_R5_gpio_t gpio,
-                                           SARA_R5_gpio_mode_t mode)
+                                SARA_R5_gpio_mode_t mode, int value)
 {
     SARA_R5_error_t err;
     char *command;
 
     // Example command: AT+UGPIOC=16,2
-    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_GPIO) + 7);
+    // Example command: AT+UGPIOC=23,0,1
+    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_GPIO) + 10);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=%d,%d", SARA_R5_COMMAND_GPIO, gpio, mode);
+    if (mode == GPIO_OUTPUT)
+        sprintf(command, "%s=%d,%d,%d", SARA_R5_COMMAND_GPIO, gpio, mode, value);
+    else
+        sprintf(command, "%s=%d,%d", SARA_R5_COMMAND_GPIO, gpio, mode);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                   NULL, SARA_R5_10_SEC_TIMEOUT);

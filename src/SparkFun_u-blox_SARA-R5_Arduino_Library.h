@@ -587,7 +587,7 @@ public:
         KHZ_32768_OUT = 32,
         PAD_DISABLED = 255
     } SARA_R5_gpio_mode_t;
-    SARA_R5_error_t setGpioMode(SARA_R5_gpio_t gpio, SARA_R5_gpio_mode_t mode);
+    SARA_R5_error_t setGpioMode(SARA_R5_gpio_t gpio, SARA_R5_gpio_mode_t mode, int value = 0);
     SARA_R5_gpio_mode_t getGpioMode(SARA_R5_gpio_t gpio);
 
     // IP Transport Layer

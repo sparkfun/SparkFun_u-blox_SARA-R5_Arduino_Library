@@ -40,12 +40,6 @@ SARA_R5 mySARA;
 // Change the pin number if required.
 //SARA_R5 mySARA(34);
 
-// If you're using the MicroMod Asset Tracker then we need to define which pin controls the active antenna power for the GNSS.
-// If you're using the MicroMod Artemis Processor Board, the pin name is G6 which is connected to pin D14.
-// Change the pin number if required.
-//const int antennaPowerEnablePin = 14; // Uncomment this line to define the pin number for the antenna power enable
-const int antennaPowerEnablePin = -1; // Uncomment this line if your board does not have an antenna power enable
-
 PositionData gps;
 SpeedData spd;
 ClockData clk;
@@ -86,7 +80,9 @@ void setup()
   }
 
   // Enable power for the GNSS active antenna
-  enableGNSSAntennaPower();
+  // On the MicroMod Asset Tracker, the SARA GPIO2 pin is used to control power for the antenna.
+  // We need to pull GPIO2 (Pin 23) high to enable the power.
+  mySARA.setGpioMode(mySARA.GPIO2, mySARA.GPIO_OUTPUT, 1);
 
   // From the u-blox SARA-R5 Positioning Implementation Application Note UBX-20012413 - R01
   // To enable the PPS output we need to:
@@ -146,23 +142,4 @@ void printGPS(void)
   Serial.println("Status: " + String(gps.status));
   Serial.println("Mode: " + String(gps.mode));
   Serial.println();
-}
-
-// Disable power for the GNSS active antenna
-void disableGNSSAntennaPower()
-{
-  if (antennaPowerEnablePin >= 0)
-  {
-    pinMode(antennaPowerEnablePin, OUTPUT);
-    digitalWrite(antennaPowerEnablePin, LOW);
-  }
-}
-// Enable power for the GNSS active antenna
-void enableGNSSAntennaPower()
-{
-  if (antennaPowerEnablePin >= 0)
-  {
-    pinMode(antennaPowerEnablePin, OUTPUT);
-    digitalWrite(antennaPowerEnablePin, HIGH);
-  }
 }
