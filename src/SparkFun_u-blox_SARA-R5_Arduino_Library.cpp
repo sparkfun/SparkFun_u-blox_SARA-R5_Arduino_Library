@@ -98,11 +98,11 @@ boolean SARA_R5::bufferedPoll(void)
 		memset(saraResponseBacklog, 0, RXBuffSize);
 	}
 
-	if (hwAvailable() || backlogLen > 0) // If either new data is available, or backlog had data.
+	if (hwAvailable() > 0 || backlogLen > 0) // If either new data is available, or backlog had data.
   {
 		while (micros() - timeIn < rxWindowUS && avail < RXBuffSize)
     {
-			if (hwAvailable())
+			if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
 			    c = readChar();
           saraRXBuffer[avail++] = c;
@@ -198,11 +198,11 @@ boolean SARA_R5::poll(void)
 
     memset(saraRXBuffer, 0, RXBuffSize);
 
-    if (hwAvailable())
+    if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
         while (c != '\n')
         {
-            if (hwAvailable())
+            if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
             {
                 c = readChar();
                 saraRXBuffer[avail++] = c;
@@ -3239,7 +3239,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
   while ((!found) && ((timeIn + timeout) > millis()))
   {
-    if (hwAvailable())
+    if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
       char c = readChar();
       if (_printDebug == true) _debugPort->print((String)c);
@@ -3305,7 +3305,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 
 	while ((!found) && ((timeIn + commandTimeout) > millis()))
   {
-		if (hwAvailable())
+		if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
 			char c = readChar();
       if (_printDebug == true) _debugPort->print((String)c);
@@ -3352,11 +3352,11 @@ int SARA_R5::sendCommand(const char *command, boolean at)
   int backlogIndex = strlen(saraResponseBacklog);
 
   unsigned long timeIn = micros();
-	if (hwAvailable())
+	if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
 		while (micros()-timeIn < rxWindowUS && backlogIndex < RXBuffSize) //May need to escape on newline?
     {
-			if (hwAvailable())
+			if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
 				char c = readChar();
 				saraResponseBacklog[backlogIndex++] = c;
@@ -3535,7 +3535,7 @@ int SARA_R5::readAvailable(char *inString)
         if (_printDebug == true) _debugPort->println(inString);
     }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-    if (_softSerial != NULL)
+    else if (_softSerial != NULL)
     {
         while (_softSerial->available())
         {
