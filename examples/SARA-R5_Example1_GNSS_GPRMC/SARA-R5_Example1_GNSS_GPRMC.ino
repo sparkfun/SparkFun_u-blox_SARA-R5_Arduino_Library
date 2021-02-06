@@ -72,13 +72,6 @@ void setup()
     Serial.println(F("SARA-R5 connected!"));
   }
 
-  // Enable the GPS's RMC sentence output. This will also turn the
-  // GPS module on ((mySARA.gpsPower(true)) if it's not already
-  if (mySARA.gpsEnableRmc(true) != SARA_R5_SUCCESS) {
-    Serial.println(F("Error initializing GPS. Freezing..."));
-    while (1) ;
-  }
-
   // Enable power for the GNSS active antenna
   // On the MicroMod Asset Tracker, the SARA GPIO2 pin is used to control power for the antenna.
   // We need to pull GPIO2 (Pin 23) high to enable the power.
@@ -90,6 +83,8 @@ void setup()
   // Enable the timing information request with +UTIMEIND=1
   // Reset the time offset configuration with +UTIMECFG=0,0
   // Request PPS output using GNSS+LTE (Best effort) with +UTIME=1,1
+  // The bit that doesn't seem to be mentioned in the documentation is that +UTIME=1,1 also
+  // enables the GPS module and so we don't need to call gpsPower or gpsEnableRmc
 
   // Enable the timing information request (URC)
   //mySARA.setUtimeIndication(); // Use default (SARA_R5_UTIME_URC_CONFIGURATION_ENABLED)
