@@ -54,7 +54,7 @@ void setup()
 
   // Wait for user to press key to begin
   Serial.println(F("SARA-R5 Example"));
-  Serial.println(F("Press any key to begin GPS'ing"));
+  Serial.println(F("Press any key to begin GNSS'ing"));
   
   while (!Serial.available()) // Wait for the user to press a key (send any serial character)
     ;
@@ -79,12 +79,13 @@ void setup()
 
   // From the u-blox SARA-R5 Positioning Implementation Application Note UBX-20012413 - R01
   // To enable the PPS output we need to:
-  // Configure GPIO6 for TIME_PULSE_OUTPUT: .init does this
-  // Enable the timing information request with +UTIMEIND=1
-  // Reset the time offset configuration with +UTIMECFG=0,0
-  // Request PPS output using GNSS+LTE (Best effort) with +UTIME=1,1
-  // The bit that doesn't seem to be mentioned in the documentation is that +UTIME=1,1 also
-  // enables the GPS module and so we don't need to call gpsPower or gpsEnableRmc
+  // Configure GPIO6 for TIME_PULSE_OUTPUT - .init does this
+  // Enable the timing information request with +UTIMEIND=1 - setUtimeIndication()
+  // Reset the time offset configuration with +UTIMECFG=0,0 - setUtimeConfiguration()
+  // Request PPS output using GNSS+LTE (Best effort) with +UTIME=1,1 - setUtimeMode()
+  // The bits that don't seem to be mentioned in the documentation are:
+  //   +UTIME=1,1 also enables the GNSS module and so we don't need to call gpsPower.
+  //   +UTIME=1,1 only works when the GNSS module if off. It returns an ERROR if the GNSS is already on.
 
   // Enable the timing information request (URC)
   //mySARA.setUtimeIndication(); // Use default (SARA_R5_UTIME_URC_CONFIGURATION_ENABLED)
@@ -94,6 +95,8 @@ void setup()
   
   // Set the UTIME mode to pulse-per-second output using a best effort from GNSS and LTE
   mySARA.setUtimeMode(); // Use defaults (mode = SARA_R5_UTIME_MODE_PPS, sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE)
+
+  mySARA.gpsEnableRmc(); // Enable GPRMC messages
 }
 
 void loop()
