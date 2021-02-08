@@ -2847,14 +2847,14 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
     SARA_R5_error_t err;
     char *command;
 
-    if (!isGPSon())
-    {
-        err = gpsPower(true);
-        if (err != SARA_R5_ERROR_SUCCESS)
-        {
-            return err;
-        }
-    }
+    // if (!isGPSon())
+    // {
+    //     err = gpsPower(true);
+    //     if (err != SARA_R5_ERROR_SUCCESS)
+    //     {
+    //         return err;
+    //     }
+    // }
 
     command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_GPRMC) + 3);
     if (command == NULL)
