@@ -2290,6 +2290,107 @@ SARA_R5_error_t SARA_R5::socketListen(int socket, unsigned int port)
     return err;
 }
 
+SARA_R5_error_t SARA_R5::socketDirectLinkMode(int socket)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_DIRECT_LINK) + 8);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_SOCKET_DIRECT_LINK, socket);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_CONNECT, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkTimeTrigger(int socket, int timerTrigger)
+{
+    // valid range is 0 (trigger disabled), 100-120000
+    if (!((timerTrigger == 0) || ((timerTrigger >= 100) && (timerTrigger <= 120000))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=5,%d,%d", SARA_R5_UD_CONFIGURATION, socket, timerTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger)
+{
+    // valid range is 0, 3-1472 for UDP
+    if (!((dataLengthTrigger == 0) || ((dataLengthTrigger >= 3) && (dataLengthTrigger <= 1472))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=6,%d,%d", SARA_R5_UD_CONFIGURATION, socket, dataLengthTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkCharacterTrigger(int socket, int characterTrigger)
+{
+    // The allowed range is -1, 0-255, the factory-programmed value is -1; -1 means trigger disabled.
+    if (!((characterTrigger >= -1) && (characterTrigger <= 255)))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=7,%d,%d", SARA_R5_UD_CONFIGURATION, socket, characterTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkCongestionTimer(int socket, int congestionTimer)
+{
+    // valid range is 0, 1000-72000
+    if (!((congestionTimer == 0) || ((congestionTimer >= 1000) && (congestionTimer <= 72000))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=8,%d,%d", SARA_R5_UD_CONFIGURATION, socket, congestionTimer);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
 //Issues command to get last socket error, then prints to serial. Also updates rx/backlog buffers.
 int SARA_R5::socketGetLastError()
 {

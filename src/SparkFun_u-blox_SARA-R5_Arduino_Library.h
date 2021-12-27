@@ -118,6 +118,8 @@ const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
 const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
 const char SARA_R5_GET_ERROR[] = "+USOER"; // Get last socket error.
+const char SARA_R5_SOCKET_DIRECT_LINK[] = "+USODL"; // Set socket in Direct Link mode
+const char SARA_R5_UD_CONFIGURATION[] = "+UDCONF"; // User Datagram Configuration
 // ### Ping
 const char SARA_R5_PING_COMMAND[] = "+UPING"; // Ping
 // ### HTTP
@@ -139,6 +141,7 @@ const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE"; // Read a file
 // ### Response
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
+const char SARA_R5_RESPONSE_CONNECT[] = "CONNECT\r\n";
 
 // CTRL+Z and ESC ASCII codes for SMS message sends
 const char ASCII_CTRL_Z = 0x1A;
@@ -208,7 +211,7 @@ typedef enum
     SARA_R5_ERROR_UNEXPECTED_RESPONSE, // 4
     SARA_R5_ERROR_NO_RESPONSE,         // 5
     SARA_R5_ERROR_DEREGISTERED,        // 6
-	  SARA_R5_ERROR_ERROR				         // 7
+	SARA_R5_ERROR_ERROR				   // 7
 } SARA_R5_error_t;
 #define SARA_R5_SUCCESS SARA_R5_ERROR_SUCCESS
 
@@ -597,10 +600,15 @@ public:
     SARA_R5_error_t socketWrite(int socket, const char *str);
     SARA_R5_error_t socketWrite(int socket, String str);
     SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
-	  SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
+	SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
     SARA_R5_error_t socketRead(int socket, int length, char *readDest);
     SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest);
     SARA_R5_error_t socketListen(int socket, unsigned int port);
+    SARA_R5_error_t socketDirectLinkMode(int socket);
+    SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, int timerTrigger);
+    SARA_R5_error_t socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger);
+    SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
+    SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, int congestionTimer);
     int socketGetLastError();
     IPAddress lastRemoteIP(void);
 

@@ -105,6 +105,11 @@ socketWriteUDP	KEYWORD2
 socketRead	KEYWORD2
 socketReadUDP	KEYWORD2
 socketListen	KEYWORD2
+socketDirectLinkMode	KEYWORD2
+socketDirectLinkTimeTrigger	KEYWORD2
+socketDirectLinkDataLengthTrigger	KEYWORD2
+socketDirectLinkCharacterTrigger	KEYWORD2
+socketDirectLinkCongestionTimer	KEYWORD2
 socketGetLastError	KEYWORD2
 lastRemoteIP	KEYWORD2
 ping	KEYWORD2
