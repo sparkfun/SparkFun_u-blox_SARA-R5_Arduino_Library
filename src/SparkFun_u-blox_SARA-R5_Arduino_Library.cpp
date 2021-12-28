@@ -42,7 +42,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
 }
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-boolean SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
+bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 {
     SARA_R5_error_t err;
 
@@ -57,7 +57,7 @@ boolean SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 }
 #endif
 
-boolean SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
+bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 {
     SARA_R5_error_t err;
 
@@ -79,7 +79,7 @@ void SARA_R5::enableDebugging(Stream &debugPort)
 	_printDebug = true;
 }
 
-boolean SARA_R5::bufferedPoll(void)
+bool SARA_R5::bufferedPoll(void)
 {
 	int avail = 0;
   char c = 0;
@@ -131,7 +131,7 @@ boolean SARA_R5::bufferedPoll(void)
   return handled;
 }
 
-boolean SARA_R5::processReadEvent(char* event)
+bool SARA_R5::processReadEvent(char* event)
 {
 	{
 		int socket, length;
@@ -190,7 +190,7 @@ boolean SARA_R5::processReadEvent(char* event)
 	return false;
 }
 
-boolean SARA_R5::poll(void)
+bool SARA_R5::poll(void)
 {
     int avail = 0;
     char c = 0;
@@ -510,7 +510,7 @@ SARA_R5_error_t SARA_R5::at(void)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::enableEcho(boolean enable)
+SARA_R5_error_t SARA_R5::enableEcho(bool enable)
 {
     SARA_R5_error_t err;
     char *command;
@@ -1031,7 +1031,7 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   return err;
 }
 
-SARA_R5_error_t SARA_R5::autoTimeZone(boolean enable)
+SARA_R5_error_t SARA_R5::autoTimeZone(bool enable)
 {
     SARA_R5_error_t err;
     char *command;
@@ -1122,7 +1122,7 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return (SARA_R5_registration_status_t)status;
 }
 
-boolean SARA_R5::setNetworkProfile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+bool SARA_R5::setNetworkProfile(mobile_network_operator_t mno, bool autoReset, bool urcNotification)
 {
     mobile_network_operator_t currentMno;
 
@@ -1262,7 +1262,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
 
       char *searchPtr = response;
 
-      boolean keepGoing = true;
+      bool keepGoing = true;
       while (keepGoing == true)
       {
         int apnLen = 0;
@@ -2542,7 +2542,7 @@ SARA_R5_error_t SARA_R5::setHTTPpassword(int profile, String password)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, boolean authenticate)
+SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, bool authenticate)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2584,7 +2584,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverPort(int profile, int port)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, boolean secure)
+SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2797,7 +2797,7 @@ SARA_R5_error_t SARA_R5::performPDPaction(int profile, SARA_R5_pdp_actions_t act
     return err;
 }
 
-SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
+SARA_R5_error_t SARA_R5::activatePDPcontext(bool status, int cid)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2820,12 +2820,12 @@ SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
     return err;
 }
 
-boolean SARA_R5::isGPSon(void)
+bool SARA_R5::isGPSon(void)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
-    boolean on = false;
+    bool on = false;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 2);
     if (command == NULL)
@@ -2861,11 +2861,11 @@ boolean SARA_R5::isGPSon(void)
     return on;
 }
 
-SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_aiding_mode_t gnss_aiding)
+SARA_R5_error_t SARA_R5::gpsPower(bool enable, gnss_system_t gnss_sys, gnss_aiding_mode_t gnss_aiding)
 {
     SARA_R5_error_t err;
     char *command;
-    boolean gpsState;
+    bool gpsState;
 
     // Don't turn GPS on/off if it's already on/off
     gpsState = isGPSon();
@@ -2893,10 +2893,10 @@ SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_a
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableClock(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableClock(bool enable)
 {
     //enable is unused at the moment but could be used if this function is ever implemented.
-    boolean ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
+    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
 
     // AT+UGZDA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2910,10 +2910,10 @@ SARA_R5_error_t SARA_R5::gpsGetClock(struct ClockData *clock)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableFix(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableFix(bool enable)
 {
     //enable is unused at the moment but could be used if this function is ever implemented.
-    boolean ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
+    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
 
     // AT+UGGGA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2927,10 +2927,10 @@ SARA_R5_error_t SARA_R5::gpsGetFix(struct PositionData *pos)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnablePos(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnablePos(bool enable)
 {
     //enable is unused at the moment but could be used if this function is ever implemented.
-    boolean ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
+    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
 
     // AT+UGGLL=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2944,10 +2944,10 @@ SARA_R5_error_t SARA_R5::gpsGetPos(struct PositionData *pos)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableSat(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableSat(bool enable)
 {
     //enable is unused at the moment but could be used if this function is ever implemented.
-    boolean ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
+    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
 
     // AT+UGGSV=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2961,7 +2961,7 @@ SARA_R5_error_t SARA_R5::gpsGetSat(uint8_t *sats)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableRmc(bool enable)
 {
     // AT+UGRMC=<0,1>
     SARA_R5_error_t err;
@@ -2990,7 +2990,7 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
 }
 
 SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *spd,
-                                         struct ClockData *clk, boolean *valid)
+                                         struct ClockData *clk, bool *valid)
 {
     SARA_R5_error_t err;
     char *command;
@@ -3029,10 +3029,10 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableSpeed(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableSpeed(bool enable)
 {
     //enable is unused at the moment but could be used if this function is ever implemented.
-    boolean ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
+    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
 
     // AT+UGVTG=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -3047,7 +3047,7 @@ SARA_R5_error_t SARA_R5::gpsGetSpeed(struct SpeedData *speed)
 }
 
 SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
-                                          boolean detailed)
+                                          bool detailed)
 {
     // AT+ULOC=2,<useCellLocate>,<detailed>,<timeout>,<accuracy>
     SARA_R5_error_t err;
@@ -3121,7 +3121,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
         return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    boolean keepGoing = true;
+    bool keepGoing = true;
     int bytesRead = 0;
 
     if (_printDebug == true) _debugPort->print(F("getFileContents: file contents are \""));
@@ -3218,7 +3218,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     return SARA_R5_ERROR_SUCCESS;
 }
 
-void SARA_R5::invertPowerPin(boolean invert)
+void SARA_R5::invertPowerPin(bool invert)
 {
   _invertPowerPin = invert;
 }
@@ -3272,7 +3272,7 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, bool autoReset, bool urcNotification)
 {
     SARA_R5_error_t err;
     char *command;
@@ -3348,7 +3348,7 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
 SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const char *expectedError, uint16_t timeout)
 {
   unsigned long timeIn;
-  boolean found = false;
+  bool found = false;
   int responseIndex = 0, errorIndex = 0;
   int backlogIndex = strlen(saraResponseBacklog);
 
@@ -3407,9 +3407,9 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
 SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     const char *command, const char *expectedResponse, char *responseDest,
-    unsigned long commandTimeout, boolean at)
+    unsigned long commandTimeout, bool at)
 {
-  boolean found = false;
+  bool found = false;
   int index = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
@@ -3466,12 +3466,12 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 
 // Send a custom command with an expected (potentially partial) response, store entire response
 SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
-                                           char *responseDest, unsigned long commandTimeout, boolean at)
+                                           char *responseDest, unsigned long commandTimeout, bool at)
 {
   return sendCommandWithResponse(command, expectedResponse, responseDest, commandTimeout, at);
 }
 
-int SARA_R5::sendCommand(const char *command, boolean at)
+int SARA_R5::sendCommand(const char *command, bool at)
 {
   int backlogIndex = strlen(saraResponseBacklog);
 
@@ -3837,7 +3837,7 @@ char *SARA_R5::readDataUntil(char *destination, unsigned int destSize,
     return strEnd;
 }
 
-boolean SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
+bool SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
                                 ClockData *clk, SpeedData *spd)
 {
     char *ptr, *search;
