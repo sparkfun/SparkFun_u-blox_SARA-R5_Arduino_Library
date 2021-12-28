@@ -139,6 +139,7 @@ const char SARA_R5_GNSS_TIME_INDICATION[] = "+UTIMEIND"; // Time information req
 const char SARA_R5_GNSS_TIME_CONFIGURATION[] = "+UTIMECFG"; // Sets time configuration
 const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
 const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
+const char SARA_R5_AIDING_SERVER_CONFIGURATION[] = "+UGSRV"; // Configure aiding server (CellLocate®)
 // ### File System
 const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE"; // Read a file
 // ### Response
@@ -677,7 +678,12 @@ public:
     //SARA_R5_error_t gpsEnableSpeed(bool enable = true);
     //SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
 
-    SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, bool detailed = true);
+    SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, bool detailed = true, unsigned int sensor = 3);
+
+    //CellLocate
+    SARA_R5_error_t gpsAidingServerConf(const char *primaryServer, const char *secondaryServer, const char *authToken,
+                                        unsigned int days = 14, unsigned int period = 4, unsigned int resolution = 1,
+                                        unsigned int gnssTypes = 65, unsigned int mode = 0, unsigned int dataType = 15);
 
     // File system
     SARA_R5_error_t getFileContents(String filename, String *contents);

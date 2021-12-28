@@ -142,6 +142,7 @@ gpsGetRmc	KEYWORD2
 # gpsEnableSpeed	KEYWORD2
 # gpsGetSpeed	KEYWORD2
 gpsRequest	KEYWORD2
+gpsAidingServerConf	KEYWORD2
 getFileContents	KEYWORD2
 functionality	KEYWORD2
 sendCustomCommandWithResponse	KEYWORD2

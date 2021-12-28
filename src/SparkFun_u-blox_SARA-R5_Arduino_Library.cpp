@@ -283,7 +283,7 @@ bool SARA_R5::poll(void)
                   _debugPort->println(saraRXBuffer);
                 }
 
-                // This assumes the ULOC response type is "1". TO DO: check that is true...
+                // This assumes the ULOC response type is "0" or "1" - as selected by gpsRequest detailed
                 int dateStore[5];
                 scanNum = sscanf(saraRXBuffer,
                                  "+UULOC: %d/%d/%d,%d:%d:%d.%d,%d.%[^,],%d.%[^,],%d,%lu,%u,%u,%*s",
@@ -317,9 +317,9 @@ bool SARA_R5::poll(void)
                 if (_printDebug == true)
                 {
                   _debugPort->print("poll +UULOC: lat: ");
-                  _debugPort->print(gps.lat, 6);
+                  _debugPort->print(gps.lat, 7);
                   _debugPort->print(" lon: ");
-                  _debugPort->print(gps.lon, 6);
+                  _debugPort->print(gps.lon, 7);
                   _debugPort->print(" alt: ");
                   _debugPort->print(gps.alt, 2);
                   _debugPort->print(" speed: ");
@@ -1476,16 +1476,16 @@ SARA_R5_error_t SARA_R5::enterPPP(uint8_t cid, char dialing_type_char,
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (dialing_type_char != 0)
     {
-        sprintf(command, "%s%c*%lu**%s*%hhu#", SARA_R5_MESSAGE_ENTER_PPP, dialing_type_char,
-                dialNumber, PPP_L2P[l2p], cid);
+        sprintf(command, "%s%c*%lu**%s*%u#", SARA_R5_MESSAGE_ENTER_PPP, dialing_type_char,
+                dialNumber, PPP_L2P[l2p], (unsigned int)cid);
     }
     else
     {
-        sprintf(command, "%s*%lu**%s*%hhu#", SARA_R5_MESSAGE_ENTER_PPP,
-                dialNumber, PPP_L2P[l2p], cid);
+        sprintf(command, "%s*%lu**%s*%u#", SARA_R5_MESSAGE_ENTER_PPP,
+                dialNumber, PPP_L2P[l2p], (unsigned int)cid);
     }
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_CONNECT, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
     free(command);
@@ -3099,7 +3099,7 @@ SARA_R5_error_t SARA_R5::gpsGetSpeed(struct SpeedData *speed)
 */
 
 SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
-                                          bool detailed)
+                                          bool detailed, unsigned int sensor)
 {
     // AT+ULOC=2,<useCellLocate>,<detailed>,<timeout>,<accuracy>
     SARA_R5_error_t err;
@@ -3120,14 +3120,36 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
 #ifdef ARDUINO_ARCH_ESP32
-    sprintf(command, "%s=2,3,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
-            detailed ? 1 : 0, timeout, accuracy);
+    sprintf(command, "%s=2,%d,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
+            sensor, detailed ? 1 : 0, timeout, accuracy);
 #else
-    sprintf(command, "%s=2,3,%d,%d,%ld", SARA_R5_GNSS_REQUEST_LOCATION,
-            detailed ? 1 : 0, timeout, accuracy);
+    sprintf(command, "%s=2,%d,%d,%d,%ld", SARA_R5_GNSS_REQUEST_LOCATION,
+            sensor, detailed ? 1 : 0, timeout, accuracy);
 #endif
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::gpsAidingServerConf(const char *primaryServer, const char *secondaryServer, const char *authToken,
+                                    unsigned int days, unsigned int period, unsigned int resolution,
+                                    unsigned int gnssTypes, unsigned int mode, unsigned int dataType)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_AIDING_SERVER_CONFIGURATION) + 256);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+    sprintf(command, "%s=\"%s\",\"%s\",\"%s\",%d,%d,%d,%d,%d,%d", SARA_R5_AIDING_SERVER_CONFIGURATION,
+            primaryServer, secondaryServer, authToken,
+            days, period, resolution, gnssTypes, mode, dataType);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
     free(command);
     return err;
