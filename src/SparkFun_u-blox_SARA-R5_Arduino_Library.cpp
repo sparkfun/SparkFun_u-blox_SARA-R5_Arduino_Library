@@ -3246,7 +3246,8 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 
     if (_printDebug == true) _debugPort->println(F("Begin module init."));
 
-    beginSerial(baud); // Begin serial
+    if(hwAvailable() == -1)
+        beginSerial(baud); // If port is null, begin serial
 
     if (initType == SARA_R5_INIT_AUTOBAUD)
     {
@@ -3798,6 +3799,7 @@ void SARA_R5::beginSerial(unsigned long baud)
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
     else if (_softSerial != NULL)
     {
+        _softSerial->end();
         _softSerial->begin(baud);
     }
 #endif
