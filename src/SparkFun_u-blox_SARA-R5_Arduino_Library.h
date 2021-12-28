@@ -446,7 +446,7 @@ public:
 
     // Loop polling and polling setup
     boolean bufferedPoll(void);
-	  boolean processReadEvent(char* event);
+	boolean processReadEvent(char* event);
     boolean poll(void);
     void setSocketReadCallback(void (*socketReadCallback)(int, String));
     void setSocketCloseCallback(void (*socketCloseCallback)(int));
@@ -595,7 +595,7 @@ public:
 
     // IP Transport Layer
     int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0);
-    SARA_R5_error_t socketClose(int socket, int timeout = SARA_R5_2_MIN_TIMEOUT);
+    SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT);
     SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
     SARA_R5_error_t socketWrite(int socket, const char *str);
     SARA_R5_error_t socketWrite(int socket, String str);
@@ -605,10 +605,10 @@ public:
     SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest);
     SARA_R5_error_t socketListen(int socket, unsigned int port);
     SARA_R5_error_t socketDirectLinkMode(int socket);
-    SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, int timerTrigger);
+    SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, unsigned long timerTrigger);
     SARA_R5_error_t socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger);
     SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
-    SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, int congestionTimer);
+    SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer);
     int socketGetLastError();
     IPAddress lastRemoteIP(void);
 
