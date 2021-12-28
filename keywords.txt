@@ -129,18 +129,18 @@ performPDPaction	KEYWORD2
 activatePDPcontext	KEYWORD2
 isGPSon	KEYWORD2
 gpsPower	KEYWORD2
-gpsEnableClock	KEYWORD2
-gpsGetClock	KEYWORD2
-gpsEnableFix	KEYWORD2
-gpsGetFix	KEYWORD2
-gpsEnablePos	KEYWORD2
-gpsGetPos	KEYWORD2
-gpsEnableSat	KEYWORD2
-gpsGetSat	KEYWORD2
+# gpsEnableClock	KEYWORD2
+# gpsGetClock	KEYWORD2
+# gpsEnableFix	KEYWORD2
+# gpsGetFix	KEYWORD2
+# gpsEnablePos	KEYWORD2
+# gpsGetPos	KEYWORD2
+# gpsEnableSat	KEYWORD2
+# gpsGetSat	KEYWORD2
 gpsEnableRmc	KEYWORD2
 gpsGetRmc	KEYWORD2
-gpsEnableSpeed	KEYWORD2
-gpsGetSpeed	KEYWORD2
+# gpsEnableSpeed	KEYWORD2
+# gpsGetSpeed	KEYWORD2
 gpsRequest	KEYWORD2
 getFileContents	KEYWORD2
 functionality	KEYWORD2

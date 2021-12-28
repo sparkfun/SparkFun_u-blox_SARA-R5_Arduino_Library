@@ -660,21 +660,19 @@ public:
     SARA_R5_error_t gpsPower(bool enable = true,
                                 gnss_system_t gnss_sys = GNSS_SYSTEM_GPS,
                                 gnss_aiding_mode_t gnss_aiding = GNSS_AIDING_MODE_AUTOMATIC);
-    SARA_R5_error_t gpsEnableClock(bool enable = true);
-    SARA_R5_error_t gpsGetClock(struct ClockData *clock);
-    SARA_R5_error_t gpsEnableFix(bool enable = true);
-    SARA_R5_error_t gpsGetFix(float *lat, float *lon,
-                                 unsigned int *alt, uint8_t *quality, uint8_t *sat);
-    SARA_R5_error_t gpsGetFix(struct PositionData *pos);
-    SARA_R5_error_t gpsEnablePos(bool enable = true);
-    SARA_R5_error_t gpsGetPos(struct PositionData *pos);
-    SARA_R5_error_t gpsEnableSat(bool enable = true);
-    SARA_R5_error_t gpsGetSat(uint8_t *sats);
+    //SARA_R5_error_t gpsEnableClock(bool enable = true);
+    //SARA_R5_error_t gpsGetClock(struct ClockData *clock);
+    //SARA_R5_error_t gpsEnableFix(bool enable = true);
+    //SARA_R5_error_t gpsGetFix(float *lat, float *lon, unsigned int *alt, uint8_t *quality, uint8_t *sat);
+    //SARA_R5_error_t gpsGetFix(struct PositionData *pos);
+    //SARA_R5_error_t gpsEnablePos(bool enable = true);
+    //SARA_R5_error_t gpsGetPos(struct PositionData *pos);
+    //SARA_R5_error_t gpsEnableSat(bool enable = true);
+    //SARA_R5_error_t gpsGetSat(uint8_t *sats);
     SARA_R5_error_t gpsEnableRmc(bool enable = true);
-    SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed,
-                                 struct ClockData *clk, bool *valid);
-    SARA_R5_error_t gpsEnableSpeed(bool enable = true);
-    SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
+    SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed, struct ClockData *clk, bool *valid);
+    //SARA_R5_error_t gpsEnableSpeed(bool enable = true);
+    //SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
 
     SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, bool detailed = true);
 

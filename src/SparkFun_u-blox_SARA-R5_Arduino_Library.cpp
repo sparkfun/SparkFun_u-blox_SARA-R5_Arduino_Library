@@ -2893,11 +2893,9 @@ SARA_R5_error_t SARA_R5::gpsPower(bool enable, gnss_system_t gnss_sys, gnss_aidi
     return err;
 }
 
+/*
 SARA_R5_error_t SARA_R5::gpsEnableClock(bool enable)
 {
-    //enable is unused at the moment but could be used if this function is ever implemented.
-    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
-
     // AT+UGZDA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
@@ -2912,9 +2910,6 @@ SARA_R5_error_t SARA_R5::gpsGetClock(struct ClockData *clock)
 
 SARA_R5_error_t SARA_R5::gpsEnableFix(bool enable)
 {
-    //enable is unused at the moment but could be used if this function is ever implemented.
-    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
-
     // AT+UGGGA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
@@ -2929,9 +2924,6 @@ SARA_R5_error_t SARA_R5::gpsGetFix(struct PositionData *pos)
 
 SARA_R5_error_t SARA_R5::gpsEnablePos(bool enable)
 {
-    //enable is unused at the moment but could be used if this function is ever implemented.
-    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
-
     // AT+UGGLL=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
@@ -2946,9 +2938,6 @@ SARA_R5_error_t SARA_R5::gpsGetPos(struct PositionData *pos)
 
 SARA_R5_error_t SARA_R5::gpsEnableSat(bool enable)
 {
-    //enable is unused at the moment but could be used if this function is ever implemented.
-    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
-
     // AT+UGGSV=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
@@ -2960,6 +2949,7 @@ SARA_R5_error_t SARA_R5::gpsGetSat(uint8_t *sats)
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
 }
+*/
 
 SARA_R5_error_t SARA_R5::gpsEnableRmc(bool enable)
 {
@@ -3029,11 +3019,9 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
     return err;
 }
 
+/*
 SARA_R5_error_t SARA_R5::gpsEnableSpeed(bool enable)
 {
-    //enable is unused at the moment but could be used if this function is ever implemented.
-    bool ignoreMe = enable; ignoreMe |= false; // Avoid the pesky compiler warning.
-
     // AT+UGVTG=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
@@ -3045,6 +3033,7 @@ SARA_R5_error_t SARA_R5::gpsGetSpeed(struct SpeedData *speed)
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
 }
+*/
 
 SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
                                           bool detailed)
