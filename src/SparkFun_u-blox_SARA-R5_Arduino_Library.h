@@ -32,7 +32,10 @@
 #endif
 
 #ifdef ARDUINO_ARCH_APOLLO3                // Arduino Apollo boards (Artemis module, RedBoard Artemis, etc)
-#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial (no longer supported with v2 of Apollo3)
+// Note: paulvha has provided software serial support for v2 of the Apollo3 / Artemis core.
+//       Further details are available at:
+//       https://github.com/paulvha/apollo3/tree/master/SoftwareSerial
 #endif
 
 #ifdef ARDUINO_ARCH_STM32                  // STM32 based boards (Disco, Nucleo, etc)
