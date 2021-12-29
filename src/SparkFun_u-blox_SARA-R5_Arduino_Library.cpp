@@ -1037,7 +1037,7 @@ SARA_R5_error_t SARA_R5::setUtimeConfiguration(int32_t offsetNanoseconds, int32_
   command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 48);
   if (command == NULL)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
   sprintf(command, "%s=%d,%d", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
 #else
   sprintf(command, "%s=%ld,%ld", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
@@ -1076,7 +1076,7 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   // Response format: \r\n+UTIMECFG: <offset_nano>,<offset_sec>\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
       int scanned = sscanf(response, "\r\n+UTIMECFG: %d,%d\r\n", &ons, &os);
 #else
       int scanned = sscanf(response, "\r\n+UTIMECFG: %ld,%ld\r\n", &ons, &os);
@@ -1762,7 +1762,7 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
     int u;
     int t;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_PREF_MESSAGE_STORE) + 6);
+    command = sara_r5_calloc_char(strlen(SARA_R5_PREF_MESSAGE_STORE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=\"%s\"", SARA_R5_PREF_MESSAGE_STORE, memory.c_str());
@@ -2806,7 +2806,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
     if (profile >= SARA_R5_NUM_PSD_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 64);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
@@ -3119,7 +3119,7 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_LOCATION) + 24);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-#ifdef ARDUINO_ARCH_ESP32
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
     sprintf(command, "%s=2,%d,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
             sensor, detailed ? 1 : 0, timeout, accuracy);
 #else
