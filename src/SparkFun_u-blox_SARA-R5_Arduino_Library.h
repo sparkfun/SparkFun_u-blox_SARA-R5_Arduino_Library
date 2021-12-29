@@ -32,7 +32,10 @@
 #endif
 
 #ifdef ARDUINO_ARCH_APOLLO3                // Arduino Apollo boards (Artemis module, RedBoard Artemis, etc)
-#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial (no longer supported with v2 of Apollo3)
+// Note: paulvha has provided software serial support for v2 of the Apollo3 / Artemis core.
+//       Further details are available at:
+//       https://github.com/paulvha/apollo3/tree/master/SoftwareSerial
 #endif
 
 #ifdef ARDUINO_ARCH_STM32                  // STM32 based boards (Disco, Nucleo, etc)
@@ -40,11 +43,31 @@
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32                  // ESP32 based boards
+// Check to see if ESP Software Serial has been included
+// Note: you need to #include <SoftwareSerial.h> at the very start of your script,
+// _before_ the #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>, for this to work.
+// See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+#if __has_include( <SoftwareSerial.h> )
+#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#else
 #define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial
+#endif
+#endif
+
+#ifdef ARDUINO_ARCH_ESP8266                // ESP8266 based boards
+// Check to see if ESP Software Serial has been included
+// Note: you need to #include <SoftwareSerial.h> at the very start of your script,
+// _before_ the #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>, for this to work.
+// See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+#if __has_include( <SoftwareSerial.h> )
+#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#else
+#define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial
+#endif
 #endif
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-#include <SoftwareSerial.h>
+#include <SoftwareSerial.h> // SoftwareSerial.h is guarded. It is OK to include it twice.
 #endif
 
 #include <IPAddress.h>
@@ -118,6 +141,8 @@ const char SARA_R5_READ_SOCKET[] = "+USORD";    // Read from a socket
 const char SARA_R5_READ_UDP_SOCKET[] = "+USORF"; // Read UDP data from a socket
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";  // Listen for connection on socket
 const char SARA_R5_GET_ERROR[] = "+USOER"; // Get last socket error.
+const char SARA_R5_SOCKET_DIRECT_LINK[] = "+USODL"; // Set socket in Direct Link mode
+const char SARA_R5_UD_CONFIGURATION[] = "+UDCONF"; // User Datagram Configuration
 // ### Ping
 const char SARA_R5_PING_COMMAND[] = "+UPING"; // Ping
 // ### HTTP
@@ -134,11 +159,13 @@ const char SARA_R5_GNSS_TIME_INDICATION[] = "+UTIMEIND"; // Time information req
 const char SARA_R5_GNSS_TIME_CONFIGURATION[] = "+UTIMECFG"; // Sets time configuration
 const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS"; // Configure GNSS sensor
 const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL"; // Configure cellular location sensor (CellLocate®)
+const char SARA_R5_AIDING_SERVER_CONFIGURATION[] = "+UGSRV"; // Configure aiding server (CellLocate®)
 // ### File System
 const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE"; // Read a file
 // ### Response
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
+const char SARA_R5_RESPONSE_CONNECT[] = "CONNECT\r\n";
 
 // CTRL+Z and ESC ASCII codes for SMS message sends
 const char ASCII_CTRL_Z = 0x1A;
@@ -208,7 +235,7 @@ typedef enum
     SARA_R5_ERROR_UNEXPECTED_RESPONSE, // 4
     SARA_R5_ERROR_NO_RESPONSE,         // 5
     SARA_R5_ERROR_DEREGISTERED,        // 6
-	  SARA_R5_ERROR_ERROR				         // 7
+	SARA_R5_ERROR_ERROR				   // 7
 } SARA_R5_error_t;
 #define SARA_R5_SUCCESS SARA_R5_ERROR_SUCCESS
 
@@ -429,9 +456,9 @@ public:
 
     // Begin -- initialize BT module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-    boolean begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
+    bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
 #endif
-    boolean begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
+    bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
 
     // Debug prints
     void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
@@ -439,12 +466,12 @@ public:
     // Invert the polarity of the power pin - if required
     // Normally the SARA's power pin is pulled low and released to toggle the power
     // But the Asset Tracker needs this to be pulled high and released instead
-    void invertPowerPin(boolean invert = false);
+    void invertPowerPin(bool invert = false);
 
     // Loop polling and polling setup
-    boolean bufferedPoll(void);
-	  boolean processReadEvent(char* event);
-    boolean poll(void);
+    bool bufferedPoll(void);
+	bool processReadEvent(char* event);
+    bool poll(void);
     void setSocketReadCallback(void (*socketReadCallback)(int, String));
     void setSocketCloseCallback(void (*socketCloseCallback)(int));
     void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
@@ -461,7 +488,7 @@ public:
 
     // General AT Commands
     SARA_R5_error_t at(void);
-    SARA_R5_error_t enableEcho(boolean enable = true);
+    SARA_R5_error_t enableEcho(bool enable = true);
     String getManufacturerID(void);
     String getModelID(void);
     String getFirmwareVersion(void);
@@ -478,7 +505,7 @@ public:
     // TODO: Return a clock struct
     SARA_R5_error_t clock(uint8_t *y, uint8_t *mo, uint8_t *d,
                              uint8_t *h, uint8_t *min, uint8_t *s, uint8_t *tz);
-    SARA_R5_error_t autoTimeZone(boolean enable);
+    SARA_R5_error_t autoTimeZone(bool enable);
     SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE);
     SARA_R5_error_t getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor);
     SARA_R5_error_t setUtimeIndication(SARA_R5_utime_urc_configuration_t config = SARA_R5_UTIME_URC_CONFIGURATION_ENABLED);
@@ -489,7 +516,7 @@ public:
     // Network service AT commands
     int8_t rssi(void);
     SARA_R5_registration_status_t registration(void);
-    boolean setNetworkProfile(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
+    bool setNetworkProfile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
     mobile_network_operator_t getNetworkProfile(void);
     typedef enum
     {
@@ -592,15 +619,20 @@ public:
 
     // IP Transport Layer
     int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0);
-    SARA_R5_error_t socketClose(int socket, int timeout = SARA_R5_2_MIN_TIMEOUT);
+    SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT);
     SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
     SARA_R5_error_t socketWrite(int socket, const char *str);
     SARA_R5_error_t socketWrite(int socket, String str);
     SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
-	  SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
+	SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
     SARA_R5_error_t socketRead(int socket, int length, char *readDest);
     SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest);
     SARA_R5_error_t socketListen(int socket, unsigned int port);
+    SARA_R5_error_t socketDirectLinkMode(int socket);
+    SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, unsigned long timerTrigger);
+    SARA_R5_error_t socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger);
+    SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
+    SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer);
     int socketGetLastError();
     IPAddress lastRemoteIP(void);
 
@@ -613,9 +645,9 @@ public:
     SARA_R5_error_t setHTTPserverName(int profile, String server); // Default: empty string
     SARA_R5_error_t setHTTPusername(int profile, String username); // Default: empty string
     SARA_R5_error_t setHTTPpassword(int profile, String password); // Default: empty string
-    SARA_R5_error_t setHTTPauthentication(int profile, boolean authenticate); // Default: no authentication
+    SARA_R5_error_t setHTTPauthentication(int profile, bool authenticate); // Default: no authentication
     SARA_R5_error_t setHTTPserverPort(int profile, int port); // Default: 80
-    SARA_R5_error_t setHTTPsecure(int profile, boolean secure); // Default: disabled (HTTP on port 80). Set to true for HTTPS on port 443
+    SARA_R5_error_t setHTTPsecure(int profile, bool secure); // Default: disabled (HTTP on port 80). Set to true for HTTPS on port 443
     // TO DO: Add custom request headers
     SARA_R5_error_t getHTTPprotocolError(int profile, int *error_class, int *error_code); // Read the most recent HTTP protocol error for this profile
     SARA_R5_error_t sendHTTPGET(int profile, String path, String responseFilename);
@@ -627,7 +659,7 @@ public:
     SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, String value); // Set parameters in the chosen PSD profile
     SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value); // Set parameters in the chosen PSD profile
     SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action); // Performs the requested action for the specified PSD profile.
-    SARA_R5_error_t activatePDPcontext(boolean status, int cid = -1); // Activates or deactivates the specified PDP context. Default to all (cid = -1)
+    SARA_R5_error_t activatePDPcontext(bool status, int cid = -1); // Activates or deactivates the specified PDP context. Default to all (cid = -1)
 
     // GPS
     typedef enum
@@ -648,27 +680,30 @@ public:
         GNSS_AIDING_MODE_ASSISTNOW_ONLINE = 4,
         GNSS_AIDING_MODE_ASSISTNOW_AUTONOMOUS = 8
     } gnss_aiding_mode_t;
-    boolean isGPSon(void);
-    SARA_R5_error_t gpsPower(boolean enable = true,
+    bool isGPSon(void);
+    SARA_R5_error_t gpsPower(bool enable = true,
                                 gnss_system_t gnss_sys = GNSS_SYSTEM_GPS,
                                 gnss_aiding_mode_t gnss_aiding = GNSS_AIDING_MODE_AUTOMATIC);
-    SARA_R5_error_t gpsEnableClock(boolean enable = true);
-    SARA_R5_error_t gpsGetClock(struct ClockData *clock);
-    SARA_R5_error_t gpsEnableFix(boolean enable = true);
-    SARA_R5_error_t gpsGetFix(float *lat, float *lon,
-                                 unsigned int *alt, uint8_t *quality, uint8_t *sat);
-    SARA_R5_error_t gpsGetFix(struct PositionData *pos);
-    SARA_R5_error_t gpsEnablePos(boolean enable = true);
-    SARA_R5_error_t gpsGetPos(struct PositionData *pos);
-    SARA_R5_error_t gpsEnableSat(boolean enable = true);
-    SARA_R5_error_t gpsGetSat(uint8_t *sats);
-    SARA_R5_error_t gpsEnableRmc(boolean enable = true);
-    SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed,
-                                 struct ClockData *clk, boolean *valid);
-    SARA_R5_error_t gpsEnableSpeed(boolean enable = true);
-    SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
+    //SARA_R5_error_t gpsEnableClock(bool enable = true);
+    //SARA_R5_error_t gpsGetClock(struct ClockData *clock);
+    //SARA_R5_error_t gpsEnableFix(bool enable = true);
+    //SARA_R5_error_t gpsGetFix(float *lat, float *lon, unsigned int *alt, uint8_t *quality, uint8_t *sat);
+    //SARA_R5_error_t gpsGetFix(struct PositionData *pos);
+    //SARA_R5_error_t gpsEnablePos(bool enable = true);
+    //SARA_R5_error_t gpsGetPos(struct PositionData *pos);
+    //SARA_R5_error_t gpsEnableSat(bool enable = true);
+    //SARA_R5_error_t gpsGetSat(uint8_t *sats);
+    SARA_R5_error_t gpsEnableRmc(bool enable = true);
+    SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed, struct ClockData *clk, bool *valid);
+    //SARA_R5_error_t gpsEnableSpeed(bool enable = true);
+    //SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
 
-    SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, boolean detailed = true);
+    SARA_R5_error_t gpsRequest(unsigned int timeout, uint32_t accuracy, bool detailed = true, unsigned int sensor = 3);
+
+    //CellLocate
+    SARA_R5_error_t gpsAidingServerConf(const char *primaryServer, const char *secondaryServer, const char *authToken,
+                                        unsigned int days = 14, unsigned int period = 4, unsigned int resolution = 1,
+                                        unsigned int gnssTypes = 65, unsigned int mode = 0, unsigned int dataType = 15);
 
     // File system
     SARA_R5_error_t getFileContents(String filename, String *contents);
@@ -678,7 +713,7 @@ public:
 
     // Send a custom command with an expected (potentially partial) response, store entire response
     SARA_R5_error_t sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
-                                               char *responseDest, unsigned long commandTimeout = SARA_R5_STANDARD_RESPONSE_TIMEOUT, boolean at = true);
+                                               char *responseDest, unsigned long commandTimeout = SARA_R5_STANDARD_RESPONSE_TIMEOUT, bool at = true);
 
 private:
     HardwareSerial *_hardSerial;
@@ -687,11 +722,11 @@ private:
 #endif
 
     Stream *_debugPort;			 //The stream to send debug messages to if enabled. Usually Serial.
-    boolean _printDebug = false; //Flag to print debugging variables
+    bool _printDebug = false; //Flag to print debugging variables
 
     int _powerPin;
     int _resetPin;
-    boolean _invertPowerPin = false;
+    bool _invertPowerPin = false;
 
     unsigned long _baud;
     IPAddress _lastRemoteIP;
@@ -720,7 +755,7 @@ private:
 
     void hwReset(void);
 
-    SARA_R5_error_t setMNOprofile(mobile_network_operator_t mno, boolean autoReset = false, boolean urcNotification = false);
+    SARA_R5_error_t setMNOprofile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
     SARA_R5_error_t getMNOprofile(mobile_network_operator_t *mno);
 
     // Wait for an expected response (don't send a command)
@@ -728,10 +763,10 @@ private:
 
     // Send command with an expected (potentially partial) response, store entire response
     SARA_R5_error_t sendCommandWithResponse(const char *command, const char *expectedResponse,
-                                               char *responseDest, unsigned long commandTimeout, boolean at = true);
+                                               char *responseDest, unsigned long commandTimeout, bool at = true);
 
     // Send a command -- prepend AT if at is true
-    int sendCommand(const char *command, boolean at);
+    int sendCommand(const char *command, bool at);
 
     SARA_R5_error_t parseSocketReadIndication(int socket, int length);
     SARA_R5_error_t parseSocketReadIndicationUDP(int socket, int length);
@@ -757,7 +792,7 @@ private:
 
     // GPS Helper functions
     char *readDataUntil(char *destination, unsigned int destSize, char *source, char delimiter);
-    boolean parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
+    bool parseGPRMCString(char *rmcString, PositionData *pos, ClockData *clk, SpeedData *spd);
 
 };
 

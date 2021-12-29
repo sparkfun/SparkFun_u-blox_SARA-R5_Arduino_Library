@@ -42,7 +42,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
 }
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-boolean SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
+bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 {
     SARA_R5_error_t err;
 
@@ -57,7 +57,7 @@ boolean SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 }
 #endif
 
-boolean SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
+bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 {
     SARA_R5_error_t err;
 
@@ -79,7 +79,7 @@ void SARA_R5::enableDebugging(Stream &debugPort)
 	_printDebug = true;
 }
 
-boolean SARA_R5::bufferedPoll(void)
+bool SARA_R5::bufferedPoll(void)
 {
 	int avail = 0;
   char c = 0;
@@ -131,7 +131,7 @@ boolean SARA_R5::bufferedPoll(void)
   return handled;
 }
 
-boolean SARA_R5::processReadEvent(char* event)
+bool SARA_R5::processReadEvent(char* event)
 {
 	{
 		int socket, length;
@@ -157,13 +157,19 @@ boolean SARA_R5::processReadEvent(char* event)
 		int socket, listenSocket;
 		unsigned int port, listenPort;
 		IPAddress remoteIP, localIP;
+        int remoteIPstore[4], localIPstore[4];
 		int ret = sscanf(event,
 				   "+UUSOLI: %d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
 				   &socket,
-				   &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3],
+				   &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
 				   &port, &listenSocket,
-				   &localIP[0], &localIP[1], &localIP[2], &localIP[3],
+				   &localIPstore[0], &localIPstore[1], &localIPstore[2], &localIPstore[3],
 				   &listenPort);
+        for (int i = 0; i <= 3; i++)
+        {
+            remoteIP[i] = (uint8_t)remoteIPstore[i];
+            localIP[i] = (uint8_t)localIPstore[i];
+        }
 		if (ret > 4)
 		{
 			if (_printDebug == true) _debugPort->println("PARSED SOCKET LISTEN");
@@ -190,7 +196,7 @@ boolean SARA_R5::processReadEvent(char* event)
 	return false;
 }
 
-boolean SARA_R5::poll(void)
+bool SARA_R5::poll(void)
 {
     int avail = 0;
     char c = 0;
@@ -221,13 +227,20 @@ boolean SARA_R5::poll(void)
             unsigned int port, listenPort;
             IPAddress remoteIP, localIP;
 
-            if (sscanf(saraRXBuffer,
+            int remoteIPstore[4], localIPstore[4];
+            int ret = sscanf(saraRXBuffer,
                        "+UUSOLI: %d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
-                       &socket,
-                       &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3],
-                       &port, &listenSocket,
-                       &localIP[0], &localIP[1], &localIP[2], &localIP[3],
-                       &listenPort) > 4)
+                        &socket,
+                        &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
+                        &port, &listenSocket,
+                        &localIPstore[0], &localIPstore[1], &localIPstore[2], &localIPstore[3],
+                        &listenPort);
+            for (int i = 0; i <= 3; i++)
+            {
+                remoteIP[i] = (uint8_t)remoteIPstore[i];
+                localIP[i] = (uint8_t)localIPstore[i];
+            }
+            if (ret > 4)
             {
                 parseSocketListenIndication(localIP, remoteIP);
                 handled = true;
@@ -255,7 +268,8 @@ boolean SARA_R5::poll(void)
             SpeedData spd;
             unsigned long uncertainty;
             int scanNum;
-            unsigned int latH, lonH, altU, speedU, cogU;
+            int latH, lonH, alt;
+            unsigned int speedU, cogU;
             char latL[10], lonL[10];
 
             // Maybe we should also scan for +UUGIND and extract the activated gnss system?
@@ -263,23 +277,55 @@ boolean SARA_R5::poll(void)
             if (strstr(saraRXBuffer, "+UULOC"))
             {
                 // Found a Location string!
-                // This assumes the ULOC response type is "1". TO DO: check that is true...
+                if (_printDebug == true)
+                {
+                  _debugPort->print("poll +UULOC: saraRXBuffer: ");
+                  _debugPort->println(saraRXBuffer);
+                }
+
+                // This assumes the ULOC response type is "0" or "1" - as selected by gpsRequest detailed
+                int dateStore[5];
                 scanNum = sscanf(saraRXBuffer,
-                                 "+UULOC: %hhu/%hhu/%u,%hhu:%hhu:%hhu.%u,%u.%[^,],%u.%[^,],%u,%lu,%u,%u,*%s",
-                                 &clck.date.day, &clck.date.month, &clck.date.year,
-                                 &clck.time.hour, &clck.time.minute, &clck.time.second, &clck.time.ms,
-                                 &latH, latL, &lonH, lonL, &altU, &uncertainty,
+                                 "+UULOC: %d/%d/%d,%d:%d:%d.%d,%d.%[^,],%d.%[^,],%d,%lu,%u,%u,%*s",
+                                 &dateStore[0], &dateStore[1], &clck.date.year,
+                                 &dateStore[2], &dateStore[3], &dateStore[4], &clck.time.ms,
+                                 &latH, latL, &lonH, lonL, &alt, &uncertainty,
                                  &speedU, &cogU);
+                clck.date.day = dateStore[0];
+                clck.date.month = dateStore[1];
+                clck.time.hour = dateStore[2];
+                clck.time.minute = dateStore[3];
+                clck.time.second = dateStore[4];
                 if (scanNum < 13)
                     return false; // Break out if we didn't find enough
 
-                gps.lat = (float)latH + ((float)atol(latL) / pow(10, strlen(latL)));
-                gps.lon = (float)lonH + ((float)atol(lonL) / pow(10, strlen(lonL)));
-                gps.alt = (float)altU;
+                if (latH >= 0)
+                    gps.lat = (float)latH + ((float)atol(latL) / pow(10, strlen(latL)));
+                else
+                    gps.lat = (float)latH - ((float)atol(latL) / pow(10, strlen(latL)));
+                if (lonH >= 0)
+                    gps.lon = (float)lonH + ((float)atol(lonL) / pow(10, strlen(lonL)));
+                else
+                    gps.lon = (float)lonH - ((float)atol(lonL) / pow(10, strlen(lonL)));
+                gps.alt = (float)alt;
                 if (scanNum >= 15) // If detailed response, get speed data
                 {
                     spd.speed = (float)speedU;
                     spd.cog = (float)cogU;
+                }
+
+                if (_printDebug == true)
+                {
+                  _debugPort->print("poll +UULOC: lat: ");
+                  _debugPort->print(gps.lat, 7);
+                  _debugPort->print(" lon: ");
+                  _debugPort->print(gps.lon, 7);
+                  _debugPort->print(" alt: ");
+                  _debugPort->print(gps.alt, 2);
+                  _debugPort->print(" speed: ");
+                  _debugPort->print(spd.speed, 2);
+                  _debugPort->print(" cog: ");
+                  _debugPort->println(spd.cog, 2);
                 }
 
                 if (_gpsRequestCallback != NULL)
@@ -296,7 +342,9 @@ boolean SARA_R5::poll(void)
 
             if (strstr(saraRXBuffer, "+UUSIMSTAT"))
             {
-                scanNum = sscanf(saraRXBuffer, "+UUSIMSTAT:%d", &state);
+                int stateStore;
+                scanNum = sscanf(saraRXBuffer, "+UUSIMSTAT:%d", &stateStore);
+                state = (SARA_R5_sim_states_t)stateStore;
                 if (scanNum < 1)
                     return false; // Break out if we didn't find enough
 
@@ -310,13 +358,18 @@ boolean SARA_R5::poll(void)
         }
         {
             int result;
-            IPAddress remoteIP = (0,0,0,0);
+            IPAddress remoteIP = {0,0,0,0};
             int scanNum;
 
             if (strstr(saraRXBuffer, "+UUPSDA"))
             {
+                int remoteIPstore[4];
                 scanNum = sscanf(saraRXBuffer, "+UUPSDA: %d,\"%d.%d.%d.%d\"",
-                        &result, &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3]);
+                        &result, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3]);
+                for (int i = 0; i <= 3; i++)
+                {
+                    remoteIP[i] = (uint8_t)remoteIPstore[i];
+                }
                 if (scanNum < 1)
                     return false; // Break out if we didn't find enough
 
@@ -333,7 +386,7 @@ boolean SARA_R5::poll(void)
             int p_size = 0;
             int ttl = 0;
             String remote_host = "";
-            IPAddress remoteIP = (0,0,0,0);
+            IPAddress remoteIP = {0,0,0,0};
             long rtt = 0;
             int scanNum;
             char *searchPtr = saraRXBuffer;
@@ -342,11 +395,11 @@ boolean SARA_R5::poll(void)
             searchPtr = strstr(searchPtr, "+UUPING: ");
             if (searchPtr != NULL)
             {
-                // if (_printDebug == true)
-                // {
-                //   _debugPort->print("poll +UUPING: saraRXBuffer: ");
-                //   _debugPort->println(saraRXBuffer);
-                // }
+                //if (_printDebug == true)
+                //{
+                //  _debugPort->print("poll +UUPING: saraRXBuffer: ");
+                //  _debugPort->println(saraRXBuffer);
+                //}
 
                 // Extract the retries and payload size
                 scanNum = sscanf(searchPtr, "+UUPING: %d,%d,", &retry, &p_size);
@@ -365,8 +418,13 @@ boolean SARA_R5::poll(void)
                 if (*searchPtr == '\0')
                   return false; // Break out if we didn't find enough
 
-                scanNum = sscanf(searchPtr, "\",\"%d.%d.%d.%d\",%d,%d",
-                        &remoteIP[0], &remoteIP[1], &remoteIP[2], &remoteIP[3], &ttl, &rtt);
+                int remoteIPstore[4];
+                scanNum = sscanf(searchPtr, "\",\"%d.%d.%d.%d\",%d,%ld",
+                        &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3], &ttl, &rtt);
+                for (int i = 0; i <= 3; i++)
+                {
+                    remoteIP[i] = (uint8_t)remoteIPstore[i];
+                }
 
                 if (scanNum < 6)
                     return false; // Break out if we didn't find enough
@@ -484,6 +542,9 @@ size_t SARA_R5::write(const char *str)
 
 size_t SARA_R5::write(const char *buffer, size_t size)
 {
+    //size is unused at the moment but could be used if this function is ever updated to use write instead of print.
+    size_t ignoreMe = size; ignoreMe -= 0; // Avoid the pesky compiler warning.
+
     if (_hardSerial != NULL)
     {
         return _hardSerial->print(buffer);
@@ -500,7 +561,6 @@ size_t SARA_R5::write(const char *buffer, size_t size)
 SARA_R5_error_t SARA_R5::at(void)
 {
     SARA_R5_error_t err;
-    char *command;
 
     err = sendCommandWithResponse(NULL, SARA_R5_RESPONSE_OK, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -508,7 +568,7 @@ SARA_R5_error_t SARA_R5::at(void)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::enableEcho(boolean enable)
+SARA_R5_error_t SARA_R5::enableEcho(bool enable)
 {
     SARA_R5_error_t err;
     char *command;
@@ -804,8 +864,6 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
     SARA_R5_error_t err;
     char *command;
     char *response;
-    char *clockBegin;
-    char *clockEnd;
 
     int iy, imo, id, ih, imin, is, itz;
 
@@ -851,7 +909,7 @@ SARA_R5_error_t SARA_R5::setUtimeMode(SARA_R5_utime_mode_t mode, SARA_R5_utime_s
   SARA_R5_error_t err;
   char *command;
 
-  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_TIME) + 5);
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_TIME) + 16);
   if (command == NULL)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
   if (mode == SARA_R5_UTIME_MODE_STOP) // stop UTIME does not require a sensor
@@ -892,7 +950,10 @@ SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_
   // Response format: \r\n+UTIME: <mode>[,<sensor>]\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-      int scanned = sscanf(response, "\r\n+UTIME: %d,%d\r\n", &m, &s);
+      int mStore, sStore;
+      int scanned = sscanf(response, "\r\n+UTIME: %d,%d\r\n", &mStore, &sStore);
+      m = (SARA_R5_utime_mode_t)mStore;
+      s = (SARA_R5_utime_sensor_t)sStore;
       if (scanned == 2)
       {
           *mode = m;
@@ -916,7 +977,7 @@ SARA_R5_error_t SARA_R5::setUtimeIndication(SARA_R5_utime_urc_configuration_t co
   SARA_R5_error_t err;
   char *command;
 
-  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_INDICATION) + 3);
+  command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_INDICATION) + 16);
   if (command == NULL)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_GNSS_TIME_INDICATION, config);
@@ -953,7 +1014,9 @@ SARA_R5_error_t SARA_R5::getUtimeIndication(SARA_R5_utime_urc_configuration_t *c
   // Response format: \r\n+UTIMEIND: <mode>\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-      int scanned = sscanf(response, "\r\n+UTIMEIND: %d\r\n", &c);
+      int cStore;
+      int scanned = sscanf(response, "\r\n+UTIMEIND: %d\r\n", &cStore);
+      c = (SARA_R5_utime_urc_configuration_t)cStore;
       if (scanned == 1)
       {
           *config = c;
@@ -974,7 +1037,11 @@ SARA_R5_error_t SARA_R5::setUtimeConfiguration(int32_t offsetNanoseconds, int32_
   command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 48);
   if (command == NULL)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
   sprintf(command, "%s=%d,%d", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
+#else
+  sprintf(command, "%s=%ld,%ld", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
+#endif
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -1009,7 +1076,11 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   // Response format: \r\n+UTIMECFG: <offset_nano>,<offset_sec>\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
       int scanned = sscanf(response, "\r\n+UTIMECFG: %d,%d\r\n", &ons, &os);
+#else
+      int scanned = sscanf(response, "\r\n+UTIMECFG: %ld,%ld\r\n", &ons, &os);
+#endif
       if (scanned == 2)
       {
           *offsetNanoseconds = ons;
@@ -1023,7 +1094,7 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   return err;
 }
 
-SARA_R5_error_t SARA_R5::autoTimeZone(boolean enable)
+SARA_R5_error_t SARA_R5::autoTimeZone(bool enable)
 {
     SARA_R5_error_t err;
     char *command;
@@ -1114,7 +1185,7 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return (SARA_R5_registration_status_t)status;
 }
 
-boolean SARA_R5::setNetworkProfile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+bool SARA_R5::setNetworkProfile(mobile_network_operator_t mno, bool autoReset, bool urcNotification)
 {
     mobile_network_operator_t currentMno;
 
@@ -1226,7 +1297,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
     char *command;
     char *response;
     int ipOctets[4];
-    int rcid;
+    int rcid = -1;
 
     if (cid > SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
       return SARA_R5_ERROR_ERROR;
@@ -1254,7 +1325,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
 
       char *searchPtr = response;
 
-      boolean keepGoing = true;
+      bool keepGoing = true;
       while (keepGoing == true)
       {
         int apnLen = 0;
@@ -1306,7 +1377,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
           else // We don't have a match so let's clear the APN and IP address
           {
             *apn = "";
-            *ip = (0,0,0,0);
+            *ip = {0,0,0,0};
           }
         }
         if ((rcid == cid) || (searchPtr == NULL) || (*searchPtr == '\0')) // Stop searching
@@ -1405,16 +1476,16 @@ SARA_R5_error_t SARA_R5::enterPPP(uint8_t cid, char dialing_type_char,
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (dialing_type_char != 0)
     {
-        sprintf(command, "%s%c*%lu**%s*%hhu#", SARA_R5_MESSAGE_ENTER_PPP, dialing_type_char,
-                dialNumber, PPP_L2P[l2p], cid);
+        sprintf(command, "%s%c*%lu**%s*%u#", SARA_R5_MESSAGE_ENTER_PPP, dialing_type_char,
+                dialNumber, PPP_L2P[l2p], (unsigned int)cid);
     }
     else
     {
-        sprintf(command, "%s*%lu**%s*%hhu#", SARA_R5_MESSAGE_ENTER_PPP,
-                dialNumber, PPP_L2P[l2p], cid);
+        sprintf(command, "%s*%lu**%s*%u#", SARA_R5_MESSAGE_ENTER_PPP,
+                dialNumber, PPP_L2P[l2p], (unsigned int)cid);
     }
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_CONNECT, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
     free(command);
@@ -1460,7 +1531,6 @@ uint8_t SARA_R5::getOperators(struct operator_stats *opRet, int maxOps)
         char *opBegin;
         char *opEnd;
         int op = 0;
-        int sscanRead = 0;
         int stat;
         char longOp[26];
         char shortOp[11];
@@ -1642,7 +1712,6 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
     char *command;
     char *messageCStr;
     char *numberCStr;
-    int messageIndex;
     SARA_R5_error_t err;
 
     numberCStr = sara_r5_calloc_char(number.length() + 2);
@@ -1693,7 +1762,7 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
     int u;
     int t;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_PREF_MESSAGE_STORE) + 6);
+    command = sara_r5_calloc_char(strlen(SARA_R5_PREF_MESSAGE_STORE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=\"%s\"", SARA_R5_PREF_MESSAGE_STORE, memory.c_str());
@@ -1882,7 +1951,7 @@ SARA_R5_error_t SARA_R5::setFlowControl(SARA_R5_flow_control_t value)
     SARA_R5_error_t err;
     char *command;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_FLOW_CONTROL) + 3);
+    command = sara_r5_calloc_char(strlen(SARA_R5_FLOW_CONTROL) + 16);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s%d", SARA_R5_FLOW_CONTROL, value);
@@ -1903,7 +1972,7 @@ SARA_R5_error_t SARA_R5::setGpioMode(SARA_R5_gpio_t gpio,
 
     // Example command: AT+UGPIOC=16,2
     // Example command: AT+UGPIOC=23,0,1
-    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_GPIO) + 10);
+    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_GPIO) + 16);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (mode == GPIO_OUTPUT)
@@ -2024,7 +2093,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
     return sockId;
 }
 
-SARA_R5_error_t SARA_R5::socketClose(int socket, int timeout)
+SARA_R5_error_t SARA_R5::socketClose(int socket, unsigned long timeout)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2080,7 +2149,7 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     SARA_R5_error_t err;
     unsigned long writeDelay;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_WRITE_SOCKET) + 8);
+    command = sara_r5_calloc_char(strlen(SARA_R5_WRITE_SOCKET) + 16);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     response = sara_r5_calloc_char(128);
@@ -2097,7 +2166,8 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     if (err == SARA_R5_ERROR_SUCCESS)
     {
   		writeDelay = millis();
-      while (millis() - writeDelay < 50); //uBlox specification says to wait 50ms after receiving "@" to write data.
+        while (millis() < (writeDelay + 50))
+            ; //uBlox specification says to wait 50ms after receiving "@" to write data.
 
   		hwPrint(str);
   		err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_SOCKET_WRITE_TIMEOUT);
@@ -2107,10 +2177,10 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
       if (_printDebug == true)
       {
         _debugPort->print("WriteCmd Err Response: ");
-  		  _debugPort->print(err);
-  		  _debugPort->print(" => {");
-  		  _debugPort->print(response);
-  		  _debugPort->println("}");
+  		_debugPort->print(err);
+  		_debugPort->print(" => {");
+  		_debugPort->print(response);
+  		_debugPort->println("}");
       }
   	}
 
@@ -2206,7 +2276,7 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
             return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
         }
 
-        while ((readIndex < length) && (readIndex < strlen(strBegin)))
+        while ((readIndex < length) && (readIndex < (int)strlen(strBegin)))
         {
             readDest[readIndex] = strBegin[1 + readIndex];
             readIndex += 1;
@@ -2260,7 +2330,7 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest)
           return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
       }
 
-      while ((readIndex < length) && (readIndex < strlen(strBegin)))
+      while ((readIndex < length) && (readIndex < (int)strlen(strBegin)))
       {
           readDest[readIndex] = strBegin[1 + readIndex];
           readIndex += 1;
@@ -2282,6 +2352,107 @@ SARA_R5_error_t SARA_R5::socketListen(int socket, unsigned int port)
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d", SARA_R5_LISTEN_SOCKET, socket, port);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkMode(int socket)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_DIRECT_LINK) + 8);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_SOCKET_DIRECT_LINK, socket);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_CONNECT, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkTimeTrigger(int socket, unsigned long timerTrigger)
+{
+    // valid range is 0 (trigger disabled), 100-120000
+    if (!((timerTrigger == 0) || ((timerTrigger >= 100) && (timerTrigger <= 120000))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=5,%d,%ld", SARA_R5_UD_CONFIGURATION, socket, timerTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger)
+{
+    // valid range is 0, 3-1472 for UDP
+    if (!((dataLengthTrigger == 0) || ((dataLengthTrigger >= 3) && (dataLengthTrigger <= 1472))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=6,%d,%d", SARA_R5_UD_CONFIGURATION, socket, dataLengthTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkCharacterTrigger(int socket, int characterTrigger)
+{
+    // The allowed range is -1, 0-255, the factory-programmed value is -1; -1 means trigger disabled.
+    if (!((characterTrigger >= -1) && (characterTrigger <= 255)))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=7,%d,%d", SARA_R5_UD_CONFIGURATION, socket, characterTrigger);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer)
+{
+    // valid range is 0, 1000-72000
+    if (!((congestionTimer == 0) || ((congestionTimer >= 1000) && (congestionTimer <= 72000))))
+        return SARA_R5_ERROR_ERROR;
+
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_UD_CONFIGURATION) + 16);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=8,%d,%ld", SARA_R5_UD_CONFIGURATION, socket, congestionTimer);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -2338,7 +2509,7 @@ SARA_R5_error_t SARA_R5::resetHTTPprofile(int profile)
     if (profile >= SARA_R5_NUM_HTTP_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 3);
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 16);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d", SARA_R5_HTTP_PROFILE, profile);
@@ -2358,7 +2529,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverIPaddress(int profile, IPAddress address)
     if (profile >= SARA_R5_NUM_HTTP_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 64);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_IP,
@@ -2434,7 +2605,7 @@ SARA_R5_error_t SARA_R5::setHTTPpassword(int profile, String password)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, boolean authenticate)
+SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, bool authenticate)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2442,7 +2613,7 @@ SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, boolean authenticate
     if (profile >= SARA_R5_NUM_HTTP_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_AUTHENTICATION,
@@ -2463,7 +2634,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverPort(int profile, int port)
     if (profile >= SARA_R5_NUM_HTTP_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_PORT,
@@ -2476,7 +2647,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverPort(int profile, int port)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, boolean secure)
+SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2484,7 +2655,7 @@ SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, boolean secure)
     if (profile >= SARA_R5_NUM_HTTP_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12);
+    command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
@@ -2507,7 +2678,7 @@ SARA_R5_error_t SARA_R5::ping(String remote_host, int retry, int p_size,
             remote_host.length());
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=\"%s\",%d,%d,%d,%d", SARA_R5_PING_COMMAND,
+    sprintf(command, "%s=\"%s\",%d,%d,%ld,%d", SARA_R5_PING_COMMAND,
             remote_host.c_str(), retry, p_size, timeout, ttl);
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
@@ -2635,7 +2806,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
     if (profile >= SARA_R5_NUM_PSD_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 64);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
@@ -2656,7 +2827,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
     if (profile >= SARA_R5_NUM_PSD_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 24);
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONFIG) + 64);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
@@ -2677,7 +2848,7 @@ SARA_R5_error_t SARA_R5::performPDPaction(int profile, SARA_R5_pdp_actions_t act
     if (profile >= SARA_R5_NUM_PSD_PROFILES)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_ACTION) + 12);
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_ACTION) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,%d", SARA_R5_MESSAGE_PDP_ACTION, profile, action);
@@ -2689,7 +2860,7 @@ SARA_R5_error_t SARA_R5::performPDPaction(int profile, SARA_R5_pdp_actions_t act
     return err;
 }
 
-SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
+SARA_R5_error_t SARA_R5::activatePDPcontext(bool status, int cid)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2697,7 +2868,7 @@ SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
     if (cid >= SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
       return SARA_R5_ERROR_ERROR;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE) + 12);
+    command = sara_r5_calloc_char(strlen(SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE) + 32);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (cid == -1)
@@ -2712,12 +2883,12 @@ SARA_R5_error_t SARA_R5::activatePDPcontext(boolean status, int cid)
     return err;
 }
 
-boolean SARA_R5::isGPSon(void)
+bool SARA_R5::isGPSon(void)
 {
     SARA_R5_error_t err;
     char *command;
     char *response;
-    boolean on = false;
+    bool on = false;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 2);
     if (command == NULL)
@@ -2753,11 +2924,11 @@ boolean SARA_R5::isGPSon(void)
     return on;
 }
 
-SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_aiding_mode_t gnss_aiding)
+SARA_R5_error_t SARA_R5::gpsPower(bool enable, gnss_system_t gnss_sys, gnss_aiding_mode_t gnss_aiding)
 {
     SARA_R5_error_t err;
     char *command;
-    boolean gpsState;
+    bool gpsState;
 
     // Don't turn GPS on/off if it's already on/off
     gpsState = isGPSon();
@@ -2767,7 +2938,7 @@ SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_a
     }
 
     // GPS power management
-    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 10); // gnss_sys could be up to three digits
+    command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_POWER) + 32); // gnss_sys could be up to three digits
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     if (enable)
@@ -2785,7 +2956,8 @@ SARA_R5_error_t SARA_R5::gpsPower(boolean enable, gnss_system_t gnss_sys, gnss_a
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableClock(boolean enable)
+/*
+SARA_R5_error_t SARA_R5::gpsEnableClock(bool enable)
 {
     // AT+UGZDA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2799,7 +2971,7 @@ SARA_R5_error_t SARA_R5::gpsGetClock(struct ClockData *clock)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableFix(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableFix(bool enable)
 {
     // AT+UGGGA=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2813,7 +2985,7 @@ SARA_R5_error_t SARA_R5::gpsGetFix(struct PositionData *pos)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnablePos(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnablePos(bool enable)
 {
     // AT+UGGLL=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2827,7 +2999,7 @@ SARA_R5_error_t SARA_R5::gpsGetPos(struct PositionData *pos)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableSat(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableSat(bool enable)
 {
     // AT+UGGSV=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2840,8 +3012,9 @@ SARA_R5_error_t SARA_R5::gpsGetSat(uint8_t *sats)
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
 }
+*/
 
-SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
+SARA_R5_error_t SARA_R5::gpsEnableRmc(bool enable)
 {
     // AT+UGRMC=<0,1>
     SARA_R5_error_t err;
@@ -2870,7 +3043,7 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(boolean enable)
 }
 
 SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *spd,
-                                         struct ClockData *clk, boolean *valid)
+                                         struct ClockData *clk, bool *valid)
 {
     SARA_R5_error_t err;
     char *command;
@@ -2909,7 +3082,8 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
     return err;
 }
 
-SARA_R5_error_t SARA_R5::gpsEnableSpeed(boolean enable)
+/*
+SARA_R5_error_t SARA_R5::gpsEnableSpeed(bool enable)
 {
     // AT+UGVTG=<0,1>
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
@@ -2922,9 +3096,10 @@ SARA_R5_error_t SARA_R5::gpsGetSpeed(struct SpeedData *speed)
     SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
     return err;
 }
+*/
 
 SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
-                                          boolean detailed)
+                                          bool detailed, unsigned int sensor)
 {
     // AT+ULOC=2,<useCellLocate>,<detailed>,<timeout>,<accuracy>
     SARA_R5_error_t err;
@@ -2944,10 +3119,37 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
     command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_LOCATION) + 24);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
-    sprintf(command, "%s=2,3,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
-            detailed ? 1 : 0, timeout, accuracy);
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    sprintf(command, "%s=2,%d,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
+            sensor, detailed ? 1 : 0, timeout, accuracy);
+#else
+    sprintf(command, "%s=2,%d,%d,%d,%ld", SARA_R5_GNSS_REQUEST_LOCATION,
+            sensor, detailed ? 1 : 0, timeout, accuracy);
+#endif
 
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
+
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::gpsAidingServerConf(const char *primaryServer, const char *secondaryServer, const char *authToken,
+                                    unsigned int days, unsigned int period, unsigned int resolution,
+                                    unsigned int gnssTypes, unsigned int mode, unsigned int dataType)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_AIDING_SERVER_CONFIGURATION) + 256);
+    if (command == NULL)
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+    sprintf(command, "%s=\"%s\",\"%s\",\"%s\",%d,%d,%d,%d,%d,%d", SARA_R5_AIDING_SERVER_CONFIGURATION,
+            primaryServer, secondaryServer, authToken,
+            days, period, resolution, gnssTypes, mode, dataType);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
     free(command);
     return err;
@@ -2993,7 +3195,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
         return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    boolean keepGoing = true;
+    bool keepGoing = true;
     int bytesRead = 0;
 
     if (_printDebug == true) _debugPort->print(F("getFileContents: file contents are \""));
@@ -3044,7 +3246,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 
     if (_printDebug == true) _debugPort->println(F("Begin module init."));
 
-    beginSerial(baud); // Begin serial
+    // There's no 'easy' way to tell if the serial port has already been begun for us.
+    // We have to assume it has not been begun and so do it here.
+    // For special cases like Software Serial on ESP32, we need to begin _and_ end the port externally
+    // _before_ calling the SARA_R5 .begin.
+    // See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+    beginSerial(baud);
 
     if (initType == SARA_R5_INIT_AUTOBAUD)
     {
@@ -3090,7 +3297,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     return SARA_R5_ERROR_SUCCESS;
 }
 
-void SARA_R5::invertPowerPin(boolean invert)
+void SARA_R5::invertPowerPin(bool invert)
 {
   _invertPowerPin = invert;
 }
@@ -3131,7 +3338,7 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     SARA_R5_error_t err;
     char *command;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_FUNC) + 4);
+    command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_FUNC) + 16);
     if (command == NULL)
         return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d", SARA_R5_COMMAND_FUNC, function);
@@ -3144,7 +3351,7 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, boolean autoReset, boolean urcNotification)
+SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, bool autoReset, bool urcNotification)
 {
     SARA_R5_error_t err;
     char *command;
@@ -3171,9 +3378,10 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
     char *command;
     char *response;
     mobile_network_operator_t o;
-    mobile_network_operator_t d;
+    int d;
     int r;
     int u;
+    int oStore;
 
     command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_MNO) + 2);
     if (command == NULL)
@@ -3196,16 +3404,18 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
         return err;
     }
 
-    int ret = sscanf(response, "\r\n+UMNOPROF: %d,%d,%d,%d", &o, &d, &r, &u);
-		if (ret >= 1)
-		{
-			if (_printDebug == true)
+    int ret = sscanf(response, "\r\n+UMNOPROF: %d,%d,%d,%d", &oStore, &d, &r, &u);
+    o = (mobile_network_operator_t)oStore;
+
+    if (ret >= 1)
+    {
+      if (_printDebug == true)
       {
         _debugPort->print("getMNOprofile: MNO is: ");
         _debugPort->println(o);
       }
       *mno = o;
-		}
+	}
     else
     {
       err = SARA_R5_ERROR_INVALID;
@@ -3220,7 +3430,7 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
 SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const char *expectedError, uint16_t timeout)
 {
   unsigned long timeIn;
-  boolean found = false;
+  bool found = false;
   int responseIndex = 0, errorIndex = 0;
   int backlogIndex = strlen(saraResponseBacklog);
 
@@ -3234,7 +3444,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       if (_printDebug == true) _debugPort->print((String)c);
       if (c == expectedResponse[responseIndex])
       {
-          if (++responseIndex == strlen(expectedResponse))
+          if (++responseIndex == (int)strlen(expectedResponse))
           {
               found = true;
           }
@@ -3245,7 +3455,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       }
   		if (c == expectedError[errorIndex])
       {
-  			if (++errorIndex == strlen(expectedError))
+  			if (++errorIndex == (int)strlen(expectedError))
         {
   				found = true;
   			}
@@ -3279,9 +3489,9 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
 SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     const char *command, const char *expectedResponse, char *responseDest,
-    unsigned long commandTimeout, boolean at)
+    unsigned long commandTimeout, bool at)
 {
-  boolean found = false;
+  bool found = false;
   int index = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
@@ -3305,7 +3515,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 			charsRead++;
 			if (c == expectedResponse[index])
       {
-				if (++index == strlen(expectedResponse))
+				if (++index == (int)strlen(expectedResponse))
         {
 					found = true;
 				}
@@ -3338,12 +3548,12 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 
 // Send a custom command with an expected (potentially partial) response, store entire response
 SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
-                                           char *responseDest, unsigned long commandTimeout, boolean at)
+                                           char *responseDest, unsigned long commandTimeout, bool at)
 {
   return sendCommandWithResponse(command, expectedResponse, responseDest, commandTimeout, at);
 }
 
-int SARA_R5::sendCommand(const char *command, boolean at)
+int SARA_R5::sendCommand(const char *command, bool at)
 {
   int backlogIndex = strlen(saraResponseBacklog);
 
@@ -3446,7 +3656,6 @@ SARA_R5_error_t SARA_R5::parseSocketListenIndication(IPAddress localIP, IPAddres
 
 SARA_R5_error_t SARA_R5::parseSocketCloseIndication(String *closeIndication)
 {
-    SARA_R5_error_t err;
     int search;
     int socket;
 
@@ -3553,7 +3762,7 @@ int SARA_R5::readAvailable(char *inString)
 
 char SARA_R5::readChar(void)
 {
-    char ret;
+    char ret = 0;
 
     if (_hardSerial != NULL)
     {
@@ -3594,6 +3803,7 @@ void SARA_R5::beginSerial(unsigned long baud)
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
     else if (_softSerial != NULL)
     {
+        _softSerial->end();
         _softSerial->begin(baud);
     }
 #endif
@@ -3659,7 +3869,6 @@ char *SARA_R5::sara_r5_calloc_char(size_t num)
 void SARA_R5::pruneBacklog()
 {
 	char* event;
-	int pruneLen = 0;
 	char pruneBuffer[RXBuffSize];
 	memset(pruneBuffer, 0, RXBuffSize);
 
@@ -3711,7 +3920,7 @@ char *SARA_R5::readDataUntil(char *destination, unsigned int destSize,
     return strEnd;
 }
 
-boolean SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
+bool SARA_R5::parseGPRMCString(char *rmcString, PositionData *pos,
                                 ClockData *clk, SpeedData *spd)
 {
     char *ptr, *search;
