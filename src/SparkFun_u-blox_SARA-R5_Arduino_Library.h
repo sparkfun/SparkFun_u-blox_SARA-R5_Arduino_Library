@@ -43,11 +43,31 @@
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32                  // ESP32 based boards
+// Check to see if ESP Software Serial has been included
+// Note: you need to #include <SoftwareSerial.h> at the very start of your script,
+// _before_ the #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>, for this to work.
+// See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+#if __has_include( <SoftwareSerial.h> )
+#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#else
 #define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial
+#endif
+#endif
+
+#ifdef ARDUINO_ARCH_ESP8266                // ESP8266 based boards
+// Check to see if ESP Software Serial has been included
+// Note: you need to #include <SoftwareSerial.h> at the very start of your script,
+// _before_ the #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>, for this to work.
+// See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+#if __has_include( <SoftwareSerial.h> )
+#define SARA_R5_SOFTWARE_SERIAL_ENABLED // Enable software serial
+#else
+#define SARA_R5_SOFTWARE_SERIAL_ENABLEDx // Disable software serial
+#endif
 #endif
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-#include <SoftwareSerial.h>
+#include <SoftwareSerial.h> // SoftwareSerial.h is guarded. It is OK to include it twice.
 #endif
 
 #include <IPAddress.h>

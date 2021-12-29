@@ -3246,8 +3246,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 
     if (_printDebug == true) _debugPort->println(F("Begin module init."));
 
-    if(hwAvailable() == -1)
-        beginSerial(baud); // If port is null, begin serial
+    // There's no 'easy' way to tell if the serial port has already been begun for us.
+    // We have to assume it has not been begun and so do it here.
+    // For special cases like Software Serial on ESP32, we need to begin _and_ end the port externally
+    // _before_ calling the SARA_R5 .begin.
+    // See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
+    beginSerial(baud);
 
     if (initType == SARA_R5_INIT_AUTOBAUD)
     {
