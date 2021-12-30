@@ -232,6 +232,15 @@ bool SARA_R5::poll(void)
       }
     }
     {
+      int socket, length;
+      int ret = sscanf(event, "+UUSORF: %d,%d", &socket, &length);
+      if (ret == 2)
+      {
+        parseSocketReadIndicationUDP(socket, length);
+        return true;
+      }
+    }
+    {
       int socket, listenSocket;
       unsigned int port, listenPort;
       IPAddress remoteIP, localIP;
