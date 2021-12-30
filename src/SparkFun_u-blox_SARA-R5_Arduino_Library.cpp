@@ -133,6 +133,8 @@ bool SARA_R5::bufferedPoll(void)
 
       //Process the event
       bool latestHandled = processReadEvent(event);
+      if (latestHandled)
+        handled = true; // handled will be true if latestHandled has ever been true
 
       backlogLen = strlen(saraResponseBacklog); // Has any new data been added to the backlog?
       if ((backlogLen > 0) && ((avail + backlogLen) < RXBuffSize))
