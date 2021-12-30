@@ -6,7 +6,7 @@
   Socket "Ping Pong" - TCP Data Transfers
 
   Written by: Paul Clark
-  Date: November 18th 2020
+  Date: December 30th 2021
 
   This example demonstrates how to transfer data from one SARA-R5 to another using TCP sockets.
 
@@ -14,15 +14,15 @@
   If you select "Ping":
     The code asks for the IP Address of the SARA-R5 you want to communicate with
     The code then opens a TCP socket to the "Pong" SARA-R5 using port number TCP_PORT
-    The code sends an initial "Hello World?" using Write Socket Data (+USOWR)
+    The code sends an initial "Ping" using Write Socket Data (+USOWR)
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
-    When "Hello World!" is received by the callback, the code sends "Hello World?" in reply
+    When "Pong" is received by the callback, the code sends "Ping" in reply
     The Ping-Pong repeats 100 times
-    The socket is closed after the 100th reply is received
+    The socket is closed after the 100th ping is sent
   If you select "Pong":
     The code opens a TCP socket and waits for data to arrive
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
-    When "Hello World?" is received by the callback, the code sends "Hello World!" in reply
+    When "Ping" is received by the callback, the code sends "Pong" in reply
     The socket is closed after 600 seconds
   Start the "Pong" first!
 
@@ -61,12 +61,12 @@ unsigned int TCP_PORT = 1200; // Change this if required
 
 bool iAmPing;
 
-// Keep track of how many ping-pong exchanges have taken place. "Server" closes the socket when pingPongLimit is reached.
+// Keep track of how many ping-pong exchanges have taken place. "Ping" closes the socket when pingCount reaches pingPongLimit.
 volatile int pingCount = 0;
 volatile int pongCount = 0;
 const int pingPongLimit = 100;
 
-// Keep track of how long the socket has been open. "Client" closes the socket when timeLimit (millis) is reached.
+// Keep track of how long the socket has been open. "Pong" closes the socket when timeLimit (millis) is reached.
 unsigned long startTime;
 const unsigned long timeLimit = 600000; // 600 seconds
 
@@ -118,16 +118,16 @@ void processSocketData(int socket, String theData)
   Serial.print(F(" : "));
   Serial.println(theData);
   
-  if (theData == String("Hello World?")) // Look for the "Ping"
+  if (theData == String("Ping")) // Look for the "Ping"
   {
-    const char pong[] = "Hello World!";
+    const char pong[] = "Pong";
     mySARA.socketWrite(socket, pong); // Send the "Pong"
     pongCount++;
   }
 
-  if (theData == String("Hello World!")) // Look for the "Pong"
+  if (theData == String("Pong")) // Look for the "Pong"
   {
-    const char ping[] = "Hello World?";
+    const char ping[] = "Ping";
     mySARA.socketWrite(socket, ping); // Send the "Ping"
     pingCount++;
   }
@@ -314,7 +314,7 @@ void setup()
 
   for (int i = 0; i < 100; i++) // Wait for up to a second for the PSD Action URC to arrive
   {
-    mySARA.poll(); // Keep processing data from the SARA so we can process the PSD Action
+    mySARA.bufferedPoll(); // Keep processing data from the SARA so we can process the PSD Action
     delay(10);
   }
 
@@ -454,7 +454,7 @@ void setup()
     }
 
     // Send the first ping to start the ping-pong
-    const char ping[] = "Hello World?";
+    const char ping[] = "Ping";
     mySARA.socketWrite(socketNum, ping); // Send the "Ping"
         
   }
