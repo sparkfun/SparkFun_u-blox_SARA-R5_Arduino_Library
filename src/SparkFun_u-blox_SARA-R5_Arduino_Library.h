@@ -471,6 +471,7 @@ public:
   bool bufferedPoll(void);
   bool processReadEvent(char *event);
   bool poll(void);
+  void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int));
   void setSocketReadCallback(void (*socketReadCallback)(int, String));
   void setSocketCloseCallback(void (*socketCloseCallback)(int));
   void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
@@ -733,6 +734,7 @@ private:
   uint8_t _maxInitDepth;
   uint8_t _currentInitDepth = 0;
 
+  void (*_socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int);
   void (*_socketReadCallback)(int, String);
   void (*_socketCloseCallback)(int);
   void (*_gpsRequestCallback)(ClockData, PositionData, SpeedData, unsigned long);
@@ -769,7 +771,7 @@ private:
 
   SARA_R5_error_t parseSocketReadIndication(int socket, int length);
   SARA_R5_error_t parseSocketReadIndicationUDP(int socket, int length);
-  SARA_R5_error_t parseSocketListenIndication(IPAddress localIP, IPAddress remoteIP);
+  SARA_R5_error_t parseSocketListenIndication(int listeningSocket, IPAddress localIP, unsigned int listeningPort, int socket, IPAddress remoteIP, unsigned int port);
   SARA_R5_error_t parseSocketCloseIndication(String *closeIndication);
 
   // UART Functions

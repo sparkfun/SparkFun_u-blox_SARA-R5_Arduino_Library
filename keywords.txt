@@ -47,6 +47,7 @@ invertPowerPin	KEYWORD2
 bufferedPoll	KEYWORD2
 processReadEvent	KEYWORD2
 poll	KEYWORD2
+setSocketListenCallback	KEYWORD2
 setSocketReadCallback	KEYWORD2
 setSocketCloseCallback	KEYWORD2
 setGpsReadCallback	KEYWORD2

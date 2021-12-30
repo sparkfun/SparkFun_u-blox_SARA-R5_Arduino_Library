@@ -27,6 +27,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _powerPin = powerPin;
   _invertPowerPin = false;
   _maxInitDepth = maxInitDepth;
+  _socketListenCallback = NULL;
   _socketReadCallback = NULL;
   _socketCloseCallback = NULL;
   _gpsRequestCallback = NULL;
@@ -79,14 +80,18 @@ void SARA_R5::enableDebugging(Stream &debugPort)
   _printDebug = true;
 }
 
+// This function was originally written by Matthew Menze for the LTE Shield (SARA-R4) library
+// See: https://github.com/sparkfun/SparkFun_LTE_Shield_Arduino_Library/pull/8
+// It does the same job as ::poll but also processed any 'old' data stored in the backlog first
+// It also has a built-in timeout - which ::poll does not
 bool SARA_R5::bufferedPoll(void)
 {
   int avail = 0;
   char c = 0;
   bool handled = false;
   unsigned long timeIn = micros();
-  memset(saraRXBuffer, 0, RXBuffSize);
-  int backlogLen = strlen(saraResponseBacklog);
+  memset(saraRXBuffer, 0, RXBuffSize); // Clear saraRXBuffer
+  int backlogLen = strlen(saraResponseBacklog); // Check how many bytes are in the backlog
   char *event;
 
   if (backlogLen > 0)
@@ -96,12 +101,12 @@ bool SARA_R5::bufferedPoll(void)
       _debugPort->println("Backlog found!");
     memcpy(saraRXBuffer + avail, saraResponseBacklog, backlogLen);
     avail += backlogLen;
-    memset(saraResponseBacklog, 0, RXBuffSize);
+    memset(saraResponseBacklog, 0, RXBuffSize); // Clear the backlog making sure it is NULL-terminated
   }
 
-  if (hwAvailable() > 0 || backlogLen > 0) // If either new data is available, or backlog had data.
+  if ((hwAvailable() > 0) || (backlogLen > 0)) // If either new data is available, or backlog had data.
   {
-    while (micros() - timeIn < rxWindowUS && avail < RXBuffSize)
+    while (((micros() - timeIn) < rxWindowUS) && (avail < RXBuffSize))
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
@@ -161,10 +166,15 @@ bool SARA_R5::processReadEvent(char *event)
     }
   }
   {
-    int socket, listenSocket;
-    unsigned int port, listenPort;
-    IPAddress remoteIP, localIP;
-    int remoteIPstore[4], localIPstore[4];
+    int socket = 0;
+    int listenSocket = 0;
+    unsigned int port = 0;
+    unsigned int listenPort = 0;
+    IPAddress remoteIP = {0,0,0,0};
+    IPAddress localIP = {0,0,0,0};
+    int remoteIPstore[4]  = {0,0,0,0};
+    int localIPstore[4] = {0,0,0,0};
+
     int ret = sscanf(event,
                      "+UUSOLI: %d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
                      &socket,
@@ -181,7 +191,7 @@ bool SARA_R5::processReadEvent(char *event)
     {
       if (_printDebug == true)
         _debugPort->println("PARSED SOCKET LISTEN");
-      parseSocketListenIndication(localIP, remoteIP);
+      parseSocketListenIndication(listenSocket, localIP, listenPort, socket, remoteIP, port);
       return true;
     }
   }
@@ -205,6 +215,9 @@ bool SARA_R5::processReadEvent(char *event)
   return false;
 }
 
+// This is the original poll function.
+// It is 'blocking' - it does not return when serial data is available until it receives a `\n`.
+// ::bufferedPoll is the new improved version. It processes any data in the backlog and includes a timeout.
 bool SARA_R5::poll(void)
 {
   int avail = 0;
@@ -215,7 +228,7 @@ bool SARA_R5::poll(void)
 
   if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
-    while (c != '\n')
+    while (c != '\n') // Copy characters into saraRXBuffer. Stop at each new line
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
@@ -233,19 +246,23 @@ bool SARA_R5::poll(void)
     }
     {
       int socket, length;
-      int ret = sscanf(event, "+UUSORF: %d,%d", &socket, &length);
+      int ret = sscanf(saraRXBuffer, "+UUSORF: %d,%d", &socket, &length);
       if (ret == 2)
       {
         parseSocketReadIndicationUDP(socket, length);
-        return true;
+        handled = true;
       }
     }
     {
-      int socket, listenSocket;
-      unsigned int port, listenPort;
-      IPAddress remoteIP, localIP;
+      int socket = 0;
+      int listenSocket = 0;
+      unsigned int port = 0;
+      unsigned int listenPort = 0;
+      IPAddress remoteIP = {0,0,0,0};
+      IPAddress localIP = {0,0,0,0};
+      int remoteIPstore[4]  = {0,0,0,0};
+      int localIPstore[4] = {0,0,0,0};
 
-      int remoteIPstore[4], localIPstore[4];
       int ret = sscanf(saraRXBuffer,
                        "+UUSOLI: %d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
                        &socket,
@@ -260,7 +277,7 @@ bool SARA_R5::poll(void)
       }
       if (ret > 4)
       {
-        parseSocketListenIndication(localIP, remoteIP);
+        parseSocketListenIndication(listenSocket, localIP, listenPort, socket, remoteIP, port);
         handled = true;
       }
     }
@@ -487,6 +504,11 @@ bool SARA_R5::poll(void)
     }
   }
   return handled;
+}
+
+void SARA_R5::setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int))
+{
+  _socketListenCallback = socketListenCallback;
 }
 
 void SARA_R5::setSocketReadCallback(void (*socketReadCallback)(int, String))
@@ -3510,11 +3532,13 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       }
       //This is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
-      saraResponseBacklog[backlogIndex++] = c;
+      //Note: the expectedResponse or expectedError will also be added to the backlog
+      if (backlogIndex < RXBuffSize) // Don't overflow the buffer
+        saraResponseBacklog[backlogIndex++] = c;
     }
   }
 
-  pruneBacklog();
+  pruneBacklog(); // Prune any incoming non-actionable URC's from the backlog
 
   if (found == true)
   {
@@ -3573,11 +3597,13 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       }
       //This is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
-      saraResponseBacklog[backlogIndex++] = c;
+      //Note: the expectedResponse or expectedError will also be added to the backlog
+      if (backlogIndex < RXBuffSize) // Don't overflow the buffer
+        saraResponseBacklog[backlogIndex++] = c;
     }
   }
 
-  pruneBacklog();
+  pruneBacklog(); // Prune any incoming non-actionable URC's from the backlog
 
   if (found)
   {
@@ -3604,10 +3630,11 @@ int SARA_R5::sendCommand(const char *command, bool at)
 {
   int backlogIndex = strlen(saraResponseBacklog);
 
+  //Spend up to rxWindowUS microseconds copying any incoming serial data into the backlog
   unsigned long timeIn = micros();
   if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
-    while (micros() - timeIn < rxWindowUS && backlogIndex < RXBuffSize) //May need to escape on newline?
+    while (((micros() - timeIn) < rxWindowUS) && (backlogIndex < RXBuffSize)) //May need to escape on newline?
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
@@ -3618,6 +3645,7 @@ int SARA_R5::sendCommand(const char *command, bool at)
     }
   }
 
+  //Now send the command
   if (at)
   {
     hwPrint(SARA_R5_COMMAND_AT);
@@ -3629,7 +3657,7 @@ int SARA_R5::sendCommand(const char *command, bool at)
     hwPrint(command);
   }
 
-  return backlogIndex;
+  return backlogIndex; // Return the new backlog length
 }
 
 SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
@@ -3694,10 +3722,16 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
   return SARA_R5_ERROR_SUCCESS;
 }
 
-SARA_R5_error_t SARA_R5::parseSocketListenIndication(IPAddress localIP, IPAddress remoteIP)
+SARA_R5_error_t SARA_R5::parseSocketListenIndication(int listeningSocket, IPAddress localIP, unsigned int listeningPort, int socket, IPAddress remoteIP, unsigned int port)
 {
   _lastLocalIP = localIP;
   _lastRemoteIP = remoteIP;
+
+  if (_socketListenCallback != NULL)
+  {
+    _socketListenCallback(listeningSocket, localIP, listeningPort, socket, remoteIP, port);
+  }
+
   return SARA_R5_ERROR_SUCCESS;
 }
 
@@ -3923,7 +3957,10 @@ void SARA_R5::pruneBacklog()
   event = strtok(saraResponseBacklog, "\r\n");
   while (event != NULL) //If event actionable, add to pruneBuffer.
   {
-    if (strstr(event, "+UUSORD:") != NULL || strstr(event, "+UUSOLI:") != NULL || strstr(event, "+UUSOCL:") != NULL || strstr(event, "+UUSORF:") != NULL)
+    if ((strstr(event, "+UUSORD:") != NULL)
+        // || (strstr(event, "+UUSOLI:") != NULL) // +UUSOLI is now actionable via socketListenCallback. Don't include it here.
+        // || (strstr(event, "+UUSOCL:") != NULL) // +UUSOCL is actionable via socketCloseCallback. Don't include it here.
+        || (strstr(event, "+UUSORF:") != NULL))
     {
       strcat(pruneBuffer, event);
       strcat(pruneBuffer, "\r\n"); //strtok blows away delimiter, but we want that for later.
