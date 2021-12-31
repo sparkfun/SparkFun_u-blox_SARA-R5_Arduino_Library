@@ -81,8 +81,10 @@
 #define SARA_R5_2_MIN_TIMEOUT 120000
 #define SARA_R5_3_MIN_TIMEOUT 180000
 #define SARA_R5_SET_BAUD_TIMEOUT 500
-#define SARA_R5_POWER_PULSE_PERIOD 3200
-#define SARA_R5_RESET_PULSE_PERIOD 10000
+#define SARA_R5_POWER_OFF_PULSE_PERIOD 3200 // Hold PWR_ON low for this long to power the module off
+#define SARA_R5_POWER_ON_PULSE_PERIOD 100 // Hold PWR_ON low for this long to power the module on (SARA-R510M8S)
+#define SARA_R5_RESET_PULSE_PERIOD 23000 // Used to perform an abrupt emergency hardware shutdown. 23 seconds... (Yes, really!)
+#define SARA_R5_POWER_OFF_TIMEOUT 40000 // Datasheet says 40 seconds...
 #define SARA_R5_IP_CONNECT_TIMEOUT 130000
 #define SARA_R5_POLL_DELAY 1
 #define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
@@ -467,6 +469,9 @@ public:
   // But the Asset Tracker needs this to be pulled high and released instead
   void invertPowerPin(bool invert = false);
 
+  SARA_R5_error_t modulePowerOff(void); // Graceful disconnect and shutdown using +CPWROFF.
+  void modulePowerOn(void); // Requires access to the PWR_ON pin
+
   // Loop polling and polling setup
   bool bufferedPoll(void);
   bool processReadEvent(char *event);
@@ -752,7 +757,8 @@ private:
 
   SARA_R5_error_t init(unsigned long baud, SARA_R5_init_type_t initType = SARA_R5_INIT_STANDARD);
 
-  void powerOn(void);
+  void powerOn(void); // Brief pulse on PWR_ON to turn module back on
+  void powerOff(void); // Long pulse on PWR_ON to do a graceful shutdown. Note modulePowerOff (+CPWROFF) is preferred.
 
   void hwReset(void);
 

@@ -101,7 +101,7 @@ bool SARA_R5::bufferedPoll(void)
   {
     //The backlog also logs reads from other tasks like transmitting.
     if (_printDebug == true)
-      _debugPort->println("bufferedPoll: backlog found!");
+      _debugPort->println(F("bufferedPoll: backlog found!"));
     memcpy(saraRXBuffer + avail, saraResponseBacklog, backlogLen);
     avail += backlogLen;
     memset(saraResponseBacklog, 0, RXBuffSize); // Clear the backlog making sure it is NULL-terminated
@@ -127,7 +127,7 @@ bool SARA_R5::bufferedPoll(void)
     while (event != NULL) // Keep going until all events have been processed
     {
       if (_printDebug == true)
-        _debugPort->print("bufferedPoll: event: ");
+        _debugPort->print(F("bufferedPoll: event: "));
       if (_printDebug == true)
         _debugPort->println(event);
 
@@ -140,7 +140,7 @@ bool SARA_R5::bufferedPoll(void)
       if ((backlogLen > 0) && ((avail + backlogLen) < RXBuffSize))
       {
         if (_printDebug == true)
-          _debugPort->println("bufferedPoll: new backlog added!");
+          _debugPort->println(F("bufferedPoll: new backlog added!"));
         memcpy(saraRXBuffer + avail, saraResponseBacklog, backlogLen);
         avail += backlogLen;
         memset(saraResponseBacklog, 0, RXBuffSize); //Clear out backlog buffer. Again.
@@ -149,7 +149,7 @@ bool SARA_R5::bufferedPoll(void)
       //Walk through any remaining events
       event = strtok(NULL, "\r\n");
       if (_printDebug == true)
-        _debugPort->println("bufferedPoll: end of event"); //Just to denote end of processing event.
+        _debugPort->println(F("bufferedPoll: end of event")); //Just to denote end of processing event.
     }
   }
 
@@ -165,7 +165,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (ret == 2)
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: read socket data");
+        _debugPort->println(F("processReadEvent: read socket data"));
       parseSocketReadIndication(socket, length);
       return true;
     }
@@ -176,7 +176,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (ret == 2)
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: UDP receive");
+        _debugPort->println(F("processReadEvent: UDP receive"));
       parseSocketReadIndicationUDP(socket, length);
       return true;
     }
@@ -206,7 +206,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (ret > 4)
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: socket listen");
+        _debugPort->println(F("processReadEvent: socket listen"));
       parseSocketListenIndication(listenSocket, localIP, listenPort, socket, remoteIP, port);
       return true;
     }
@@ -217,7 +217,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (ret == 1)
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: socket close");
+        _debugPort->println(F("processReadEvent: socket close"));
       if ((socket >= 0) && (socket <= 6))
       {
         if (_socketCloseCallback != NULL)
@@ -245,7 +245,7 @@ bool SARA_R5::processReadEvent(char *event)
       // Found a Location string!
       if (_printDebug == true)
       {
-        _debugPort->print("processReadEvent: location: ");
+        _debugPort->print(F("processReadEvent: location: "));
         _debugPort->println(event);
       }
 
@@ -282,15 +282,15 @@ bool SARA_R5::processReadEvent(char *event)
 
       // if (_printDebug == true)
       // {
-      //   _debugPort->print("processReadEvent: location:  lat: ");
+      //   _debugPort->print(F("processReadEvent: location:  lat: "));
       //   _debugPort->print(gps.lat, 7);
-      //   _debugPort->print(" lon: ");
+      //   _debugPort->print(F(" lon: "));
       //   _debugPort->print(gps.lon, 7);
-      //   _debugPort->print(" alt: ");
+      //   _debugPort->print(F(" alt: "));
       //   _debugPort->print(gps.alt, 2);
-      //   _debugPort->print(" speed: ");
+      //   _debugPort->print(F(" speed: "));
       //   _debugPort->print(spd.speed, 2);
-      //   _debugPort->print(" cog: ");
+      //   _debugPort->print(F(" cog: "));
       //   _debugPort->println(spd.cog, 2);
       // }
 
@@ -309,7 +309,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (strstr(event, "+UUSIMSTAT"))
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: SIM status");
+        _debugPort->println(F("processReadEvent: SIM status"));
 
       int stateStore;
       scanNum = sscanf(event, "+UUSIMSTAT:%d", &stateStore);
@@ -333,7 +333,7 @@ bool SARA_R5::processReadEvent(char *event)
     if (strstr(event, "+UUPSDA"))
     {
       if (_printDebug == true)
-        _debugPort->println("processReadEvent: packet switched data action");
+        _debugPort->println(F("processReadEvent: packet switched data action"));
 
       int remoteIPstore[4];
       scanNum = sscanf(event, "+UUPSDA: %d,\"%d.%d.%d.%d\"",
@@ -369,7 +369,7 @@ bool SARA_R5::processReadEvent(char *event)
     {
       if (_printDebug == true)
       {
-        _debugPort->print("processReadEvent: ping: ");
+        _debugPort->print(F("processReadEvent: ping: "));
         _debugPort->println(event);
       }
 
@@ -417,7 +417,7 @@ bool SARA_R5::processReadEvent(char *event)
     {
       if (_printDebug == true)
       {
-        _debugPort->print("processReadEvent: HTTP command result: ");
+        _debugPort->print(F("processReadEvent: HTTP command result: "));
         _debugPort->println(event);
       }
 
@@ -538,7 +538,7 @@ bool SARA_R5::poll(void)
         // Found a Location string!
         if (_printDebug == true)
         {
-          _debugPort->print("poll +UULOC: saraRXBuffer: ");
+          _debugPort->print(F("poll +UULOC: saraRXBuffer: "));
           _debugPort->println(saraRXBuffer);
         }
 
@@ -575,15 +575,15 @@ bool SARA_R5::poll(void)
 
         if (_printDebug == true)
         {
-          _debugPort->print("poll +UULOC: lat: ");
+          _debugPort->print(F("poll +UULOC: lat: "));
           _debugPort->print(gps.lat, 7);
-          _debugPort->print(" lon: ");
+          _debugPort->print(F(" lon: "));
           _debugPort->print(gps.lon, 7);
-          _debugPort->print(" alt: ");
+          _debugPort->print(F(" alt: "));
           _debugPort->print(gps.alt, 2);
-          _debugPort->print(" speed: ");
+          _debugPort->print(F(" speed: "));
           _debugPort->print(spd.speed, 2);
-          _debugPort->print(" cog: ");
+          _debugPort->print(F(" cog: "));
           _debugPort->println(spd.cog, 2);
         }
 
@@ -656,7 +656,7 @@ bool SARA_R5::poll(void)
       {
         //if (_printDebug == true)
         //{
-        //  _debugPort->print("poll +UUPING: saraRXBuffer: ");
+        //  _debugPort->print(F("poll +UUPING: saraRXBuffer: "));
         //  _debugPort->println(saraRXBuffer);
         //}
 
@@ -721,7 +721,10 @@ bool SARA_R5::poll(void)
     if ((handled == false) && (strlen(saraRXBuffer) > 2))
     {
       if (_printDebug == true)
-        _debugPort->println("Poll: " + String(saraRXBuffer));
+      {
+        _debugPort->print(F("poll: "));
+        _debugPort->println(saraRXBuffer);
+      }
     }
     else
     {
@@ -1538,14 +1541,17 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
   if (apn == NULL)
   {
     if (_printDebug == true)
-      _debugPort->println("APN: NULL");
+      _debugPort->println(F("setAPN: NULL"));
     sprintf(command, "%s=%d,\"%s\",\"\"", SARA_R5_MESSAGE_PDP_DEF,
             cid, pdpStr);
   }
   else
   {
     if (_printDebug == true)
-      _debugPort->println("APN: " + ((String)apn));
+    {
+      _debugPort->print(F("setAPN: "));
+      _debugPort->println(apn);
+    }
     sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MESSAGE_PDP_DEF,
             cid, pdpStr, apn.c_str());
   }
@@ -1611,7 +1617,10 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
           rcid += (*searchPtr) - '0';
         }
         if (_printDebug == true)
-          _debugPort->println("getAPN: cid is " + ((String)rcid));
+        {
+          _debugPort->print(F("getAPN: cid is "));
+          _debugPort->println(rcid);
+        }
         if (rcid == cid) // If we have a match
         {
           // Search to the third double-quote
@@ -1791,9 +1800,9 @@ uint8_t SARA_R5::getOperators(struct operator_stats *opRet, int maxOps)
 
   if (_printDebug == true)
   {
-    _debugPort->print("getOperators: Response: {");
+    _debugPort->print(F("getOperators: Response: {"));
     _debugPort->print(response);
-    _debugPort->println("}");
+    _debugPort->println(F("}"));
   }
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -1932,7 +1941,10 @@ SARA_R5_error_t SARA_R5::getOperator(String *oper)
           }
         }
         if (_printDebug == true)
-          _debugPort->println("Operator: " + *oper);
+        {
+          _debugPort->print(F("getOperator: "));
+          _debugPort->println(*oper);
+        }
         //oper->concat('\0');
       }
     }
@@ -2060,11 +2072,11 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
   {
     if (_printDebug == true)
     {
-      _debugPort->print("getPreferredMessageStorage: memory: ");
+      _debugPort->print(F("getPreferredMessageStorage: memory: "));
       _debugPort->print(memory);
-      _debugPort->print(" used: ");
+      _debugPort->print(F(" used: "));
       _debugPort->print(u);
-      _debugPort->print(" total: ");
+      _debugPort->print(F(" total: "));
       _debugPort->println(t);
     }
     *used = u;
@@ -2323,7 +2335,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   if (response == NULL)
   {
     if (_printDebug == true)
-      _debugPort->println("socketOpen: Fail: NULL response");
+      _debugPort->println(F("socketOpen: Fail: NULL response"));
     free(command);
     return -1;
   }
@@ -2335,11 +2347,11 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   {
     if (_printDebug == true)
     {
-      _debugPort->print("socketOpen: Fail: Error: ");
+      _debugPort->print(F("socketOpen: Fail: Error: "));
       _debugPort->print(err);
-      _debugPort->print("  Response: {");
+      _debugPort->print(F("  Response: {"));
       _debugPort->print(response);
-      _debugPort->println("}");
+      _debugPort->println(F("}"));
     }
     free(command);
     free(response);
@@ -2351,9 +2363,9 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   {
     if (_printDebug == true)
     {
-      _debugPort->print("socketOpen: Failure: {");
+      _debugPort->print(F("socketOpen: Failure: {"));
       _debugPort->print(response);
-      _debugPort->println("}");
+      _debugPort->println(F("}"));
     }
     free(command);
     free(response);
@@ -2389,7 +2401,7 @@ SARA_R5_error_t SARA_R5::socketClose(int socket, unsigned long timeout)
 
   if ((err != SARA_R5_ERROR_SUCCESS) && (_printDebug == true))
   {
-    _debugPort->print("Socket Close Error Code: ");
+    _debugPort->print(F("socketClose: Error: "));
     _debugPort->println(socketGetLastError());
   }
 
@@ -2451,11 +2463,11 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
   {
     if (_printDebug == true)
     {
-      _debugPort->print("socketWrite: Err Response: ");
+      _debugPort->print(F("socketWrite: Error: "));
       _debugPort->print(err);
-      _debugPort->print(" => {");
+      _debugPort->print(F(" => {"));
       _debugPort->print(response);
-      _debugPort->println("}");
+      _debugPort->println(F("}"));
     }
   }
 
@@ -2505,7 +2517,7 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int por
   else
   {
     if (_printDebug == true)
-      _debugPort->print("socketWriteUDP: Error: ");
+      _debugPort->print(F("socketWriteUDP: Error: "));
     if (_printDebug == true)
       _debugPort->println(socketGetLastError());
   }
@@ -2595,11 +2607,11 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest)
   {
     // Find the third double-quote. This needs to be improved to collect other data.
     if (_printDebug == true)
-      _debugPort->print("socketReadUDP: {");
+      _debugPort->print(F("socketReadUDP: {"));
     if (_printDebug == true)
       _debugPort->print(response);
     if (_printDebug == true)
-      _debugPort->println("}");
+      _debugPort->println(F("}"));
 
     strBegin = strchr(response, '\"');
     strBegin = strchr(strBegin + 1, '\"');
@@ -3512,6 +3524,37 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
   return SARA_R5_ERROR_SUCCESS;
 }
 
+SARA_R5_error_t SARA_R5::modulePowerOff(void)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_POWER_OFF) + 6);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+  sprintf(command, "%s", SARA_R5_COMMAND_POWER_OFF);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+                                SARA_R5_POWER_OFF_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+void SARA_R5::modulePowerOn(void)
+{
+  if (_powerPin >= 0)
+  {
+    powerOn();
+  }
+  else
+  {
+    if (_printDebug == true)
+      _debugPort->println(F("modulePowerOn: not supported. _powerPin not defined."));
+  }
+}
+
 /////////////
 // Private //
 /////////////
@@ -3526,12 +3569,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   if (_currentInitDepth == _maxInitDepth)
   {
     if (_printDebug == true)
-      _debugPort->println(F("Module failed to init. Exiting."));
+      _debugPort->println(F("init: Module failed to init. Exiting."));
     return (SARA_R5_ERROR_NO_RESPONSE);
   }
 
   if (_printDebug == true)
-    _debugPort->println(F("Begin module init."));
+    _debugPort->println(F("init: Begin module init."));
 
   // There's no 'easy' way to tell if the serial port has already been begun for us.
   // We have to assume it has not been begun and so do it here.
@@ -3543,7 +3586,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   if (initType == SARA_R5_INIT_AUTOBAUD)
   {
     if (_printDebug == true)
-      _debugPort->println(F("Attempting autobaud connection to module."));
+      _debugPort->println(F("init: Attempting autobaud connection to module."));
     if (autobaud(baud) != SARA_R5_ERROR_SUCCESS)
     {
       return init(baud, SARA_R5_INIT_RESET);
@@ -3552,9 +3595,11 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   else if (initType == SARA_R5_INIT_RESET)
   {
     if (_printDebug == true)
-      _debugPort->println(F("Power cycling module."));
-    powerOn();
+      _debugPort->println(F("init: Power cycling module."));
+    powerOff();
     delay(1000);
+    powerOn();
+    delay(2000);
     if (at() != SARA_R5_ERROR_SUCCESS)
     {
       return init(baud, SARA_R5_INIT_AUTOBAUD);
@@ -3567,12 +3612,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     if (_printDebug == true)
-      _debugPort->println(F("Module failed echo test."));
+      _debugPort->println(F("init: Module failed echo test."));
     return init(baud, SARA_R5_INIT_AUTOBAUD);
   }
 
   if (_printDebug == true)
-    _debugPort->println(F("Module responded successfully."));
+    _debugPort->println(F("init: Module responded successfully."));
 
   _baud = baud;
   setGpioMode(GPIO1, NETWORK_STATUS);
@@ -3593,6 +3638,28 @@ void SARA_R5::invertPowerPin(bool invert)
   _invertPowerPin = invert;
 }
 
+// Do a graceful power off. Hold the PWR_ON pin low for SARA_R5_POWER_OFF_PULSE_PERIOD
+// Note: +CPWROFF () is preferred to this.
+void SARA_R5::powerOff(void)
+{
+  if (_powerPin >= 0)
+  {
+    if (_invertPowerPin) // Set the pin state before making it an output
+      digitalWrite(_powerPin, HIGH);
+    else
+      digitalWrite(_powerPin, LOW);
+    pinMode(_powerPin, OUTPUT);
+    if (_invertPowerPin) // Set the pin state
+      digitalWrite(_powerPin, HIGH);
+    else
+      digitalWrite(_powerPin, LOW);
+    delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
+    pinMode(_powerPin, INPUT); // Return to high-impedance, rely on (e.g.) SARA module internal pull-up
+    if (_printDebug == true)
+      _debugPort->println(F("powerOff: complete"));
+  }
+}
+
 void SARA_R5::powerOn(void)
 {
   if (_powerPin >= 0)
@@ -3606,22 +3673,59 @@ void SARA_R5::powerOn(void)
       digitalWrite(_powerPin, HIGH);
     else
       digitalWrite(_powerPin, LOW);
-    delay(SARA_R5_POWER_PULSE_PERIOD);
+    delay(SARA_R5_POWER_ON_PULSE_PERIOD);
     pinMode(_powerPin, INPUT); // Return to high-impedance, rely on (e.g.) SARA module internal pull-up
-    delay(2000);               //Wait before sending AT commands to module. 100 is too short.
+    //delay(2000);               // Do this in init. Wait before sending AT commands to module. 100 is too short.
     if (_printDebug == true)
-      _debugPort->println(F("Power cycle complete."));
+      _debugPort->println(F("powerOn: complete"));
   }
 }
 
+//This does an abrupt emergency hardware shutdown of the SARA-R5 series modules.
+//It only works if you have access to both the RESET_N and PWR_ON pins.
+//You cannot use this function on the SparkFun Asset Tracker and RESET_N is tied to the MicroMod processor !RESET!...
 void SARA_R5::hwReset(void)
 {
-  if (_resetPin >= 0)
+  if ((_resetPin >= 0) && (_powerPin >= 0))
   {
+    digitalWrite(_resetPin, HIGH); // Start by making sure the RESET_N pin is high
     pinMode(_resetPin, OUTPUT);
-    digitalWrite(_resetPin, LOW);
-    delay(SARA_R5_RESET_PULSE_PERIOD);
+    digitalWrite(_resetPin, HIGH);
+
+    if (_invertPowerPin) // Now pull PWR_ON low - invert as necessary (on the Asset Tracker)
+    {
+      digitalWrite(_powerPin, HIGH); // Inverted - Asset Tracker
+      pinMode(_powerPin, OUTPUT);
+      digitalWrite(_powerPin, HIGH);
+    }
+    else
+    {
+      digitalWrite(_powerPin, LOW); // Not inverted
+      pinMode(_powerPin, OUTPUT);
+      digitalWrite(_powerPin, LOW);
+    }
+
+    delay(SARA_R5_RESET_PULSE_PERIOD); // Wait 23 seconds... (Yes, really!)
+
+    digitalWrite(_resetPin, LOW); // Now pull RESET_N low
+
+    delay(100); // Wait a little... (The data sheet doesn't say how long for)
+
+    if (_invertPowerPin) // Now pull PWR_ON high - invert as necessary (on the Asset Tracker)
+    {
+      digitalWrite(_powerPin, LOW); // Inverted - Asset Tracker
+    }
+    else
+    {
+      digitalWrite(_powerPin, HIGH); // Not inverted
+    }
+
+    delay(1500); // Wait 1.5 seconds
+
+    digitalWrite(_resetPin, HIGH); // Now pull RESET_N high again
+
     pinMode(_resetPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
+    pinMode(_powerPin, INPUT); // Return to high-impedance, rely on SARA module internal pull-up
   }
 }
 
@@ -3703,7 +3807,7 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
   {
     if (_printDebug == true)
     {
-      _debugPort->print("getMNOprofile: MNO is: ");
+      _debugPort->print(F("getMNOprofile: MNO is: "));
       _debugPort->println(o);
     }
     *mno = o;
@@ -3792,7 +3896,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   unsigned int charsRead = 0;
 
   if (_printDebug == true)
-    _debugPort->print("Send Command: ");
+    _debugPort->print(F("sendCommandWithResponse: "));
   if (_printDebug == true)
     _debugPort->println(String(command));
 
@@ -4045,8 +4149,8 @@ int SARA_R5::readAvailable(char *inString)
     {
       inString[len] = 0;
     }
-    if (_printDebug == true)
-      _debugPort->println(inString);
+    //if (_printDebug == true)
+    //  _debugPort->println(inString);
   }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   else if (_softSerial != NULL)
@@ -4201,11 +4305,11 @@ void SARA_R5::pruneBacklog()
   if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
   {
     if (_printDebug == true)
-      _debugPort->println("pruneBacklog: pruned backlog is now:");
+      _debugPort->println(F("pruneBacklog: pruned backlog is now:"));
     if (_printDebug == true)
       _debugPort->println(saraResponseBacklog);
     if (_printDebug == true)
-      _debugPort->println("pruneBacklog: end of pruned backlog");
+      _debugPort->println(F("pruneBacklog: end of pruned backlog"));
   }
 
   free(event);
