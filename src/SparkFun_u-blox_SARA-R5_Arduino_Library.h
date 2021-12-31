@@ -474,7 +474,6 @@ public:
 
   // Loop polling and polling setup
   bool bufferedPoll(void);
-  bool processReadEvent(char *event);
   bool poll(void);
   void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int));
   void setSocketReadCallback(void (*socketReadCallback)(int, String));
@@ -795,6 +794,7 @@ private:
 
   char *sara_r5_calloc_char(size_t num);
 
+  bool processURCEvent(const char *event);
   void pruneBacklog(void);
 
   // GPS Helper functions
