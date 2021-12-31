@@ -12,19 +12,49 @@
 
   This example includes the code from Example7_ConfigurePacketSwitchedData to let you see the SARA-R5's IP address.
   If you select "Ping":
-    The code asks for the IP Address of the SARA-R5 you want to communicate with
+    The code asks for the IP Address of the "Pong" SARA-R5
     The code then opens a TCP socket to the "Pong" SARA-R5 using port number TCP_PORT
     The code sends an initial "Ping" using Write Socket Data (+USOWR)
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
     When "Pong" is received by the callback, the code sends "Ping" in reply
     The Ping-Pong repeats 100 times
-    The socket is closed after the 100th ping is sent
+    The socket is closed after the 100th Ping is sent
   If you select "Pong":
-    The code opens a TCP socket and waits for data to arrive
+    The code opens a TCP socket and waits for a connection and for data to arrive
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
     When "Ping" is received by the callback, the code sends "Pong" in reply
-    The socket is closed after 600 seconds
+    The socket is closed after 120 seconds
   Start the "Pong" first!
+
+  You may find that your service provider is blocking incoming TCP connections to the SARA-R5, preventing the "Pong" from working...
+  If that is the case, you can use this code to play ping-pong with another computer acting as a TCP Echo Server.
+  Here's a quick how-to (assuming you are familiar with Python):
+    Open up a Python editor on your computer
+    Grab yourself some simple TCP Echo Server code:
+      The third example here works well: https://rosettacode.org/wiki/Echo_server#Python
+    Log in to your router
+    Find your local IP address (usually 192.168.0.something)
+    Go into your router's Security / Port Forwarding settings:
+      Create a new port forwarding rule
+      The IP address is your local IP address
+      Set the local port range to 1200-1200 (if you changed TCP_PORT, use that port number instead)
+      Set the external port range to 1200-1200
+      Set the protocol to TCP
+      Enable the rule
+    This will open up a direct connection from the outside world, through your router, to port 1200 on your computer
+      Remember to lock it down again when you're done!
+    Edit the Python code and replace 'localhost' with your local IP number:
+      HOST = '192.168.0.nnn'
+    Change the PORT to 1200:
+      PORT = 1200
+    Run the Python code
+    Ask Google for your computer's public IP address:
+      Google "what is my IP address"
+    Run this code and choose the "Ping" option
+    Enter your computer's public IP address when asked
+    Sit back and watch the ping-pong!
+    The code will stop after 100 Pings+Echos and 100 Pongs+Echos
+      That's 400 TCP transfers in total!
 
   Feel like supporting open source hardware?
   Buy a board from SparkFun!
@@ -68,7 +98,7 @@ const int pingPongLimit = 100;
 
 // Keep track of how long the socket has been open. "Pong" closes the socket when timeLimit (millis) is reached.
 unsigned long startTime;
-const unsigned long timeLimit = 600000; // 600 seconds
+const unsigned long timeLimit = 120000; // 120 seconds
 
 #include <IPAddress.h> // Needed for sockets
 volatile int socketNum;
@@ -189,7 +219,7 @@ void setup()
   while (Serial.available()) // Empty the serial RX buffer
     Serial.read();
 
-  mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
+  //mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
 
   // For the MicroMod Asset Tracker, we need to invert the power pin so it pulls high instead of low
   // Comment the next line if required
@@ -397,11 +427,7 @@ void setup()
       if (c == '\n') // Is it a LF?
       {
         theAddress[field] = val; // Store the current value
-        if ((field == 3)
-            && (theAddress[0] >= 0) && (theAddress[0] <= 255)
-            && (theAddress[1] >= 0) && (theAddress[1] <= 255)
-            && (theAddress[2] >= 0) && (theAddress[2] <= 255)
-            && (theAddress[3] >= 0) && (theAddress[3] <= 255))
+        if (field == 3)
           selected = true;
         else
         {
