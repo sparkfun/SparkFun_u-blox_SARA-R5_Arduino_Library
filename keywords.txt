@@ -44,9 +44,12 @@ gnss_aiding_mode_t	KEYWORD1
 begin	KEYWORD2
 enableDebugging	KEYWORD2
 invertPowerPin	KEYWORD2
+modulePowerOff	KEYWORD2
+modulePowerOn	KEYWORD2
 bufferedPoll	KEYWORD2
 processReadEvent	KEYWORD2
 poll	KEYWORD2
+setSocketListenCallback	KEYWORD2
 setSocketReadCallback	KEYWORD2
 setSocketCloseCallback	KEYWORD2
 setGpsReadCallback	KEYWORD2
