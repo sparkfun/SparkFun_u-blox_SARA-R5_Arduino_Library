@@ -330,7 +330,7 @@ bool SARA_R5::processURCEvent(const char *event)
     scanNum = sscanf(event, "+UUPSDA: %d,\"%d.%d.%d.%d\"",
                       &result, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3]);
 
-    if (scanNum == 1)
+    if (scanNum == 5)
     {
       if (_printDebug == true)
         _debugPort->println(F("processReadEvent: packet switched data action"));
@@ -3565,7 +3565,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
   bool found = false;
   int responseIndex = 0, errorIndex = 0;
   int backlogIndex = strlen(saraResponseBacklog);
-  bool printedSomething = false;
+  //bool printedSomething = false;
 
   timeIn = millis();
 
@@ -3574,13 +3574,13 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
       char c = readChar();
-      if (_printDebug == true)
-      {
-        if (printedSomething == false)
-          _debugPort->print(F("waitForResponse: "));
-        _debugPort->print(c);
-        printedSomething = true;
-      }
+      // if (_printDebug == true)
+      // {
+      //   if (printedSomething == false)
+      //     _debugPort->print(F("waitForResponse: "));
+      //   _debugPort->print(c);
+      //   printedSomething = true;
+      // }
       if (c == expectedResponse[responseIndex])
       {
         if (++responseIndex == (int)strlen(expectedResponse))
@@ -3611,9 +3611,9 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
     }
   }
 
-  if (_printDebug == true)
-    if (printedSomething)
-      _debugPort->println();
+  // if (_printDebug == true)
+  //   if (printedSomething)
+  //     _debugPort->println();
 
   pruneBacklog(); // Prune any incoming non-actionable URC's and responses/errors from the backlog
 
@@ -3640,12 +3640,12 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   int index = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
-  bool printedSomething = false;
+  //bool printedSomething = false;
 
-  if (_printDebug == true)
-    _debugPort->print(F("sendCommandWithResponse: Command: "));
-  if (_printDebug == true)
-    _debugPort->println(String(command));
+  // if (_printDebug == true)
+  //   _debugPort->print(F("sendCommandWithResponse: Command: "));
+  // if (_printDebug == true)
+  //   _debugPort->println(String(command));
 
   int backlogIndex = sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
@@ -3655,13 +3655,13 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
       char c = readChar();
-      if (_printDebug == true)
-      {
-        if (printedSomething == false)
-          _debugPort->print(F("sendCommandWithResponse: Response: "));
-        _debugPort->print(c);
-        printedSomething = true;
-      }
+      // if (_printDebug == true)
+      // {
+      //   if (printedSomething == false)
+      //     _debugPort->print(F("sendCommandWithResponse: Response: "));
+      //   _debugPort->print(c);
+      //   printedSomething = true;
+      // }
       if (responseDest != NULL)
       {
         responseDest[destIndex++] = c;
@@ -3686,9 +3686,9 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     }
   }
 
-  if (_printDebug == true)
-    if (printedSomething)
-      _debugPort->println();
+  // if (_printDebug == true)
+  //   if (printedSomething)
+  //     _debugPort->println();
 
   pruneBacklog(); // Prune any incoming non-actionable URC's and responses/errors from the backlog
 
@@ -4041,20 +4041,20 @@ void SARA_R5::pruneBacklog()
   char pruneBuffer[RXBuffSize];
   memset(pruneBuffer, 0, RXBuffSize); // Create a buffer to store the stuff we don't want to prune
 
-  if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: pruned backlog was:"));
-    if (_printDebug == true)
-      _debugPort->println(saraResponseBacklog);
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: end of pruned backlog"));
-  }
-  else
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: backlog was empty"));
-  }
+  // if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
+  // {
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: pruned backlog was:"));
+  //   if (_printDebug == true)
+  //     _debugPort->println(saraResponseBacklog);
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: end of pruned backlog"));
+  // }
+  // else
+  // {
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: backlog was empty"));
+  // }
 
   event = strtok(saraResponseBacklog, "\r\n"); // Look for an 'event' - something ending in \r\n
 
@@ -4081,20 +4081,20 @@ void SARA_R5::pruneBacklog()
   memset(saraResponseBacklog, 0, RXBuffSize); //Clear out backlog buffer.
   strcpy(saraResponseBacklog, pruneBuffer); //Copy the stuff we didn't prune into the backlog
 
-  if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: pruned backlog is now:"));
-    if (_printDebug == true)
-      _debugPort->println(saraResponseBacklog);
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: end of pruned backlog"));
-  }
-  else
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("pruneBacklog: backlog is now empty"));
-  }
+  // if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
+  // {
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: pruned backlog is now:"));
+  //   if (_printDebug == true)
+  //     _debugPort->println(saraResponseBacklog);
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: end of pruned backlog"));
+  // }
+  // else
+  // {
+  //   if (_printDebug == true)
+  //     _debugPort->println(F("pruneBacklog: backlog is now empty"));
+  // }
 
   free(event);
 }
