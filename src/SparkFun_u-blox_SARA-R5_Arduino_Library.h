@@ -473,8 +473,19 @@ public:
   void modulePowerOn(void); // Requires access to the PWR_ON pin
 
   // Loop polling and polling setup
+
+  // This function was originally written by Matthew Menze for the LTE Shield (SARA-R4) library
+  // See: https://github.com/sparkfun/SparkFun_LTE_Shield_Arduino_Library/pull/8
+  // It does the same job as ::poll but also processed any 'old' data stored in the backlog first
+  // It also has a built-in timeout - which ::poll does not
   bool bufferedPoll(void);
+  
+  // This is the original poll function.
+  // It is 'blocking' - it does not return when serial data is available until it receives a `\n`.
+  // ::bufferedPoll is the new improved version. It processes any data in the backlog and includes a timeout.
   bool poll(void);
+
+  // Callbacks (called during polling)
   void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int));
   void setSocketReadCallback(void (*socketReadCallback)(int, String));
   void setSocketCloseCallback(void (*socketCloseCallback)(int));
