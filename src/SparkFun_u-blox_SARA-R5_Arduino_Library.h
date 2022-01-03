@@ -519,7 +519,7 @@ public:
   String clock(void);
   // TODO: Return a clock struct
   SARA_R5_error_t clock(uint8_t *y, uint8_t *mo, uint8_t *d,
-                        uint8_t *h, uint8_t *min, uint8_t *s, uint8_t *tz);
+                        uint8_t *h, uint8_t *min, uint8_t *s, int8_t *tz); // TZ can be +/-
   SARA_R5_error_t autoTimeZone(bool enable);
   SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE);
   SARA_R5_error_t getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor);
