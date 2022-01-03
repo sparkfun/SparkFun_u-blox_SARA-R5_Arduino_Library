@@ -847,18 +847,21 @@ String SARA_R5::clock(void)
   }
   *(clockEnd) = '\0'; // Set last quote to null char -- end string
 
+  String clock = String(clockBegin); // Extract the clock as a String _before_ freeing response
+
   free(command);
   free(response);
 
-  return String(clockBegin);
+  return (clock);
 }
 
 SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
-                               uint8_t *h, uint8_t *min, uint8_t *s, uint8_t *tz)
+                               uint8_t *h, uint8_t *min, uint8_t *s, int8_t *tz)
 {
   SARA_R5_error_t err;
   char *command;
   char *response;
+  char tzPlusMinus;
 
   int iy, imo, id, ih, imin, is, itz;
 
@@ -877,11 +880,11 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
-  // Response format: \r\n+CCLK: "YY/MM/DD,HH:MM:SS-TZ"\r\n\r\nOK\r\n
+  // Response format (if TZ is negative): \r\n+CCLK: "YY/MM/DD,HH:MM:SS-TZ"\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n+CCLK: \"%d/%d/%d,%d:%d:%d-%d\"\r\n",
-               &iy, &imo, &id, &ih, &imin, &is, &itz) == 7)
+    if (sscanf(response, "\r\n+CCLK: \"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
+               &iy, &imo, &id, &ih, &imin, &is, &tzPlusMinus, &itz) == 8)
     {
       *y = iy;
       *mo = imo;
@@ -889,7 +892,10 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
       *h = ih;
       *min = imin;
       *s = is;
-      *tz = itz;
+      if (tzPlusMinus == '+')
+        *tz = itz;
+      else
+        *tz = 0 - itz;
     }
     else
       err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
@@ -3640,12 +3646,12 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   int index = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
-  //bool printedSomething = false;
+  bool printedSomething = false;
 
-  // if (_printDebug == true)
-  //   _debugPort->print(F("sendCommandWithResponse: Command: "));
-  // if (_printDebug == true)
-  //   _debugPort->println(String(command));
+  if (_printDebug == true)
+    _debugPort->print(F("sendCommandWithResponse: Command: "));
+  if (_printDebug == true)
+    _debugPort->println(String(command));
 
   int backlogIndex = sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
@@ -3655,13 +3661,13 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
       char c = readChar();
-      // if (_printDebug == true)
-      // {
-      //   if (printedSomething == false)
-      //     _debugPort->print(F("sendCommandWithResponse: Response: "));
-      //   _debugPort->print(c);
-      //   printedSomething = true;
-      // }
+      if (_printDebug == true)
+      {
+        if (printedSomething == false)
+          _debugPort->print(F("sendCommandWithResponse: Response: "));
+        _debugPort->print(c);
+        printedSomething = true;
+      }
       if (responseDest != NULL)
       {
         responseDest[destIndex++] = c;
@@ -3686,9 +3692,9 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     }
   }
 
-  // if (_printDebug == true)
-  //   if (printedSomething)
-  //     _debugPort->println();
+  if (_printDebug == true)
+    if (printedSomething)
+      _debugPort->println();
 
   pruneBacklog(); // Prune any incoming non-actionable URC's and responses/errors from the backlog
 
