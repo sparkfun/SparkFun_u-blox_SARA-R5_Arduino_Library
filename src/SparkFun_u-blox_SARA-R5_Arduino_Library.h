@@ -488,6 +488,7 @@ public:
   // Callbacks (called during polling)
   void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int));
   void setSocketReadCallback(void (*socketReadCallback)(int, String));
+  void setSocketReadCallbackPlus(void (*socketReadCallbackPlus)(int, const char *, int, IPAddress, int)); // socket, data, length, remoteAddress, remotePort
   void setSocketCloseCallback(void (*socketCloseCallback)(int));
   void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
                                                      PositionData gps, SpeedData spd, unsigned long uncertainty));
@@ -755,6 +756,7 @@ private:
 
   void (*_socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int);
   void (*_socketReadCallback)(int, String);
+  void (*_socketReadCallbackPlus)(int, const char *, int, IPAddress, int); // socket, data, length, remoteAddress, remotePort
   void (*_socketCloseCallback)(int);
   void (*_gpsRequestCallback)(ClockData, PositionData, SpeedData, unsigned long);
   void (*_simStateReportCallback)(SARA_R5_sim_states_t);

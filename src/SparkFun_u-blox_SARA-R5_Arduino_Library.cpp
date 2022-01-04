@@ -29,6 +29,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _maxInitDepth = maxInitDepth;
   _socketListenCallback = NULL;
   _socketReadCallback = NULL;
+  _socketReadCallbackPlus = NULL;
   _socketCloseCallback = NULL;
   _gpsRequestCallback = NULL;
   _simStateReportCallback = NULL;
@@ -471,6 +472,11 @@ void SARA_R5::setSocketListenCallback(void (*socketListenCallback)(int, IPAddres
 void SARA_R5::setSocketReadCallback(void (*socketReadCallback)(int, String))
 {
   _socketReadCallback = socketReadCallback;
+}
+
+void SARA_R5::setSocketReadCallbackPlus(void (*socketReadCallbackPlus)(int, const char *, int, IPAddress, int)) // socket, data, length, remoteAddress, remotePort
+{
+  _socketReadCallbackPlus = socketReadCallbackPlus;
 }
 
 void SARA_R5::setSocketCloseCallback(void (*socketCloseCallback)(int))
@@ -4011,7 +4017,17 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
 
   if (_socketReadCallback != NULL)
   {
-    _socketReadCallback(socket, String(readDest));
+    String dataAsString; // Create an empty string
+    for (int i = 0; i < length; i++) // Copy the data from readDest into the String in a binary-compatible way
+      dataAsString.concat(readDest[i]);
+    _socketReadCallback(socket, dataAsString);
+  }
+
+  if (_socketReadCallbackPlus != NULL)
+  {
+    IPAddress dummyAddress = { 0, 0, 0, 0 };
+    int dummyPort = 0;
+    _socketReadCallbackPlus(socket, (const char *)readDest, length, dummyAddress, dummyPort);
   }
 
   free(readDest);
@@ -4022,6 +4038,8 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
 {
   SARA_R5_error_t err;
   char *readDest;
+  IPAddress remoteAddress = { 0, 0, 0, 0 };
+  int remotePort = 0;
 
   if ((socket < 0) || (length < 0))
   {
@@ -4034,7 +4052,7 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = socketReadUDP(socket, length, readDest);
+  err = socketReadUDP(socket, length, readDest, &remoteAddress, &remotePort);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     free(readDest);
@@ -4043,7 +4061,15 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
 
   if (_socketReadCallback != NULL)
   {
-    _socketReadCallback(socket, String(readDest));
+    String dataAsString; // Create an empty string
+    for (int i = 0; i < length; i++) // Copy the data from readDest into the String in a binary-compatible way
+      dataAsString.concat(readDest[i]);
+    _socketReadCallback(socket, dataAsString);
+  }
+
+  if (_socketReadCallbackPlus != NULL)
+  {
+    _socketReadCallbackPlus(socket, (const char *)readDest, length, remoteAddress, remotePort);
   }
 
   free(readDest);
