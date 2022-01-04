@@ -106,7 +106,9 @@ socketConnect	KEYWORD2
 socketWrite	KEYWORD2
 socketWriteUDP	KEYWORD2
 socketRead	KEYWORD2
+socketReadAvailable	KEYWORD2
 socketReadUDP	KEYWORD2
+socketReadAvailableUDP	KEYWORD2
 socketListen	KEYWORD2
 socketDirectLinkMode	KEYWORD2
 socketDirectLinkTimeTrigger	KEYWORD2

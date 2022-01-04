@@ -643,7 +643,9 @@ public:
   SARA_R5_error_t socketWriteUDP(int socket, IPAddress address, int port, const char *str, int len = -1);
   SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
   SARA_R5_error_t socketRead(int socket, int length, char *readDest);
+  SARA_R5_error_t socketReadAvailable(int socket, int *length);
   SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = NULL, int *remotePort = NULL);
+  SARA_R5_error_t socketReadAvailableUDP(int socket, int *length);
   SARA_R5_error_t socketListen(int socket, unsigned int port);
   SARA_R5_error_t socketDirectLinkMode(int socket);
   SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, unsigned long timerTrigger);

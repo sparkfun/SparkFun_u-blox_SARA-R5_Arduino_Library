@@ -2401,6 +2401,55 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int readLength = 0;
+  int socketStore = 0;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_READ_SOCKET) + 32);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,0", SARA_R5_READ_SOCKET, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_READ_SOCKET) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USORD: %d,%d",
+                      &socketStore, &readLength);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketReadAvailable: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *length = readLength;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress, int *remotePort)
 {
   char *command;
@@ -2508,6 +2557,55 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
 
     if (_printDebug == true)
       _debugPort->println(F("socketReadUDP: success"));
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int readLength = 0;
+  int socketStore = 0;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_READ_UDP_SOCKET) + 32);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,0", SARA_R5_READ_UDP_SOCKET, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_READ_UDP_SOCKET) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USORF: %d,%d",
+                      &socketStore, &readLength);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketReadAvailableUDP: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *length = readLength;
   }
 
   free(command);
