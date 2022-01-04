@@ -140,6 +140,7 @@ sendHTTPPOSTdata	KEYWORD2
 setPDPconfiguration	KEYWORD2
 performPDPaction	KEYWORD2
 activatePDPcontext	KEYWORD2
+getNetworkAssignedIPAddress	KEYWORD2
 isGPSon	KEYWORD2
 gpsPower	KEYWORD2
 # gpsEnableClock	KEYWORD2
