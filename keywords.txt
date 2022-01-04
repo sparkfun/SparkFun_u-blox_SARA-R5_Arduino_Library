@@ -116,6 +116,13 @@ socketDirectLinkTimeTrigger	KEYWORD2
 socketDirectLinkDataLengthTrigger	KEYWORD2
 socketDirectLinkCharacterTrigger	KEYWORD2
 socketDirectLinkCongestionTimer	KEYWORD2
+querySocketType	KEYWORD2
+querySocketLastError	KEYWORD2
+querySocketTotalBytesSent	KEYWORD2
+querySocketTotalBytesReceived	KEYWORD2
+querySocketRemoteIPAddress	KEYWORD2
+querySocketStatusTCP	KEYWORD2
+querySocketOutUnackData	KEYWORD2
 socketGetLastError	KEYWORD2
 lastRemoteIP	KEYWORD2
 ping	KEYWORD2

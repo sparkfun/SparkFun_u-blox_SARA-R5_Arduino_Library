@@ -2738,6 +2738,354 @@ SARA_R5_error_t SARA_R5::socketDirectLinkCongestionTimer(int socket, unsigned lo
   return err;
 }
 
+SARA_R5_error_t SARA_R5::querySocketType(int socket, SARA_R5_socket_protocol_t *protocol)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,0", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,0,%d",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketType: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *protocol = (SARA_R5_socket_protocol_t)paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketLastError(int socket, int *error)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,1", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,1,%d",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketLastError: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *error = paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  long unsigned int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,2", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,2,%lu",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketTotalBytesSent: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *total = (uint32_t)paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketTotalBytesReceived(int socket, uint32_t *total)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  long unsigned int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,3", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,3,%lu",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketTotalBytesReceived: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *total = (uint32_t)paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *address, int *port)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  int paramVals[5];
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,4", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,4,\"%d.%d.%d.%d\",%d",
+                      &socketStore,
+                      &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3],
+                      &paramVals[4]);
+    if (scanNum != 6)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketRemoteIPAddress: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    IPAddress tempAddress = { (uint8_t)paramVals[0], (uint8_t)paramVals[1],
+                              (uint8_t)paramVals[2], (uint8_t)paramVals[3] };
+    *address = tempAddress;
+    *port = paramVals[4];
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, SARA_R5_tcp_socket_status_t *status)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,10", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,10,%d",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketStatusTCP: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *status = (SARA_R5_tcp_socket_status_t)paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::querySocketOutUnackData(int socket, uint32_t *total)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int socketStore = 0;
+  long unsigned int paramVal;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,11", SARA_R5_SOCKET_CONTROL, socket);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_SOCKET_CONTROL) + 16);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+USOCTL: %d,11,%lu",
+                      &socketStore, &paramVal);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("querySocketOutUnackData: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    *total = (uint32_t)paramVal;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
 //Issues command to get last socket error, then prints to serial. Also updates rx/backlog buffers.
 int SARA_R5::socketGetLastError()
 {

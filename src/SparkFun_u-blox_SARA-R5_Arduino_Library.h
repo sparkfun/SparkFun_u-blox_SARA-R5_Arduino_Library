@@ -144,6 +144,7 @@ const char SARA_R5_READ_UDP_SOCKET[] = "+USORF";    // Read UDP data from a sock
 const char SARA_R5_LISTEN_SOCKET[] = "+USOLI";      // Listen for connection on socket
 const char SARA_R5_GET_ERROR[] = "+USOER";          // Get last socket error.
 const char SARA_R5_SOCKET_DIRECT_LINK[] = "+USODL"; // Set socket in Direct Link mode
+const char SARA_R5_SOCKET_CONTROL[] = "+USOCTL";    // Query the socket parameters
 const char SARA_R5_UD_CONFIGURATION[] = "+UDCONF";  // User Datagram Configuration
 // ### Ping
 const char SARA_R5_PING_COMMAND[] = "+UPING"; // Ping
@@ -653,6 +654,27 @@ public:
   SARA_R5_error_t socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger);
   SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
   SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer);
+  SARA_R5_error_t querySocketType(int socket, SARA_R5_socket_protocol_t *protocol);
+  SARA_R5_error_t querySocketLastError(int socket, int *error);
+  SARA_R5_error_t querySocketTotalBytesSent(int socket, uint32_t *total);
+  SARA_R5_error_t querySocketTotalBytesReceived(int socket, uint32_t *total);
+  SARA_R5_error_t querySocketRemoteIPAddress(int socket, IPAddress *address, int *port);
+  typedef enum
+  {
+    TCP_SOCKET_STATUS_INACTIVE,
+    TCP_SOCKET_STATUS_LISTEN,
+    TCP_SOCKET_STATUS_SYN_SENT,
+    TCP_SOCKET_STATUS_SYN_RCVD,
+    TCP_SOCKET_STATUS_ESTABLISHED,
+    TCP_SOCKET_STATUS_FIN_WAIT_1,
+    TCP_SOCKET_STATUS_FIN_WAIT_2,
+    TCP_SOCKET_STATUS_CLOSE_WAIT,
+    TCP_SOCKET_STATUS_CLOSING,
+    TCP_SOCKET_STATUS_LAST_ACK,
+    TCP_SOCKET_STATUS_TIME_WAIT
+  } SARA_R5_tcp_socket_status_t;
+  SARA_R5_error_t querySocketStatusTCP(int socket, SARA_R5_tcp_socket_status_t *status);
+  SARA_R5_error_t querySocketOutUnackData(int socket, uint32_t *total);
   int socketGetLastError();
   IPAddress lastRemoteIP(void);
 
@@ -680,6 +702,7 @@ public:
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value);                   // Set parameters in the chosen PSD profile
   SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action);                                                          // Performs the requested action for the specified PSD profile.
   SARA_R5_error_t activatePDPcontext(bool status, int cid = -1);                                                                        // Activates or deactivates the specified PDP context. Default to all (cid = -1)
+  SARA_R5_error_t getNetworkAssignedIPAddress(int profile, IPAddress *address);
 
   // GPS
   typedef enum
