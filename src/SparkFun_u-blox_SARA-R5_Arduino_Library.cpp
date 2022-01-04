@@ -536,18 +536,14 @@ size_t SARA_R5::write(const char *str)
 
 size_t SARA_R5::write(const char *buffer, size_t size)
 {
-  //size is unused at the moment but could be used if this function is ever updated to use write instead of print.
-  size_t ignoreMe = size;
-  ignoreMe -= 0; // Avoid the pesky compiler warning.
-
   if (_hardSerial != NULL)
   {
-    return _hardSerial->print(buffer);
+    return _hardSerial->write((const uint8_t *)buffer, (int)size);
   }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   else if (_softSerial != NULL)
   {
-    return _softSerial->print(buffer);
+    return _softSerial->write((const uint8_t *)buffer, (int)size);
   }
 #endif
   return (size_t)0;
