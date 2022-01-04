@@ -131,6 +131,7 @@ const char SARA_R5_MESSAGE_PDP_CONFIG[] = "+UPSD";            // Packet switched
 const char SARA_R5_MESSAGE_PDP_ACTION[] = "+UPSDA";           // Perform the action for the specified PSD profile
 const char SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE[] = "+CGACT"; // Activates or deactivates the specified PDP context
 const char SARA_R5_MESSAGE_ENTER_PPP[] = "D";
+const char SARA_R5_NETWORK_ASSIGNED_DATA[] = "+UPSND";        // Packet switched network-assigned data
 // ### GPIO
 const char SARA_R5_COMMAND_GPIO[] = "+UGPIOC"; // GPIO Configuration
 // ### IP
@@ -702,7 +703,7 @@ public:
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value);                   // Set parameters in the chosen PSD profile
   SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action);                                                          // Performs the requested action for the specified PSD profile.
   SARA_R5_error_t activatePDPcontext(bool status, int cid = -1);                                                                        // Activates or deactivates the specified PDP context. Default to all (cid = -1)
-  SARA_R5_error_t getNetworkAssignedIPAddress(int profile, IPAddress *address);
+  SARA_R5_error_t getNetworkAssignedIPAddress(int profile, IPAddress *address);                                                         // Get the dynamic IP address assigned during PDP context activation
 
   // GPS
   typedef enum

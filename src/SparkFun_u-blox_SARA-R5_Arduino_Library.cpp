@@ -3509,6 +3509,58 @@ SARA_R5_error_t SARA_R5::activatePDPcontext(bool status, int cid)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::getNetworkAssignedIPAddress(int profile, IPAddress *address)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum;
+  int profileStore = 0;
+  int paramVals[4];
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_NETWORK_ASSIGNED_DATA) + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,0", SARA_R5_NETWORK_ASSIGNED_DATA, profile);
+
+  response = sara_r5_calloc_char(strlen(SARA_R5_NETWORK_ASSIGNED_DATA) + 32);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    scanNum = sscanf(response, "+UPSND: %d,0,\"%d.%d.%d.%d\"",
+                      &profileStore,
+                      &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3]);
+    if (scanNum != 5)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("getNetworkAssignedIPAddress: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    IPAddress tempAddress = { (uint8_t)paramVals[0], (uint8_t)paramVals[1],
+                              (uint8_t)paramVals[2], (uint8_t)paramVals[3] };
+    *address = tempAddress;
+  }
+
+  free(command);
+  free(response);
+
+  return err;
+}
+
 bool SARA_R5::isGPSon(void)
 {
   SARA_R5_error_t err;
