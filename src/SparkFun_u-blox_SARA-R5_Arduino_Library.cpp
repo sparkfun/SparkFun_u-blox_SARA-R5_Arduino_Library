@@ -2161,7 +2161,19 @@ SARA_R5_error_t SARA_R5::socketConnect(int socket, const char *address,
   return err;
 }
 
-SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
+SARA_R5_error_t SARA_R5::socketConnect(int socket, IPAddress address,
+                                       unsigned int port)
+{
+  char *charAddress = sara_r5_calloc_char(16);
+  if (charAddress == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  memset(charAddress, 0, 16);
+  sprintf(charAddress, "%d.%d.%d.%d", address[0], address[1], address[2], address[3]);
+
+  return (socketConnect(socket, (const char *)charAddress, port));
+}
+
+SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str, int len)
 {
   char *command;
   char *response;
@@ -2177,7 +2189,8 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     free(command);
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
-  sprintf(command, "%s=%d,%d", SARA_R5_WRITE_SOCKET, socket, strlen(str));
+  int dataLen = len == -1 ? strlen(str) : len;
+  sprintf(command, "%s=%d,%d", SARA_R5_WRITE_SOCKET, socket, dataLen);
 
   err = sendCommandWithResponse(command, "@", response,
                                 SARA_R5_2_MIN_TIMEOUT);
@@ -2188,12 +2201,26 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
     while (millis() < (writeDelay + 50))
       ; //uBlox specification says to wait 50ms after receiving "@" to write data.
 
-    if (_printDebug == true)
+    if (len == -1)
     {
-      _debugPort->print(F("socketWrite: writing: "));
-      _debugPort->println(str);
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketWrite: writing: "));
+        _debugPort->println(str);
+      }
+      hwPrint(str);
     }
-    hwPrint(str);
+    else
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketWrite: writing "));
+        _debugPort->print(len);
+        _debugPort->println(F(" bytes"));
+      }
+      hwWriteData(str, len);
+    }
+
     err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_SOCKET_WRITE_TIMEOUT);
   }
 
@@ -2216,7 +2243,7 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str)
 
 SARA_R5_error_t SARA_R5::socketWrite(int socket, String str)
 {
-  return socketWrite(socket, str.c_str());
+  return socketWrite(socket, str.c_str(), str.length());
 }
 
 SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int port, const char *str, int len)
@@ -2263,6 +2290,17 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int por
   free(command);
   free(response);
   return err;
+}
+
+SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, IPAddress address, int port, const char *str, int len)
+{
+  char *charAddress = sara_r5_calloc_char(16);
+  if (charAddress == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  memset(charAddress, 0, 16);
+  sprintf(charAddress, "%d.%d.%d.%d", address[0], address[1], address[2], address[3]);
+
+  return (socketWriteUDP(socket, (const char *)charAddress, port, str, len));
 }
 
 SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, String address, int port, String str, int len)

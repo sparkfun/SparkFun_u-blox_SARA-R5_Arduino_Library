@@ -636,9 +636,11 @@ public:
   int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0);
   SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT);
   SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
-  SARA_R5_error_t socketWrite(int socket, const char *str);
+  SARA_R5_error_t socketConnect(int socket, IPAddress address, unsigned int port);
+  SARA_R5_error_t socketWrite(int socket, const char *str, int len = -1);
   SARA_R5_error_t socketWrite(int socket, String str);
   SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
+  SARA_R5_error_t socketWriteUDP(int socket, IPAddress address, int port, const char *str, int len = -1);
   SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
   SARA_R5_error_t socketRead(int socket, int length, char *readDest);
   SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest);
