@@ -2315,8 +2315,19 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
   char *strBegin;
   int readIndex = 0;
   SARA_R5_error_t err;
+  int scanNum;
+  int readLength = 0;
+  int socketStore = 0;
 
-  command = sara_r5_calloc_char(strlen(SARA_R5_READ_SOCKET) + 8);
+  // Check if length is zero
+  if (length == 0)
+  {
+    if (_printDebug == true)
+      _debugPort->print(F("socketRead: length is 0! Call socketReadAvailable?"));
+    return SARA_R5_ERROR_UNEXPECTED_PARAM;
+  }
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_READ_SOCKET) + 32);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_READ_SOCKET, socket, length);
@@ -2333,6 +2344,36 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
+    // Extract the data - and check the quote is present
+    scanNum = sscanf(response, "+USORD: %d,%d,\"",
+                      &socketStore, &readLength);
+    if (scanNum != 2)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketRead: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    // Check that readLength == length.
+    if (readLength != length)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketRead: error: length="));
+        _debugPort->print(length);
+        _debugPort->print(F(" readLength="));
+        _debugPort->println(readLength);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
     // Find the first double-quote:
     strBegin = strchr(response, '\"');
 
@@ -2343,11 +2384,15 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    while ((readIndex < length) && (readIndex < (int)strlen(strBegin)))
+    // Now copy the data into readDest
+    while (readIndex < length)
     {
       readDest[readIndex] = strBegin[1 + readIndex];
-      readIndex += 1;
+      readIndex++;
     }
+
+    if (_printDebug == true)
+      _debugPort->println(F("socketRead: success"));
   }
 
   free(command);
@@ -2356,15 +2401,28 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
   return err;
 }
 
-SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest)
+SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress, int *remotePort)
 {
   char *command;
   char *response;
   char *strBegin;
   int readIndex = 0;
   SARA_R5_error_t err;
+  int scanNum;
+  int remoteIPstore[4] = { 0, 0, 0, 0 };
+  int portStore = 0;
+  int readLength = 0;
+  int socketStore = 0;
 
-  command = sara_r5_calloc_char(strlen(SARA_R5_READ_UDP_SOCKET) + 16);
+  // Check if length is zero
+  if (length == 0)
+  {
+    if (_printDebug == true)
+      _debugPort->print(F("socketReadUDP: length is 0! Call socketReadAvailableUDP?"));
+    return SARA_R5_ERROR_UNEXPECTED_PARAM;
+  }
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_READ_UDP_SOCKET) + 32);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_READ_UDP_SOCKET, socket, length);
@@ -2381,14 +2439,38 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    // Find the third double-quote. This needs to be improved to collect other data.
-    if (_printDebug == true)
-      _debugPort->print(F("socketReadUDP: {"));
-    if (_printDebug == true)
-      _debugPort->print(response);
-    if (_printDebug == true)
-      _debugPort->println(F("}"));
+    // Extract the data - and check the third quote is present
+    scanNum = sscanf(response, "+USORF: %d,\"%d.%d.%d.%d\",%d,%d,\"",
+                      &socketStore, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
+                      &portStore, &readLength);
+    if (scanNum != 7)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketReadUDP: error: scanNum is "));
+        _debugPort->println(scanNum);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
 
+    // Check that readLength == length.
+    if (readLength != length)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketReadUDP: error: length="));
+        _debugPort->print(length);
+        _debugPort->print(F(" readLength="));
+        _debugPort->println(readLength);
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+
+    // Find the third double-quote
     strBegin = strchr(response, '\"');
     strBegin = strchr(strBegin + 1, '\"');
     strBegin = strchr(strBegin + 1, '\"');
@@ -2400,11 +2482,32 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    while ((readIndex < length) && (readIndex < (int)strlen(strBegin)))
+    // Now copy the data into readDest
+    while (readIndex < length)
     {
       readDest[readIndex] = strBegin[1 + readIndex];
-      readIndex += 1;
+      readIndex++;
     }
+
+    // If remoteIPaddress is not NULL, copy the remote IP address
+    if (remoteIPAddress != NULL)
+    {
+      IPAddress tempAddress;
+      for (int i = 0; i <= 3; i++)
+      {
+        tempAddress[i] = (uint8_t)remoteIPstore[i];
+      }
+      *remoteIPAddress = tempAddress;
+    }
+
+    // If remotePort is not NULL, copy the remote port
+    if (remotePort != NULL)
+    {
+      *remotePort = portStore;
+    }
+
+    if (_printDebug == true)
+      _debugPort->println(F("socketReadUDP: success"));
   }
 
   free(command);
