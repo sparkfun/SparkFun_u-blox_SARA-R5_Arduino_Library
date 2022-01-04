@@ -1261,13 +1261,13 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
     memcpy(pdpStr, "IP", 2);
     break;
   case PDP_TYPE_NONIP:
-    memcpy(pdpStr, "NONIP", 2);
+    memcpy(pdpStr, "NONIP", 5);
     break;
   case PDP_TYPE_IPV4V6:
-    memcpy(pdpStr, "IPV4V6", 2);
+    memcpy(pdpStr, "IPV4V6", 6);
     break;
   case PDP_TYPE_IPV6:
-    memcpy(pdpStr, "IPV6", 2);
+    memcpy(pdpStr, "IPV6", 4);
     break;
   default:
     free(command);
