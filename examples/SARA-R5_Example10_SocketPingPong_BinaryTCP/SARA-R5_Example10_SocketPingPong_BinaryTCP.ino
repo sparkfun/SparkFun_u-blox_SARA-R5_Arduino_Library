@@ -3,21 +3,21 @@
   SARA-R5 Example
   ===============
 
-  Socket "Ping Pong" - TCP Data Transfers
+  Socket "Ping Pong" - Binary TCP Data Transfers
 
   Written by: Paul Clark
   Date: December 30th 2021
 
-  This example demonstrates how to transfer data from one SARA-R5 to another using TCP sockets.
+  This example demonstrates how to transfer binary data from one SARA-R5 to another using TCP sockets.
 
   The PDP profile is read from NVM. Please make sure you have run examples 4 & 7 previously to set up the profile.
   
   If you select "Ping":
     The code asks for the IP Address of the "Pong" SARA-R5
     The code then opens a TCP socket to the "Pong" SARA-R5 using port number TCP_PORT
-    The code sends an initial "Ping" using Write Socket Data (+USOWR)
+    The code sends an initial "Ping" (Binary 0x00, 0x01, 0x02, 0x03) using Write Socket Data (+USOWR)
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
-    When "Pong" is received by the callback, the code sends "Ping" in reply
+    When "Pong" (Binary 0x04, 0x05, 0x06, 0x07) is received by the callback, the code sends "Ping" in reply
     The Ping-Pong repeats 100 times
     The socket is closed after the 100th Ping is sent
   If you select "Pong":
@@ -152,20 +152,27 @@ void processSocketData(int socket, String theData)
   Serial.println();
   Serial.print(F("Data received on socket "));
   Serial.print(socket);
-  Serial.print(F(" : "));
-  Serial.println(theData);
-  
-  if (theData == String("Ping")) // Look for the "Ping"
+  Serial.print(F(" :"));
+  for (int i = 0; i < theData.length(); i++)
   {
-    const char pong[] = "Pong";
-    mySARA.socketWrite(socket, pong); // Send the "Pong"
+    Serial.print(F(" 0x"));
+    if (theData[i] < 16)
+      Serial.print(F("0"));
+    Serial.print(theData[i], HEX);
+  }
+  Serial.println();
+  
+  if ((theData[0] == 0x00) && (theData[1] == 0x01) && (theData[2] == 0x02) && (theData[3] == 0x03)) // Look for the "Ping"
+  {
+    const char pong[] = { 0x04, 0x05, 0x06, 0x07 };
+    mySARA.socketWrite(socket, pong, 4); // Send the "Pong"
     pongCount++;
   }
 
-  if (theData == String("Pong")) // Look for the "Pong"
+  if ((theData[0] == 0x04) && (theData[1] == 0x05) && (theData[2] == 0x06) && (theData[3] == 0x07)) // Look for the "Pong"
   {
-    const char ping[] = "Ping";
-    mySARA.socketWrite(socket, ping); // Send the "Ping"
+    const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
+    mySARA.socketWrite(socket, ping, 4); // Send the "Ping"
     pingCount++;
   }
 
@@ -419,9 +426,8 @@ void setup()
     }
 
     // Send the first ping to start the ping-pong
-    const char ping[] = "Ping";
-    mySARA.socketWrite(socketNum, ping); // Send the "Ping"
-        
+    const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
+    mySARA.socketWrite(socketNum, ping, 4); // Send the "Ping"
   }
 
     
