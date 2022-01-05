@@ -181,6 +181,10 @@ const char ASCII_ESC = 0x1B;
 #define NOT_AT_COMMAND false
 #define AT_COMMAND true
 
+// The minimum memory allocation for responses from sendCommandWithResponse
+// This needs to be large enough to hold the response you're expecting plus and URC's that may arrive during the timeout
+#define minimumResponseAllocation 128
+
 #define SARA_R5_NUM_SOCKETS 6
 
 #define NUM_SUPPORTED_BAUD 6
@@ -454,10 +458,12 @@ public:
   char saraRXBuffer[RXBuffSize];
   char saraResponseBacklog[RXBuffSize];
 
-  //  Constructor
+  // Constructor
+  // The library will use the powerPin and resetPin (if provided) to power the module off/on and perform an emergency reset
+  // maxInitDepth sets the maximum number of initialization attempts (recursive). .init is called by .begin.
   SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitDepth = 9);
 
-  // Begin -- initialize BT module and ensure it's connected
+  // Begin -- initialize module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
 #endif
@@ -474,24 +480,29 @@ public:
   SARA_R5_error_t modulePowerOff(void); // Graceful disconnect and shutdown using +CPWROFF.
   void modulePowerOn(void); // Requires access to the PWR_ON pin
 
-  // Loop polling and polling setup
+  // Loop polling and polling setup - process URC's etc. from the module
 
   // This function was originally written by Matthew Menze for the LTE Shield (SARA-R4) library
   // See: https://github.com/sparkfun/SparkFun_LTE_Shield_Arduino_Library/pull/8
   // It does the same job as ::poll but also processed any 'old' data stored in the backlog first
   // It also has a built-in timeout - which ::poll does not
+  // Use this - it is way better than ::poll. Thank you Natthew!
   bool bufferedPoll(void);
   
   // This is the original poll function.
   // It is 'blocking' - it does not return when serial data is available until it receives a `\n`.
   // ::bufferedPoll is the new improved version. It processes any data in the backlog and includes a timeout.
+  // Retained for backward-compatibility and just in case you do want to (temporarily) ignore any data in the backlog
   bool poll(void);
 
   // Callbacks (called during polling)
-  void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int));
-  void setSocketReadCallback(void (*socketReadCallback)(int, String));
-  void setSocketReadCallbackPlus(void (*socketReadCallbackPlus)(int, const char *, int, IPAddress, int)); // socket, data, length, remoteAddress, remotePort
-  void setSocketCloseCallback(void (*socketCloseCallback)(int));
+  void setSocketListenCallback(void (*socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int)); // listen Socket, local IP Address, listen Port, socket, remote IP Address, port
+  // This is the original read socket callback - called when a +UUSORD or +UUSORF URC is received
+  // It works - and handles binary data correctly - but the remote IP Address and Port are lost for UDP connections
+  // setSocketReadCallbackPlus is preferred!
+  void setSocketReadCallback(void (*socketReadCallback)(int, String)); // socket, read data
+  void setSocketReadCallbackPlus(void (*socketReadCallbackPlus)(int, const char *, int, IPAddress, int)); // socket, read data, length, remoteAddress, remotePort
+  void setSocketCloseCallback(void (*socketCloseCallback)(int)); // socket
   void setGpsReadCallback(void (*gpsRequestCallback)(ClockData time,
                                                      PositionData gps, SpeedData spd, unsigned long uncertainty));
   void setSIMstateReportCallback(void (*simStateRequestCallback)(SARA_R5_sim_states_t state));
@@ -522,17 +533,17 @@ public:
   String clock(void);
   // TODO: Return a clock struct
   SARA_R5_error_t clock(uint8_t *y, uint8_t *mo, uint8_t *d,
-                        uint8_t *h, uint8_t *min, uint8_t *s, int8_t *tz); // TZ can be +/-
-  SARA_R5_error_t autoTimeZone(bool enable);
-  SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE);
+                        uint8_t *h, uint8_t *min, uint8_t *s, int8_t *tz); // TZ can be +/- and is in increments of 15 minutes. -28 == 7 hours behind UTC/GMT
+  SARA_R5_error_t autoTimeZone(bool enable); // Enable/disable automatic time zone adjustment
+  SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE); // Time mode, source etc. (+UTIME)
   SARA_R5_error_t getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor);
-  SARA_R5_error_t setUtimeIndication(SARA_R5_utime_urc_configuration_t config = SARA_R5_UTIME_URC_CONFIGURATION_ENABLED);
+  SARA_R5_error_t setUtimeIndication(SARA_R5_utime_urc_configuration_t config = SARA_R5_UTIME_URC_CONFIGURATION_ENABLED); // +UTIMEIND
   SARA_R5_error_t getUtimeIndication(SARA_R5_utime_urc_configuration_t *config);
-  SARA_R5_error_t setUtimeConfiguration(int32_t offsetNanoseconds = 0, int32_t offsetSeconds = 0);
+  SARA_R5_error_t setUtimeConfiguration(int32_t offsetNanoseconds = 0, int32_t offsetSeconds = 0); // +UTIMECFG
   SARA_R5_error_t getUtimeConfiguration(int32_t *offsetNanoseconds, int32_t *offsetSeconds);
 
   // Network service AT commands
-  int8_t rssi(void);
+  int8_t rssi(void); // Receive signal strength
   SARA_R5_registration_status_t registration(void);
   bool setNetworkProfile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
   mobile_network_operator_t getNetworkProfile(void);
@@ -636,26 +647,44 @@ public:
   SARA_R5_gpio_mode_t getGpioMode(SARA_R5_gpio_t gpio);
 
   // IP Transport Layer
-  int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0);
-  SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT);
-  SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port);
+  int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0); // Open a socket. Returns the socket number. Not required for UDP sockets.
+  SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT); // Close the socket
+  SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port); // TCP - connect to a remote IP Address using the specified port
   SARA_R5_error_t socketConnect(int socket, IPAddress address, unsigned int port);
+  // Write data to the specified socket. Works with binary data - but you must specify the data length when using the const char * version
+  // Works with both TCP and UDP sockets - but socketWriteUDP is preferred for UDP and doesn't require socketOpen to be called first
   SARA_R5_error_t socketWrite(int socket, const char *str, int len = -1);
-  SARA_R5_error_t socketWrite(int socket, String str);
+  SARA_R5_error_t socketWrite(int socket, String str); // OK for binary data
+  // Write UDP data to the specified IP Address and port.
+  // Works with binary data - but you must specify the data length when using the const char * versions
+  // If you let len default to -1, strlen is used to calculate the data length - and will be incorrect for binary data
   SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
   SARA_R5_error_t socketWriteUDP(int socket, IPAddress address, int port, const char *str, int len = -1);
   SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
+  // Read data from the specified socket
+  // Call socketReadAvailable first to determine how much data is available - or use the callbacks (triggered by URC's)
+  // Works for both TCP and UDP - but socketReadUDP is preferred for UDP as it records the remote IP Address and port
   SARA_R5_error_t socketRead(int socket, int length, char *readDest);
+  // Return the number of bytes available (waiting to be read) on the chosen socket
+  // Uses +USORD. Valid for both TCP and UDP sockets - but socketReadAvailableUDP is preferred for UDP
   SARA_R5_error_t socketReadAvailable(int socket, int *length);
+  // Read data from the specified UDP port
+  // Call socketReadAvailableUDP first to determine how much data is available - or use the callbacks (triggered by URC's)
+  // The remote IP Address and port are returned via *remoteIPAddress and *remotePort (if not NULL)
   SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = NULL, int *remotePort = NULL);
+  // Return the number of bytes available (waiting to be read) on the chosen UDP socket
   SARA_R5_error_t socketReadAvailableUDP(int socket, int *length);
+  // Start listening for a connection on the specified port. The connection is reported via the socket listen callback
   SARA_R5_error_t socketListen(int socket, unsigned int port);
+  // Place the socket into direct link mode - making it easy to transfer binary data. Wait two seconds and then send +++ to exit the link.
   SARA_R5_error_t socketDirectLinkMode(int socket);
+  // Configure when direct link data is sent
   SARA_R5_error_t socketDirectLinkTimeTrigger(int socket, unsigned long timerTrigger);
   SARA_R5_error_t socketDirectLinkDataLengthTrigger(int socket, int dataLengthTrigger);
   SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
   SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer);
-  SARA_R5_error_t querySocketType(int socket, SARA_R5_socket_protocol_t *protocol);
+  // Use +USOCTL (Socket control) to query the socket parameters
+  SARA_R5_error_t querySocketType(int socket, int *protocol);
   SARA_R5_error_t querySocketLastError(int socket, int *error);
   SARA_R5_error_t querySocketTotalBytesSent(int socket, uint32_t *total);
   SARA_R5_error_t querySocketTotalBytesReceived(int socket, uint32_t *total);
@@ -674,9 +703,12 @@ public:
     TCP_SOCKET_STATUS_LAST_ACK,
     TCP_SOCKET_STATUS_TIME_WAIT
   } SARA_R5_tcp_socket_status_t;
-  SARA_R5_error_t querySocketStatusTCP(int socket, SARA_R5_tcp_socket_status_t *status);
+  SARA_R5_error_t querySocketStatusTCP(int socket, int *status);
   SARA_R5_error_t querySocketOutUnackData(int socket, uint32_t *total);
+  // Return the most recent socket error
   int socketGetLastError();
+  // Return the remote IP Address from the most recent socket listen indication (socket connection)
+  // Use the socket listen callback to get the full address and port information
   IPAddress lastRemoteIP(void);
 
   // Ping
@@ -697,13 +729,14 @@ public:
   SARA_R5_error_t sendHTTPPOSTdata(int profile, String path, String responseFilename, String data, SARA_R5_http_content_types_t httpContentType);
 
   // Packet Switched Data
+  // Configure the PDP using +UPSD. See SARA_R5_pdp_configuration_parameter_t for the list of parameters: protocol, APN, username, DNS, etc.
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value);                         // Set parameters in the chosen PSD profile
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, SARA_R5_pdp_protocol_type_t value); // Set parameters in the chosen PSD profile
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, String value);                      // Set parameters in the chosen PSD profile
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, IPAddress value);                   // Set parameters in the chosen PSD profile
-  SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action);                                                          // Performs the requested action for the specified PSD profile.
-  SARA_R5_error_t activatePDPcontext(bool status, int cid = -1);                                                                        // Activates or deactivates the specified PDP context. Default to all (cid = -1)
-  SARA_R5_error_t getNetworkAssignedIPAddress(int profile, IPAddress *address);                                                         // Get the dynamic IP address assigned during PDP context activation
+  SARA_R5_error_t performPDPaction(int profile, SARA_R5_pdp_actions_t action);  // Performs the requested action for the specified PSD profile: reset, store, load, activate, deactivate
+  SARA_R5_error_t activatePDPcontext(bool status, int cid = -1);                // Activates or deactivates the specified PDP context. Default to all (cid = -1)
+  SARA_R5_error_t getNetworkAssignedIPAddress(int profile, IPAddress *address); // Get the dynamic IP address assigned during PDP context activation
 
   // GPS
   typedef enum
@@ -737,8 +770,8 @@ public:
   //SARA_R5_error_t gpsGetPos(struct PositionData *pos);
   //SARA_R5_error_t gpsEnableSat(bool enable = true);
   //SARA_R5_error_t gpsGetSat(uint8_t *sats);
-  SARA_R5_error_t gpsEnableRmc(bool enable = true);
-  SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed, struct ClockData *clk, bool *valid);
+  SARA_R5_error_t gpsEnableRmc(bool enable = true); // Enable GPRMC messages
+  SARA_R5_error_t gpsGetRmc(struct PositionData *pos, struct SpeedData *speed, struct ClockData *clk, bool *valid); //Parse a GPRMC message
   //SARA_R5_error_t gpsEnableSpeed(bool enable = true);
   //SARA_R5_error_t gpsGetSpeed(struct SpeedData *speed);
 
@@ -810,7 +843,7 @@ private:
 
   // Send command with an expected (potentially partial) response, store entire response
   SARA_R5_error_t sendCommandWithResponse(const char *command, const char *expectedResponse,
-                                          char *responseDest, unsigned long commandTimeout, bool at = true);
+                                          char *responseDest, unsigned long commandTimeout, int destSize = minimumResponseAllocation, bool at = true);
 
   // Send a command -- prepend AT if at is true
   int sendCommand(const char *command, bool at);
