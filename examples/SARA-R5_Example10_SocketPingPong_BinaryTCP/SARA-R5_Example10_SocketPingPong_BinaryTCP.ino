@@ -171,8 +171,18 @@ void processSocketData(int socket, String theData)
 
   if ((theData[0] == 0x04) && (theData[1] == 0x05) && (theData[2] == 0x06) && (theData[3] == 0x07)) // Look for the "Pong"
   {
-    const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
-    mySARA.socketWrite(socket, ping, 4); // Send the "Ping"
+    // Use the const char * version
+    //const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
+    //mySARA.socketWrite(socket, ping, 4); // Send the "Ping"
+
+    // Or use the String version. Both are OK for binary data.
+    String ping = "";
+    ping.concat('\0'); // Construct the ping in a binary-friendly way
+    ping.concat('\1');
+    ping.concat('\2');
+    ping.concat('\3');
+    mySARA.socketWrite(socket, ping); // Send the "Ping"
+    
     pingCount++;
   }
 
