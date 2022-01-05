@@ -660,7 +660,7 @@ public:
   // If you let len default to -1, strlen is used to calculate the data length - and will be incorrect for binary data
   SARA_R5_error_t socketWriteUDP(int socket, const char *address, int port, const char *str, int len = -1);
   SARA_R5_error_t socketWriteUDP(int socket, IPAddress address, int port, const char *str, int len = -1);
-  SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str, int len = -1);
+  SARA_R5_error_t socketWriteUDP(int socket, String address, int port, String str);
   // Read data from the specified socket
   // Call socketReadAvailable first to determine how much data is available - or use the callbacks (triggered by URC's)
   // Works for both TCP and UDP - but socketReadUDP is preferred for UDP as it records the remote IP Address and port

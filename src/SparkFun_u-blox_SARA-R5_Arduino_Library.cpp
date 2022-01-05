@@ -2312,9 +2312,9 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, IPAddress address, int port,
   return (socketWriteUDP(socket, (const char *)charAddress, port, str, len));
 }
 
-SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, String address, int port, String str, int len)
+SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, String address, int port, String str)
 {
-  return socketWriteUDP(socket, address.c_str(), port, str.c_str(), len);
+  return socketWriteUDP(socket, address.c_str(), port, str.c_str(), str.length());
 }
 
 SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
