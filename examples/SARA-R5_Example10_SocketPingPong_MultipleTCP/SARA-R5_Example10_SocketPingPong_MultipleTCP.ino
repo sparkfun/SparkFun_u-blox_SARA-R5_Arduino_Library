@@ -3,25 +3,25 @@
   SARA-R5 Example
   ===============
 
-  Socket "Ping Pong" - TCP Data Transfers
+  Socket "Ping Pong" - TCP Data Transfers on multiple sockets
 
   Written by: Paul Clark
   Date: December 30th 2021
 
-  This example demonstrates how to transfer data from one SARA-R5 to another using TCP sockets.
+  This example demonstrates how to transfer data from one SARA-R5 to another using multiple TCP sockets.
 
   The PDP profile is read from NVM. Please make sure you have run examples 4 & 7 previously to set up the profile.
   
   If you select "Ping":
     The code asks for the IP Address of the "Pong" SARA-R5
-    The code then opens a TCP socket to the "Pong" SARA-R5 using port number TCP_PORT
+    The code then opens multiple TCP sockets to the "Pong" SARA-R5 using port number TCP_PORT_BASE, TCP_PORT_BASE + 1, etc.
     The code sends an initial "Ping" using Write Socket Data (+USOWR)
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
     When "Pong" is received by the callback, the code sends "Ping" in reply
-    The Ping-Pong repeats 100 times
-    The socket is closed after the 100th Ping is sent
+    The Ping-Pong repeats 20 times
+    The socket is closed after the 20th Ping is sent
   If you select "Pong":
-    The code opens a TCP socket and waits for a connection and for data to arrive
+    The code opens multiple TCP sockets and waits for a connection and for data to arrive
     The code polls continuously. When a +UUSORD URC message is received, data is read and passed to the socketReadCallback.
     When "Ping" is received by the callback, the code sends "Pong" in reply
     The socket is closed after 120 seconds
@@ -33,16 +33,16 @@
     Open up a Python editor on your computer
     Copy the Multi_TCP_Echo.py from the GitHub repo Utils folder: https://github.com/sparkfun/SparkFun_u-blox_SARA-R5_Arduino_Library/tree/main/Utils
     Log in to your router
-    Find your local IP address (usually 192.168.0.something)
+    Find your computer's local IP address (usually 192.168.0.something)
     Go into your router's Security / Port Forwarding settings:
       Create a new port forwarding rule
       The IP address is your local IP address
-      Set the local port range to 1200-1200 (if you changed TCP_PORT, use that port number instead)
-      Set the external port range to 1200-1200
+      Set the local port range to 1200-1206 (if you changed TCP_PORT_BASE, use that port number instead)
+      Set the external port range to 1200-1206
       Set the protocol to TCP (or BOTH)
       Enable the rule
-    This will open up a direct connection from the outside world, through your router, to port 1200 on your computer
-      Remember to lock it down again when you're done!
+    This will open up a direct connection from the outside world, through your router, to ports 1200-1206 on your computer
+      Remember to lock them down again when you're done!
     Edit the Python code and change 'HOST' to your local IP number:
       HOST = '192.168.0.nnn'
     Run the Python code
@@ -51,8 +51,8 @@
     Run this code and choose the "Ping" option
     Enter your computer's public IP address when asked
     Sit back and watch the ping-pong!
-    The code will stop after 100 Pings+Echos and 100 Pongs+Echos
-      That's 400 TCP transfers in total!
+    The code will stop after 20 Pings+Echos and 20 Pongs+Echos on each port
+      On 5 ports, that's 400 TCP transfers in total!  
 
   Feel like supporting open source hardware?
   Buy a board from SparkFun!
@@ -91,21 +91,22 @@ SARA_R5 mySARA;
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-unsigned int TCP_PORT = 1200; // Change this if required
+const int numConnections = 5; // How many sockets do you want to use? Max is 7.
+unsigned int TCP_PORT_BASE = 1200; // Change this if required
 
 bool iAmPing;
 
 // Keep track of how many ping-pong exchanges have taken place. "Ping" closes the socket when pingCount reaches pingPongLimit.
-volatile int pingCount = 0;
-volatile int pongCount = 0;
-const int pingPongLimit = 100;
+volatile int pingCount[numConnections];
+volatile int pongCount[numConnections];
+const int pingPongLimit = 20;
 
 // Keep track of how long the socket has been open. "Pong" closes the socket when timeLimit (millis) is reached.
 unsigned long startTime;
 const unsigned long timeLimit = 120000; // 120 seconds
 
 #include <IPAddress.h> // Needed for sockets
-volatile int socketNum;
+volatile int socketNum[numConnections]; // Record the socket numbers. -1 indicates the socket is invalid or closed.
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -146,6 +147,19 @@ void processSocketListen(int listeningSocket, IPAddress localIP, unsigned int li
 // callback setter -- setSocketReadCallback. (See setup())
 void processSocketData(int socket, String theData)
 {
+  int connection = -1;
+  for (int i = 0; i < numConnections; i++)
+    if (socketNum[i] == socket)
+      connection = i;
+
+  if (connection == -1)
+  {
+    Serial.println();
+    Serial.print(F("Data received on unexpected socket "));
+    Serial.println(socket);
+    return;
+  }
+  
   Serial.println();
   Serial.print(F("Data received on socket "));
   Serial.print(socket);
@@ -154,22 +168,28 @@ void processSocketData(int socket, String theData)
   
   if (theData == String("Ping")) // Look for the "Ping"
   {
-    const char pong[] = "Pong";
-    mySARA.socketWrite(socket, pong); // Send the "Pong"
-    pongCount++;
+    if (pongCount[connection] < pingPongLimit)
+    {
+      const char pong[] = "Pong";
+      mySARA.socketWrite(socket, pong); // Send the "Pong"
+      pongCount[connection]++;
+    }
   }
 
   if (theData == String("Pong")) // Look for the "Pong"
   {
-    const char ping[] = "Ping";
-    mySARA.socketWrite(socket, ping); // Send the "Ping"
-    pingCount++;
+    if (pingCount[connection] < pingPongLimit)
+    {
+      const char ping[] = "Ping";
+      mySARA.socketWrite(socket, ping); // Send the "Ping"
+      pingCount[connection]++;
+    }
   }
 
   Serial.print(F("pingCount = "));
-  Serial.print(pingCount);
+  Serial.print(pingCount[connection]);
   Serial.print(F(" : pongCount = "));
-  Serial.println(pongCount);
+  Serial.println(pongCount[connection]);
 }
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -212,6 +232,12 @@ void processPSDAction(int result, IPAddress ip)
 
 void setup()
 {
+  for (int i = 0; i < numConnections; i++) // Reset the ping and pong counts
+  {
+    pingCount[i] = 0;
+    pongCount[i] = 0;
+  }
+
   String currentOperator = "";
 
   Serial.begin(115200); // Start the serial console
@@ -395,33 +421,39 @@ void setup()
     Serial.print(F("Remote address is "));
     Serial.println(theAddress.toString());
     
-    // Open the socket
-    socketNum = mySARA.socketOpen(SARA_R5_TCP);
-    if (socketNum == -1)
+    // Open the sockets
+    for (int i = 0; i < numConnections; i++)
     {
-      Serial.println(F("socketOpen failed! Freezing..."));
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
-    }
+  
+      socketNum[i] = mySARA.socketOpen(SARA_R5_TCP);
+      if (socketNum[i] == -1)
+      {
+        Serial.println(F("socketOpen failed! Freezing..."));
+        while (1)
+          mySARA.bufferedPoll(); // Do nothing more except process any received data
+      }
+  
+      Serial.print(F("Connection "));
+      Serial.print(i);
+      Serial.print(F(" is using socket "));
+      Serial.println(socketNum[i]);
 
-    Serial.print(F("Using socket "));
-    Serial.println(socketNum);
-
-    // Connect to the remote IP Address
-    if (mySARA.socketConnect(socketNum, theAddress, TCP_PORT) != SARA_R5_SUCCESS)
-    {
-      Serial.println(F("socketConnect failed! Freezing..."));
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
+      // Connect to the remote IP Address
+      if (mySARA.socketConnect(socketNum[i], theAddress, TCP_PORT_BASE + i) != SARA_R5_SUCCESS)
+      {
+        Serial.println(F("socketConnect failed! Freezing..."));
+        while (1)
+          mySARA.bufferedPoll(); // Do nothing more except process any received data
+      }
+      else
+      {
+        Serial.println(F("Socket connected!"));
+      }
+  
+      // Send the first ping to start the ping-pong
+      const char ping[] = "Ping";
+      mySARA.socketWrite(socketNum[i], ping); // Send the "Ping"
     }
-    else
-    {
-      Serial.println(F("Socket connected!"));
-    }
-
-    // Send the first ping to start the ping-pong
-    const char ping[] = "Ping";
-    mySARA.socketWrite(socketNum, ping); // Send the "Ping"
         
   }
 
@@ -432,24 +464,29 @@ void setup()
   {
     iAmPing = false;
     
-    // Open the socket
-    socketNum = mySARA.socketOpen(SARA_R5_TCP);
-    if (socketNum == -1)
+    // Open the sockets
+    for (int i = 0; i < numConnections; i++)
     {
-      Serial.println(F("socketOpen failed! Freezing..."));
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
-    }
+      socketNum[i] = mySARA.socketOpen(SARA_R5_TCP);
+      if (socketNum[i] == -1)
+      {
+        Serial.println(F("socketOpen failed! Freezing..."));
+        while (1)
+          mySARA.bufferedPoll(); // Do nothing more except process any received data
+      }
+  
+      Serial.print(F("Connection "));
+      Serial.print(i);
+      Serial.print(F(" is using socket "));
+      Serial.println(socketNum[i]);
 
-    Serial.print(F("Using socket "));
-    Serial.println(socketNum);
-
-    // Start listening for a connection
-    if (mySARA.socketListen(socketNum, TCP_PORT) != SARA_R5_SUCCESS)
-    {
-      Serial.println(F("socketListen failed! Freezing..."));
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
+      // Start listening for a connection
+      if (mySARA.socketListen(socketNum[i], TCP_PORT_BASE + i) != SARA_R5_SUCCESS)
+      {
+        Serial.println(F("socketListen failed! Freezing..."));
+        while (1)
+          mySARA.bufferedPoll(); // Do nothing more except process any received data
+      }
     }
   }
 
@@ -465,25 +502,31 @@ void loop()
 {
   mySARA.bufferedPoll(); // Process the backlog (if any) and any fresh serial data
 
-  if (iAmPing) // Ping - close the socket when we've reached pingPongLimit
+  for (int i = 0; i < numConnections; i++)
   {
-    if (pingCount >= pingPongLimit)
+    if (iAmPing) // Ping - close the socket when we've reached pingPongLimit
     {
-      printSocketParameters(socketNum);
-      mySARA.socketClose(socketNum); // Close the socket - no more pings will be sent
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
+      if ((pingCount[i] >= pingPongLimit) && (socketNum[i] >= 0))
+      {
+        printSocketParameters(socketNum[i]);
+        
+        //Comment the next line if you want the remote to close the sockets when they timeout
+        //mySARA.socketClose(socketNum[i]); // Close the socket
+        
+        socketNum[i] = -1;
+      }
     }
-  }
-  
-  else // Pong - close the socket when we've reached the timeLimit
-  {
-    if (millis() > (startTime + timeLimit))
+    
+    else // Pong - close the socket when we've reached the timeLimit
     {
-      printSocketParameters(socketNum);
-      mySARA.socketClose(socketNum); // Close the socket - no more pongs will be sent
-      while (1)
-        mySARA.bufferedPoll(); // Do nothing more except process any received data
+      if ((millis() > (startTime + timeLimit)) && (socketNum[i] >= 0))
+      {
+        printSocketParameters(socketNum[i]);
+        
+        mySARA.socketClose(socketNum[i]); // Close the socket
+        
+        socketNum[i] = -1;
+      }
     }
   }
 }
@@ -494,7 +537,8 @@ void loop()
 // Note: the socket must be open. ERRORs will be returned if the socket is closed.
 void printSocketParameters(int socket)
 {
-  Serial.println(F("Socket parameters:"));
+  Serial.print(F("\r\nSocket parameters for socket: "));
+  Serial.println(socket);
   
   Serial.print(F("Socket type: "));
   SARA_R5_socket_protocol_t socketType;
