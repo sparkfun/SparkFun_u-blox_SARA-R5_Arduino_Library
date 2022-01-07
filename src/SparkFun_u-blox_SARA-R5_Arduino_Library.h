@@ -814,7 +814,7 @@ private:
   uint8_t _currentInitDepth = 0;
 
   #define _RXBuffSize 2056
-  const int _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
+  const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
   char _saraRXBuffer[_RXBuffSize];
   char _pruneBuffer[_RXBuffSize];
   char _saraResponseBacklog[_RXBuffSize];
