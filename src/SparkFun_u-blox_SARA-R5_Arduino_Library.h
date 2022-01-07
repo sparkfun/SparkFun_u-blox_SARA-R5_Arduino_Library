@@ -320,6 +320,21 @@ typedef enum
 
 typedef enum
 {
+  SARA_R5_TCP_SOCKET_STATUS_INACTIVE,
+  SARA_R5_TCP_SOCKET_STATUS_LISTEN,
+  SARA_R5_TCP_SOCKET_STATUS_SYN_SENT,
+  SARA_R5_TCP_SOCKET_STATUS_SYN_RCVD,
+  SARA_R5_TCP_SOCKET_STATUS_ESTABLISHED,
+  SARA_R5_TCP_SOCKET_STATUS_FIN_WAIT_1,
+  SARA_R5_TCP_SOCKET_STATUS_FIN_WAIT_2,
+  SARA_R5_TCP_SOCKET_STATUS_CLOSE_WAIT,
+  SARA_R5_TCP_SOCKET_STATUS_CLOSING,
+  SARA_R5_TCP_SOCKET_STATUS_LAST_ACK,
+  SARA_R5_TCP_SOCKET_STATUS_TIME_WAIT
+} SARA_R5_tcp_socket_status_t;
+
+typedef enum
+{
   SARA_R5_MESSAGE_FORMAT_PDU = 0,
   SARA_R5_MESSAGE_FORMAT_TEXT = 1
 } SARA_R5_message_format_t;
@@ -362,9 +377,6 @@ typedef enum
   //SARA_R5_SIM_VOICE_CALL_ACTIVE, // Not reported by SARA-R5
   //SARA_R5_SIM_CSD_CALL_ACTIVE // Not reported by SARA-R5
 } SARA_R5_sim_states_t;
-
-const int RXBuffSize = 2056;
-const int rxWindowUS = 1000;
 
 #define SARA_R5_NUM_PSD_PROFILES 6             // Number of supported PSD profiles
 #define SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS 11 // Number of supported PDP context identifiers
@@ -455,9 +467,6 @@ typedef enum
 class SARA_R5 : public Print
 {
 public:
-  char saraRXBuffer[RXBuffSize];
-  char saraResponseBacklog[RXBuffSize];
-
   // Constructor
   // The library will use the powerPin and resetPin (if provided) to power the module off/on and perform an emergency reset
   // maxInitDepth sets the maximum number of initialization attempts (recursive). .init is called by .begin.
@@ -684,26 +693,12 @@ public:
   SARA_R5_error_t socketDirectLinkCharacterTrigger(int socket, int characterTrigger);
   SARA_R5_error_t socketDirectLinkCongestionTimer(int socket, unsigned long congestionTimer);
   // Use +USOCTL (Socket control) to query the socket parameters
-  SARA_R5_error_t querySocketType(int socket, int *protocol);
+  SARA_R5_error_t querySocketType(int socket, SARA_R5_socket_protocol_t *protocol);
   SARA_R5_error_t querySocketLastError(int socket, int *error);
   SARA_R5_error_t querySocketTotalBytesSent(int socket, uint32_t *total);
   SARA_R5_error_t querySocketTotalBytesReceived(int socket, uint32_t *total);
   SARA_R5_error_t querySocketRemoteIPAddress(int socket, IPAddress *address, int *port);
-  typedef enum
-  {
-    TCP_SOCKET_STATUS_INACTIVE,
-    TCP_SOCKET_STATUS_LISTEN,
-    TCP_SOCKET_STATUS_SYN_SENT,
-    TCP_SOCKET_STATUS_SYN_RCVD,
-    TCP_SOCKET_STATUS_ESTABLISHED,
-    TCP_SOCKET_STATUS_FIN_WAIT_1,
-    TCP_SOCKET_STATUS_FIN_WAIT_2,
-    TCP_SOCKET_STATUS_CLOSE_WAIT,
-    TCP_SOCKET_STATUS_CLOSING,
-    TCP_SOCKET_STATUS_LAST_ACK,
-    TCP_SOCKET_STATUS_TIME_WAIT
-  } SARA_R5_tcp_socket_status_t;
-  SARA_R5_error_t querySocketStatusTCP(int socket, int *status);
+  SARA_R5_error_t querySocketStatusTCP(int socket, SARA_R5_tcp_socket_status_t *status);
   SARA_R5_error_t querySocketOutUnackData(int socket, uint32_t *total);
   // Return the most recent socket error
   int socketGetLastError();
@@ -811,6 +806,13 @@ private:
   uint8_t _maxInitDepth;
   uint8_t _currentInitDepth = 0;
 
+  #define _RXBuffSize 2056
+  const int _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
+  char _saraRXBuffer[_RXBuffSize];
+  char _pruneBuffer[_RXBuffSize];
+  char _saraResponseBacklog[_RXBuffSize];
+  int _saraResponseBacklogLength = 0; // The backlog could contain binary data so we can't use strlen to find its length
+
   void (*_socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int);
   void (*_socketReadCallback)(int, String);
   void (*_socketReadCallbackPlus)(int, const char *, int, IPAddress, int); // socket, data, length, remoteAddress, remotePort
@@ -820,6 +822,8 @@ private:
   void (*_psdActionRequestCallback)(int, IPAddress);
   void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
   void (*_httpCommandRequestCallback)(int, int, int);
+
+  int _lastSocketProtocol[SARA_R5_NUM_SOCKETS]; // Record the protocol for each socket to avoid having to call querySocketType in parseSocketReadIndication
 
   typedef enum
   {
@@ -846,7 +850,7 @@ private:
                                           char *responseDest, unsigned long commandTimeout, int destSize = minimumResponseAllocation, bool at = true);
 
   // Send a command -- prepend AT if at is true
-  int sendCommand(const char *command, bool at);
+  void sendCommand(const char *command, bool at);
 
   SARA_R5_error_t parseSocketReadIndication(int socket, int length);
   SARA_R5_error_t parseSocketReadIndicationUDP(int socket, int length);

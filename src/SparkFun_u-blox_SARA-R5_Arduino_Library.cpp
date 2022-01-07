@@ -38,9 +38,13 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _httpCommandRequestCallback = NULL;
   _lastRemoteIP = {0, 0, 0, 0};
   _lastLocalIP = {0, 0, 0, 0};
+  for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
+    _lastSocketProtocol[i] = 0; // Set to zero initially. Will be set to TCP/UDP by socketOpen etc.
 
-  memset(saraRXBuffer, 0, RXBuffSize);
-  memset(saraResponseBacklog, 0, RXBuffSize);
+  memset(_saraRXBuffer, 0, _RXBuffSize);
+  memset(_pruneBuffer, 0, _RXBuffSize);
+  memset(_saraResponseBacklog, 0, _RXBuffSize);
+  _saraResponseBacklogLength = 0;
 }
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -90,67 +94,97 @@ bool SARA_R5::bufferedPoll(void)
   int avail = 0;
   char c = 0;
   bool handled = false;
-  unsigned long timeIn = micros();
+  unsigned long timeIn = millis();
   char *event;
+  int backlogLen = _saraResponseBacklogLength;
 
-  memset(saraRXBuffer, 0, RXBuffSize); // Clear saraRXBuffer
+  memset(_saraRXBuffer, 0, _RXBuffSize); // Clear _saraRXBuffer
 
-  int backlogLen = strlen(saraResponseBacklog); // Check how many bytes are in the backlog
-
-  // Does the backlog contain any data? If it does, copy it into saraRXBuffer and then clear the backlog
-  if (backlogLen > 0)
+  // Does the backlog contain any data? If it does, copy it into _saraRXBuffer and then clear the backlog
+  if (_saraResponseBacklogLength > 0)
   {
     //The backlog also logs reads from other tasks like transmitting.
     if (_printDebug == true)
-      _debugPort->println(F("bufferedPoll: backlog found!"));
-    memcpy(saraRXBuffer + avail, saraResponseBacklog, backlogLen);
-    avail += backlogLen;
-    memset(saraResponseBacklog, 0, RXBuffSize); // Clear the backlog making sure it is NULL-terminated
+    {
+      _debugPort->print(F("bufferedPoll: backlog found! backlogLen is "));
+      _debugPort->println(_saraResponseBacklogLength);
+    }
+    memcpy(_saraRXBuffer + avail, _saraResponseBacklog, _saraResponseBacklogLength);
+    avail += _saraResponseBacklogLength;
+    memset(_saraResponseBacklog, 0, _RXBuffSize); // Clear the backlog making sure it is NULL-terminated
+    _saraResponseBacklogLength = 0;
   }
 
   if ((hwAvailable() > 0) || (backlogLen > 0)) // If either new data is available, or backlog had data.
   {
-    // Wait for up to rxWindowUS for new serial data to arrive. 
-    while (((micros() - timeIn) < rxWindowUS) && (avail < RXBuffSize))
+    // Wait for up to _rxWindowMillis for new serial data to arrive. 
+    while (((millis() - timeIn) < _rxWindowMillis) && (avail < _RXBuffSize))
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
         c = readChar();
-        saraRXBuffer[avail++] = c;
-        timeIn = micros();
+        // bufferedPoll is only interested in the URCs.
+        // The URCs are all readable.
+        // strtok does not like NULL characters.
+        // So we need to make sure no NULL characters are added to _saraRXBuffer
+        if (c == '\0')
+          c = '0'; // Convert any NULLs to ASCII Zeros
+        _saraRXBuffer[avail++] = c;
+        timeIn = millis();
       }
     }
 
-    // saraRXBuffer now contains the backlog (if any) and the new serial data (if any)
+    // _saraRXBuffer now contains the backlog (if any) and the new serial data (if any)
 
-    event = strtok(saraRXBuffer, "\r\n"); // Look for an 'event' (saraRXBuffer contains something ending in \r\n)
+    // A health warning about strtok:
+    // strtok will convert any delimiters it finds ("\r\n" in our case) into NULL characters.
+    // Also, be very careful that you do not use strtok within an strtok while loop.
+    // The next call of strtok(NULL, ...) in the outer loop will use the pointer saved from the inner loop!
+    // In our case, strtok is also used in pruneBacklog, which is called by waitForRespone or sendCommandWithResponse,
+    // which is called by the parse functions called by processURCEvent...
+    // The solution is to use strtok_r - the reentrant version of strtok
+
+    char *preservedEvent;
+    event = strtok_r(_saraRXBuffer, "\r\n", &preservedEvent); // Look for an 'event' (_saraRXBuffer contains something ending in \r\n)
+
+    if (event != NULL)
+      if (_printDebug == true)
+        _debugPort->println(F("bufferedPoll: event(s) found! ===>"));
 
     while (event != NULL) // Keep going until all events have been processed
     {
       if (_printDebug == true)
-        _debugPort->print(F("bufferedPoll: event: "));
-      if (_printDebug == true)
+      {
+        _debugPort->print(F("bufferedPoll: start of event: "));
         _debugPort->println(event);
+      }
 
       //Process the event
       bool latestHandled = processURCEvent((const char *)event);
       if (latestHandled)
         handled = true; // handled will be true if latestHandled has ever been true
 
-      backlogLen = strlen(saraResponseBacklog); // Has any new data been added to the backlog?
-      if ((backlogLen > 0) && ((avail + backlogLen) < RXBuffSize))
+      if ((_saraResponseBacklogLength > 0) && ((avail + _saraResponseBacklogLength) < _RXBuffSize)) // Has any new data been added to the backlog?
       {
         if (_printDebug == true)
+        {
           _debugPort->println(F("bufferedPoll: new backlog added!"));
-        memcpy(saraRXBuffer + avail, saraResponseBacklog, backlogLen);
-        avail += backlogLen;
-        memset(saraResponseBacklog, 0, RXBuffSize); //Clear out backlog buffer. Again.
+        }
+        memcpy(_saraRXBuffer + avail, _saraResponseBacklog, _saraResponseBacklogLength);
+        avail += _saraResponseBacklogLength;
+        memset(_saraResponseBacklog, 0, _RXBuffSize); //Clear out the backlog buffer again.
+        _saraResponseBacklogLength = 0;
       }
 
       //Walk through any remaining events
-      event = strtok(NULL, "\r\n");
+      event = strtok_r(NULL, "\r\n", &preservedEvent);
+
       if (_printDebug == true)
         _debugPort->println(F("bufferedPoll: end of event")); //Just to denote end of processing event.
+
+      if (event == NULL)
+        if (_printDebug == true)
+          _debugPort->println(F("bufferedPoll: <=== end of event(s)!"));
     }
   }
 
@@ -168,7 +202,21 @@ bool SARA_R5::processURCEvent(const char *event)
     {
       if (_printDebug == true)
         _debugPort->println(F("processReadEvent: read socket data"));
-      parseSocketReadIndication(socket, length);
+      // From the SARA_R5 AT Commands Manual:
+      // "For the UDP socket type the URC +UUSORD: <socket>,<length> notifies that a UDP packet has been received,
+      //  either when buffer is empty or after a UDP packet has been read and one or more packets are stored in the
+      //  buffer."
+      // So we need to check if this is a TCP socket or a UDP socket:
+      //  If UDP, we call parseSocketReadIndicationUDP.
+      //  Otherwise, we call parseSocketReadIndication.
+      if (_lastSocketProtocol[socket] == SARA_R5_UDP)
+      {
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: received +UUSORD but socket is UDP. Calling parseSocketReadIndicationUDP"));
+        parseSocketReadIndicationUDP(socket, length);
+      }
+      else
+        parseSocketReadIndication(socket, length);
       return true;
     }
   }
@@ -202,10 +250,12 @@ bool SARA_R5::processURCEvent(const char *event)
                      &listenPort);
     for (int i = 0; i <= 3; i++)
     {
-      remoteIP[i] = (uint8_t)remoteIPstore[i];
-      localIP[i] = (uint8_t)localIPstore[i];
+      if (ret >= 5)
+        remoteIP[i] = (uint8_t)remoteIPstore[i];
+      if (ret >= 11)
+        localIP[i] = (uint8_t)localIPstore[i];
     }
-    if (ret > 4)
+    if (ret >= 5)
     {
       if (_printDebug == true)
         _debugPort->println(F("processReadEvent: socket listen"));
@@ -306,7 +356,7 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
     int stateStore;
 
-    scanNum = sscanf(event, "+UUSIMSTAT:%d", &stateStore);
+    scanNum = sscanf(event, "+UUSIMSTAT:%d", &stateStore); // Note: no space after the colon!
 
     if (scanNum == 1)
     {
@@ -433,28 +483,28 @@ bool SARA_R5::poll(void)
   char c = 0;
   bool handled = false;
 
-  memset(saraRXBuffer, 0, RXBuffSize); // Clear saraRXBuffer
+  memset(_saraRXBuffer, 0, _RXBuffSize); // Clear _saraRXBuffer
 
   if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
-    while (c != '\n') // Copy characters into saraRXBuffer. Stop at the first new line
+    while (c != '\n') // Copy characters into _saraRXBuffer. Stop at the first new line
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
         c = readChar();
-        saraRXBuffer[avail++] = c;
+        _saraRXBuffer[avail++] = c;
       }
     }
 
     // Now search for all supported URC's
-    handled = processURCEvent(saraRXBuffer);
+    handled = processURCEvent(_saraRXBuffer);
 
-    if ((handled == false) && (strlen(saraRXBuffer) > 2))
+    if ((handled == false) && (strlen(_saraRXBuffer) > 2))
     {
       if (_printDebug == true)
       {
         _debugPort->print(F("poll: "));
-        _debugPort->println(saraRXBuffer);
+        _debugPort->println(_saraRXBuffer);
       }
     }
     else
@@ -864,6 +914,7 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   char *command;
   char *response;
   char tzPlusMinus;
+  int scanNum = 0;
 
   int iy, imo, id, ih, imin, is, itz;
 
@@ -885,8 +936,11 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   // Response format (if TZ is negative): \r\n+CCLK: "YY/MM/DD,HH:MM:SS-TZ"\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n+CCLK: \"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
-               &iy, &imo, &id, &ih, &imin, &is, &tzPlusMinus, &itz) == 8)
+    char *searchPtr = strstr(response, "+CCLK: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+CCLK: \"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
+               &iy, &imo, &id, &ih, &imin, &is, &tzPlusMinus, &itz);
+    if (scanNum == 8)
     {
       *y = iy;
       *mo = imo;
@@ -894,10 +948,10 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
       *h = ih;
       *min = imin;
       *s = is;
-      if (tzPlusMinus == '+')
-        *tz = itz;
-      else
+      if (tzPlusMinus == '-')
         *tz = 0 - itz;
+      else
+        *tz = itz;
     }
     else
       err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
@@ -954,8 +1008,10 @@ SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_
   // Response format: \r\n+UTIME: <mode>[,<sensor>]\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    int mStore, sStore;
-    int scanned = sscanf(response, "\r\n+UTIME: %d,%d\r\n", &mStore, &sStore);
+    int mStore, sStore, scanned = 0;
+    char *searchPtr = strstr(response, "+UTIME: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+UTIME: %d,%d\r\n", &mStore, &sStore);
     m = (SARA_R5_utime_mode_t)mStore;
     s = (SARA_R5_utime_sensor_t)sStore;
     if (scanned == 2)
@@ -1019,8 +1075,10 @@ SARA_R5_error_t SARA_R5::getUtimeIndication(SARA_R5_utime_urc_configuration_t *c
   // Response format: \r\n+UTIMEIND: <mode>\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    int cStore;
-    int scanned = sscanf(response, "\r\n+UTIMEIND: %d\r\n", &cStore);
+    int cStore, scanned = 0;
+    char *searchPtr = strstr(response, "+UTIMEIND: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+UTIMEIND: %d\r\n", &cStore);
     c = (SARA_R5_utime_urc_configuration_t)cStore;
     if (scanned == 1)
     {
@@ -1082,10 +1140,13 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   // Response format: \r\n+UTIMECFG: <offset_nano>,<offset_sec>\r\n\r\nOK\r\n
   if (err == SARA_R5_ERROR_SUCCESS)
   {
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+UTIMECFG: ");
+    if (searchPtr != NULL)
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-    int scanned = sscanf(response, "\r\n+UTIMECFG: %d,%d\r\n", &ons, &os);
+      scanned = sscanf(searchPtr, "+UTIMECFG: %d,%d\r\n", &ons, &os);
 #else
-    int scanned = sscanf(response, "\r\n+UTIMECFG: %ld,%ld\r\n", &ons, &os);
+      scanned = sscanf(searchPtr, "+UTIMECFG: %ld,%ld\r\n", &ons, &os);
 #endif
     if (scanned == 2)
     {
@@ -1146,7 +1207,11 @@ int8_t SARA_R5::rssi(void)
     return -1;
   }
 
-  if (sscanf(response, "\r\n+CSQ: %d,%*d", &rssi) != 1)
+  int scanned = 0;
+  char *searchPtr = strstr(response, "+CSQ: ");
+  if (searchPtr != NULL)
+    scanned = sscanf(searchPtr, "+CSQ: %d,%*d", &rssi);
+  if (scanned != 1)
   {
     rssi = -1;
   }
@@ -1185,10 +1250,13 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return SARA_R5_REGISTRATION_INVALID;
   }
 
-  if (sscanf(response, "\r\n+CREG: %*d,%d", &status) != 1)
-  {
+  int scanned = 0;
+  char *searchPtr = strstr(response, "+CREG: ");
+  if (searchPtr != NULL)
+    scanned = sscanf(searchPtr, "+CREG: %*d,%d", &status);
+  if (scanned != 1)
     status = SARA_R5_REGISTRATION_INVALID;
-  }
+
   free(command);
   free(response);
   return (SARA_R5_registration_status_t)status;
@@ -1456,7 +1524,10 @@ SARA_R5_error_t SARA_R5::getSIMstateReportingMode(int *mode)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    int scanned = sscanf(response, "\r\n+USIMSTAT: %d\r\n", &m);
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+USIMSTAT: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+USIMSTAT: %d\r\n", &m);
     if (scanned == 1)
     {
       *mode = m;
@@ -1686,7 +1757,6 @@ SARA_R5_error_t SARA_R5::getOperator(String *oper)
           _debugPort->print(F("getOperator: "));
           _debugPort->println(*oper);
         }
-        //oper->concat('\0');
       }
     }
   }
@@ -1808,8 +1878,11 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
     return err;
   }
 
-  int ret = sscanf(response, "\r\n+CPMS: %d,%d", &u, &t);
-  if (ret == 2)
+  int scanned = 0;
+  char *searchPtr = strstr(response, "+CPMS: ");
+  if (searchPtr != NULL)
+    scanned = sscanf(searchPtr, "+CPMS: %d,%d", &u, &t);
+  if (scanned == 2)
   {
     if (_printDebug == true)
     {
@@ -2068,9 +2141,9 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   if (command == NULL)
     return -1;
   if (localPort == 0)
-    sprintf(command, "%s=%d", SARA_R5_CREATE_SOCKET, protocol);
+    sprintf(command, "%s=%d", SARA_R5_CREATE_SOCKET, (int)protocol);
   else
-    sprintf(command, "%s=%d,%d", SARA_R5_CREATE_SOCKET, protocol, localPort);
+    sprintf(command, "%s=%d,%d", SARA_R5_CREATE_SOCKET, (int)protocol, localPort);
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
   if (response == NULL)
@@ -2114,6 +2187,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   }
 
   sscanf(responseStart, "+USOCR: %d", &sockId);
+  _lastSocketProtocol[sockId] = (int)protocol;
 
   free(command);
   free(response);
@@ -2187,7 +2261,6 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str, int len)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  unsigned long writeDelay;
 
   command = sara_r5_calloc_char(strlen(SARA_R5_WRITE_SOCKET) + 16);
   if (command == NULL)
@@ -2206,9 +2279,9 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str, int len)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    writeDelay = millis();
+    unsigned long writeDelay = millis();
     while (millis() < (writeDelay + 50))
-      ; //uBlox specification says to wait 50ms after receiving "@" to write data.
+      delay(1); //uBlox specification says to wait 50ms after receiving "@" to write data.
 
     if (len == -1)
     {
@@ -2324,7 +2397,7 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
   char *strBegin;
   int readIndex = 0;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int readLength = 0;
   int socketStore = 0;
 
@@ -2341,7 +2414,7 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_READ_SOCKET, socket, length);
 
-  int responseLength = length + strlen(SARA_R5_READ_SOCKET) + 128;
+  int responseLength = length + strlen(SARA_R5_READ_SOCKET) + minimumResponseAllocation;
   response = sara_r5_calloc_char(responseLength);
   if (response == NULL)
   {
@@ -2355,8 +2428,10 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     // Extract the data - and check the quote is present
-    scanNum = sscanf(response, "\r\n+USORD: %d,%d,\"",
-                      &socketStore, &readLength);
+    char *searchPtr = strstr(response, "+USORD: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USORD: %d,%d,\"",
+                        &socketStore, &readLength);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2369,19 +2444,17 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    // Check that readLength == length.
+    // Check that readLength == length
+    // TO DO: handle this properly. The user needs to know how many bytes were read.
     if (readLength != length)
     {
       if (_printDebug == true)
       {
-        _debugPort->print(F("socketRead: error: length="));
+        _debugPort->print(F("socketRead: length mismatch! length="));
         _debugPort->print(length);
         _debugPort->print(F(" readLength="));
         _debugPort->println(readLength);
       }
-      free(command);
-      free(response);
-      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
     // Find the first double-quote:
@@ -2395,7 +2468,7 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
     }
 
     // Now copy the data into readDest
-    while (readIndex < length)
+    while (readIndex < readLength)
     {
       readDest[readIndex] = strBegin[1 + readIndex];
       readIndex++;
@@ -2416,7 +2489,7 @@ SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int readLength = 0;
   int socketStore = 0;
 
@@ -2437,8 +2510,10 @@ SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USORD: %d,%d",
-                      &socketStore, &readLength);
+    char *searchPtr = strstr(response, "+USORD: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USORD: %d,%d",
+                        &socketStore, &readLength);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2467,7 +2542,7 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
   char *strBegin;
   int readIndex = 0;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int remoteIPstore[4] = { 0, 0, 0, 0 };
   int portStore = 0;
   int readLength = 0;
@@ -2486,7 +2561,7 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_READ_UDP_SOCKET, socket, length);
 
-  int responseLength = length + strlen(SARA_R5_READ_UDP_SOCKET) + 128;
+  int responseLength = length + strlen(SARA_R5_READ_UDP_SOCKET) + minimumResponseAllocation;
   response = sara_r5_calloc_char(responseLength);
   if (response == NULL)
   {
@@ -2500,9 +2575,11 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     // Extract the data - and check the third quote is present
-    scanNum = sscanf(response, "\r\n+USORF: %d,\"%d.%d.%d.%d\",%d,%d,\"",
-                      &socketStore, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
-                      &portStore, &readLength);
+    char *searchPtr = strstr(response, "+USORF: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USORF: %d,\"%d.%d.%d.%d\",%d,%d,\"",
+                        &socketStore, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
+                        &portStore, &readLength);
     if (scanNum != 7)
     {
       if (_printDebug == true)
@@ -2515,19 +2592,17 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    // Check that readLength == length.
+    // Check that readLength == length
+    // TO DO: handle this properly. The user needs to know how many bytes were read.
     if (readLength != length)
     {
       if (_printDebug == true)
       {
-        _debugPort->print(F("socketReadUDP: error: length="));
+        _debugPort->print(F("socketReadUDP: length mismatch! length="));
         _debugPort->print(length);
         _debugPort->print(F(" readLength="));
         _debugPort->println(readLength);
       }
-      free(command);
-      free(response);
-      return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
     // Find the third double-quote
@@ -2543,7 +2618,7 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
     }
 
     // Now copy the data into readDest
-    while (readIndex < length)
+    while (readIndex < readLength)
     {
       readDest[readIndex] = strBegin[1 + readIndex];
       readIndex++;
@@ -2581,7 +2656,7 @@ SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int readLength = 0;
   int socketStore = 0;
 
@@ -2602,8 +2677,10 @@ SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USORF: %d,%d",
-                      &socketStore, &readLength);
+    char *searchPtr = strstr(response, "+UPSND: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+UPSND: %d,%d",
+                        &socketStore, &readLength);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2743,12 +2820,12 @@ SARA_R5_error_t SARA_R5::socketDirectLinkCongestionTimer(int socket, unsigned lo
   return err;
 }
 
-SARA_R5_error_t SARA_R5::querySocketType(int socket, int *protocol)
+SARA_R5_error_t SARA_R5::querySocketType(int socket, SARA_R5_socket_protocol_t *protocol)
 {
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   int paramVal;
 
@@ -2769,8 +2846,10 @@ SARA_R5_error_t SARA_R5::querySocketType(int socket, int *protocol)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,0,%d",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,0,%d",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2783,7 +2862,8 @@ SARA_R5_error_t SARA_R5::querySocketType(int socket, int *protocol)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    *protocol = paramVal;
+    *protocol = (SARA_R5_socket_protocol_t)paramVal;
+    _lastSocketProtocol[socketStore] = paramVal;
   }
 
   free(command);
@@ -2797,7 +2877,7 @@ SARA_R5_error_t SARA_R5::querySocketLastError(int socket, int *error)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   int paramVal;
 
@@ -2818,8 +2898,10 @@ SARA_R5_error_t SARA_R5::querySocketLastError(int socket, int *error)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,1,%d",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,1,%d",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2846,7 +2928,7 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   long unsigned int paramVal;
 
@@ -2867,8 +2949,10 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,2,%lu",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,2,%lu",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2895,7 +2979,7 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesReceived(int socket, uint32_t *tot
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   long unsigned int paramVal;
 
@@ -2916,8 +3000,10 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesReceived(int socket, uint32_t *tot
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,3,%lu",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,3,%lu",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2944,7 +3030,7 @@ SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *addre
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   int paramVals[5];
 
@@ -2965,10 +3051,12 @@ SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *addre
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,4,\"%d.%d.%d.%d\",%d",
-                      &socketStore,
-                      &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3],
-                      &paramVals[4]);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,4,\"%d.%d.%d.%d\",%d",
+                        &socketStore,
+                        &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3],
+                        &paramVals[4]);
     if (scanNum != 6)
     {
       if (_printDebug == true)
@@ -2993,12 +3081,12 @@ SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *addre
   return err;
 }
 
-SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, int *status)
+SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, SARA_R5_tcp_socket_status_t *status)
 {
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   int paramVal;
 
@@ -3019,8 +3107,10 @@ SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, int *status)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,10,%d",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,10,%d",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3033,7 +3123,7 @@ SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, int *status)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    *status = paramVal;
+    *status = (SARA_R5_tcp_socket_status_t)paramVal;
   }
 
   free(command);
@@ -3047,7 +3137,7 @@ SARA_R5_error_t SARA_R5::querySocketOutUnackData(int socket, uint32_t *total)
   char *command;
   char *response;
   SARA_R5_error_t err;
-  int scanNum;
+  int scanNum = 0;
   int socketStore = 0;
   long unsigned int paramVal;
 
@@ -3068,8 +3158,10 @@ SARA_R5_error_t SARA_R5::querySocketOutUnackData(int socket, uint32_t *total)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    scanNum = sscanf(response, "\r\n+USOCTL: %d,11,%lu",
-                      &socketStore, &paramVal);
+    char *searchPtr = strstr(response, "+USOCTL: ");
+    if (searchPtr != NULL)
+      scanNum = sscanf(searchPtr, "+USOCTL: %d,11,%lu",
+                        &socketStore, &paramVal);
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3117,7 +3209,9 @@ int SARA_R5::socketGetLastError()
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    sscanf(response, "\r\n+USOER: %d", &errorCode);
+    char *searchPtr = strstr(response, "+USOER: ");
+    if (searchPtr != NULL)
+      sscanf(searchPtr, "+USOER: %d", &errorCode);
   }
 
   free(command);
@@ -3388,8 +3482,12 @@ SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n+UHTTPER: %d,%d,%d\r\n",
-               &rprofile, &eclass, &ecode) == 3)
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+UHTTPER: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+UHTTPER: %d,%d,%d\r\n",
+                        &rprofile, &eclass, &ecode);
+    if (scanned == 3)
     {
       *error_class = eclass;
       *error_code = ecode;
@@ -3546,7 +3644,7 @@ SARA_R5_error_t SARA_R5::getNetworkAssignedIPAddress(int profile, IPAddress *add
       scanNum = sscanf(searchPtr, "+UPSND: %d,%d,\"%d.%d.%d.%d\"",
                         &profileStore, &paramTag,
                         &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3]);
-    if ((searchPtr == NULL) || (scanNum != 6))
+    if (scanNum != 6)
     {
       if (_printDebug == true)
       {
@@ -4191,10 +4289,13 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
     return err;
   }
 
-  int ret = sscanf(response, "\r\n+UMNOPROF: %d,%d,%d,%d", &oStore, &d, &r, &u);
+  int scanned = 0;
+  char *searchPtr = strstr(response, "+UMNOPROF: ");
+  if (searchPtr != NULL)
+    scanned = sscanf(searchPtr, "+UMNOPROF: %d,%d,%d,%d", &oStore, &d, &r, &u);
   o = (mobile_network_operator_t)oStore;
 
-  if (ret >= 1)
+  if (scanned >= 1)
   {
     if (_printDebug == true)
     {
@@ -4219,8 +4320,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
   unsigned long timeIn;
   bool found = false;
   int responseIndex = 0, errorIndex = 0;
-  int backlogIndex = strlen(saraResponseBacklog);
-  //bool printedSomething = false;
+  // bool printedSomething = false;
 
   timeIn = millis();
 
@@ -4258,11 +4358,19 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       {
         errorIndex = 0;
       }
-      //This is a global array that holds the backlog of any events
+      //_saraResponseBacklog is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
-      //Note: the expectedResponse or expectedError will also be added to the backlog
-      if (backlogIndex < RXBuffSize) // Don't overflow the buffer
-        saraResponseBacklog[backlogIndex++] = c;
+      //Note: the expectedResponse or expectedError will also be added to the backlog.
+      //The backlog is only used by bufferedPoll to process the URCs - which are all readable.
+      //bufferedPoll uses strtok - which does not like NULL characters.
+      //So let's make sure no NULLs end up in the backlog!
+      if (_saraResponseBacklogLength < _RXBuffSize) // Don't overflow the buffer
+      {
+        if (c == '\0')
+          _saraResponseBacklog[_saraResponseBacklogLength++] = '0'; // Change NULLs to ASCII Zeros
+        else
+          _saraResponseBacklog[_saraResponseBacklogLength++] = c;
+      }
     }
   }
 
@@ -4302,7 +4410,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   if (_printDebug == true)
     _debugPort->println(String(command));
 
-  int backlogIndex = sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
+  sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
 
   while ((!found) && ((timeIn + commandTimeout) > millis()))
@@ -4346,11 +4454,19 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       {
         index = 0;
       }
-      //This is a global array that holds the backlog of any events
+      //_saraResponseBacklog is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
       //Note: the expectedResponse or expectedError will also be added to the backlog
-      if (backlogIndex < RXBuffSize) // Don't overflow the buffer
-        saraResponseBacklog[backlogIndex++] = c;
+      //The backlog is only used by bufferedPoll to process the URCs - which are all readable.
+      //bufferedPoll uses strtok - which does not like NULL characters.
+      //So let's make sure no NULLs end up in the backlog!
+      if (_saraResponseBacklogLength < _RXBuffSize) // Don't overflow the buffer
+      {
+        if (c == '\0')
+          _saraResponseBacklog[_saraResponseBacklogLength++] = '0'; // Change NULLs to ASCII Zeros
+        else
+          _saraResponseBacklog[_saraResponseBacklogLength++] = c;
+      }
     }
   }
 
@@ -4382,21 +4498,27 @@ SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, cons
   return sendCommandWithResponse(command, expectedResponse, responseDest, commandTimeout, 32766, at);
 }
 
-int SARA_R5::sendCommand(const char *command, bool at)
+void SARA_R5::sendCommand(const char *command, bool at)
 {
-  int backlogIndex = strlen(saraResponseBacklog);
-
-  //Spend up to rxWindowUS microseconds copying any incoming serial data into the backlog
-  unsigned long timeIn = micros();
+  //Spend up to _rxWindowMillis milliseconds copying any incoming serial data into the backlog
+  unsigned long timeIn = millis();
   if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
-    while (((micros() - timeIn) < rxWindowUS) && (backlogIndex < RXBuffSize)) //May need to escape on newline?
+    while (((millis() - timeIn) < _rxWindowMillis) && (_saraResponseBacklogLength < _RXBuffSize)) //May need to escape on newline?
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
+        //_saraResponseBacklog is a global array that holds the backlog of any events
+        //that came in while waiting for response. To be processed later within bufferedPoll().
+        //Note: the expectedResponse or expectedError will also be added to the backlog
+        //The backlog is only used by bufferedPoll to process the URCs - which are all readable.
+        //bufferedPoll uses strtok - which does not like NULL characters.
+        //So let's make sure no NULLs end up in the backlog!
         char c = readChar();
-        saraResponseBacklog[backlogIndex++] = c;
-        timeIn = micros();
+        if (c == '\0') // Make sure no NULL characters end up in the backlog! Change them to ASCII Zeros
+          c = '0';
+        _saraResponseBacklog[_saraResponseBacklogLength++] = c;
+        timeIn = millis();
       }
     }
   }
@@ -4412,8 +4534,6 @@ int SARA_R5::sendCommand(const char *command, bool at)
   {
     hwPrint(command);
   }
-
-  return backlogIndex; // Return the new backlog length
 }
 
 SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
@@ -4735,27 +4855,29 @@ char *SARA_R5::sara_r5_calloc_char(size_t num)
 void SARA_R5::pruneBacklog()
 {
   char *event;
-  char pruneBuffer[RXBuffSize];
-  memset(pruneBuffer, 0, RXBuffSize); // Create a buffer to store the stuff we don't want to prune
 
-  // if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
+  // if (_printDebug == true)
   // {
-  //   if (_printDebug == true)
-  //     _debugPort->println(F("pruneBacklog: pruned backlog was:"));
-  //   if (_printDebug == true)
-  //     _debugPort->println(saraResponseBacklog);
-  //   if (_printDebug == true)
-  //     _debugPort->println(F("pruneBacklog: end of pruned backlog"));
-  // }
-  // else
-  // {
-  //   if (_printDebug == true)
+  //   if (_saraResponseBacklogLength > 0) //Handy for debugging new parsing.
+  //   {
+  //     _debugPort->println(F("pruneBacklog: before pruning, backlog was:"));
+  //     _debugPort->println(_saraResponseBacklog);
+  //     _debugPort->println(F("pruneBacklog: end of backlog"));
+  //   }
+  //   else
+  //   {
   //     _debugPort->println(F("pruneBacklog: backlog was empty"));
+  //   }
   // }
 
-  event = strtok(saraResponseBacklog, "\r\n"); // Look for an 'event' - something ending in \r\n
+  memset(_pruneBuffer, 0, _RXBuffSize); // Clear the _pruneBuffer
 
-  while (event != NULL) //If event actionable, add to pruneBuffer.
+  _saraResponseBacklogLength = 0; // Zero the backlog length
+
+  char *preservedEvent;
+  event = strtok_r(_saraResponseBacklog, "\r\n", &preservedEvent); // Look for an 'event' - something ending in \r\n
+
+  while (event != NULL) //If event is actionable, add it to pruneBuffer.
   {
     // These are the events we want to keep so they can be processed by poll / bufferedPoll
     if ((strstr(event, "+UUSORD:") != NULL)
@@ -4768,29 +4890,29 @@ void SARA_R5::pruneBacklog()
         || (strstr(event, "+UUPING:") != NULL)
         || (strstr(event, "+UUHTTPCR:") != NULL))
     {
-      strcat(pruneBuffer, event);
-      strcat(pruneBuffer, "\r\n"); //strtok blows away delimiter, but we want that for later.
+      strcat(_pruneBuffer, event); // The URCs are all readable text so using strcat is OK
+      strcat(_pruneBuffer, "\r\n"); // strtok blows away delimiter, but we want that for later.
+      _saraResponseBacklogLength += strlen(event) + 2; // Add the length of this event to _saraResponseBacklogLength
     }
 
-    event = strtok(NULL, "\r\n"); // Walk though any remaining events
+    event = strtok_r(NULL, "\r\n", &preservedEvent); // Walk though any remaining events
   }
 
-  memset(saraResponseBacklog, 0, RXBuffSize); //Clear out backlog buffer.
-  strcpy(saraResponseBacklog, pruneBuffer); //Copy the stuff we didn't prune into the backlog
+  memset(_saraResponseBacklog, 0, _RXBuffSize); //Clear out backlog buffer.
+  memcpy(_saraResponseBacklog, _pruneBuffer, _saraResponseBacklogLength); //Copy the pruned buffer back into the backlog
 
-  // if (strlen(saraResponseBacklog) > 0) //Handy for debugging new parsing.
+  // if (_printDebug == true)
   // {
-  //   if (_printDebug == true)
-  //     _debugPort->println(F("pruneBacklog: pruned backlog is now:"));
-  //   if (_printDebug == true)
-  //     _debugPort->println(saraResponseBacklog);
-  //   if (_printDebug == true)
-  //     _debugPort->println(F("pruneBacklog: end of pruned backlog"));
-  // }
-  // else
-  // {
-  //   if (_printDebug == true)
+  //   if (_saraResponseBacklogLength > 0) //Handy for debugging new parsing.
+  //   {
+  //     _debugPort->println(F("pruneBacklog: after pruning, backlog is now:"));
+  //     _debugPort->println(_saraResponseBacklog);
+  //     _debugPort->println(F("pruneBacklog: end of backlog"));
+  //   }
+  //   else
+  //   {
   //     _debugPort->println(F("pruneBacklog: backlog is now empty"));
+  //   }
   // }
 
   free(event);

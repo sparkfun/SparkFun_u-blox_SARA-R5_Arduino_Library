@@ -31,8 +31,7 @@
   If that is the case, you can use this code to play ping-pong with another computer acting as a TCP Echo Server.
   Here's a quick how-to (assuming you are familiar with Python):
     Open up a Python editor on your computer
-    Grab yourself some simple TCP Echo Server code:
-      The third example here works well: https://rosettacode.org/wiki/Echo_server#Python
+    Copy the Multi_TCP_Echo.py from the GitHub repo Utils folder: https://github.com/sparkfun/SparkFun_u-blox_SARA-R5_Arduino_Library/tree/main/Utils
     Log in to your router
     Find your local IP address (usually 192.168.0.something)
     Go into your router's Security / Port Forwarding settings:
@@ -40,14 +39,12 @@
       The IP address is your local IP address
       Set the local port range to 1200-1200 (if you changed TCP_PORT, use that port number instead)
       Set the external port range to 1200-1200
-      Set the protocol to TCP
+      Set the protocol to TCP (or BOTH)
       Enable the rule
     This will open up a direct connection from the outside world, through your router, to port 1200 on your computer
       Remember to lock it down again when you're done!
-    Edit the Python code and replace 'localhost' with your local IP number:
+    Edit the Python code and change 'HOST' to your local IP number:
       HOST = '192.168.0.nnn'
-    Change the PORT to 1200:
-      PORT = 1200
     Run the Python code
     Ask Google for your computer's public IP address:
       Google "what is my IP address"
@@ -179,6 +176,8 @@ void processSocketData(int socket, String theData)
 
 // processSocketClose is provided to the SARA-R5 library via a 
 // callback setter -- setSocketCloseCallback. (See setup())
+// 
+// Note: the SARA-R5 only sends a +UUSOCL URC when the socket os closed by the remote
 void processSocketClose(int socket)
 {
   Serial.println();
@@ -233,7 +232,7 @@ void setup()
   mySARA.invertPowerPin(true); 
 
   // Initialize the SARA
-  if (mySARA.begin(saraSerial, 9600) )
+  if (mySARA.begin(saraSerial, 115200) )
   {
     Serial.println(F("SARA-R5 connected!"));
   }
@@ -310,6 +309,8 @@ void setup()
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
   // Set a callback to process the socket close
+  // 
+  // Note: the SARA-R5 only sends a +UUSOCL URC when the socket os closed by the remote
   mySARA.setSocketCloseCallback(&processSocketClose);
   
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -496,7 +497,7 @@ void printSocketParameters(int socket)
   Serial.println(F("Socket parameters:"));
   
   Serial.print(F("Socket type: "));
-  int socketType;
+  SARA_R5_socket_protocol_t socketType;
   mySARA.querySocketType(socket, &socketType);
   if (socketType == SARA_R5_TCP)
     Serial.println(F("TCP"));
@@ -527,29 +528,29 @@ void printSocketParameters(int socket)
   Serial.println(remoteAddress.toString());
 
   Serial.print(F("Socket status (TCP sockets only): "));
-  int socketStatus;
+  SARA_R5_tcp_socket_status_t socketStatus;
   mySARA.querySocketStatusTCP(socket, &socketStatus);
-  if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_INACTIVE)
+  if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_INACTIVE)
     Serial.println(F("INACTIVE"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_LISTEN)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_LISTEN)
     Serial.println(F("LISTEN"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_SYN_SENT)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_SYN_SENT)
     Serial.println(F("SYN_SENT"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_SYN_RCVD)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_SYN_RCVD)
     Serial.println(F("SYN_RCVD"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_ESTABLISHED)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_ESTABLISHED)
     Serial.println(F("ESTABLISHED"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_FIN_WAIT_1)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_FIN_WAIT_1)
     Serial.println(F("FIN_WAIT_1"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_FIN_WAIT_2)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_FIN_WAIT_2)
     Serial.println(F("FIN_WAIT_2"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_CLOSE_WAIT)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_CLOSE_WAIT)
     Serial.println(F("CLOSE_WAIT"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_CLOSING)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_CLOSING)
     Serial.println(F("CLOSING"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_LAST_ACK)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_LAST_ACK)
     Serial.println(F("LAST_ACK"));
-  else if (socketStatus == SARA_R5::TCP_SOCKET_STATUS_TIME_WAIT)
+  else if (socketStatus == SARA_R5_TCP_SOCKET_STATUS_TIME_WAIT)
     Serial.println(F("TIME_WAIT"));
   else
     Serial.println(F("UNKNOWN! (Error!)"));
