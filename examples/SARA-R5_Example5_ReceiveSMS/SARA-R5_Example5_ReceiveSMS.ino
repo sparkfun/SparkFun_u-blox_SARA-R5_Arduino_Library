@@ -39,8 +39,6 @@ SARA_R5 mySARA;
 // Change the pin number if required.
 //SARA_R5 mySARA(34);
 
-int previousUsed = 0; // Store the previous number of used memory locations
-
 void setup()
 {
   String currentOperator = "";
@@ -87,10 +85,16 @@ void setup()
     while (1)
       ; // Do nothing more
   }
+
+  while (Serial.available()) // Empty the serial RX buffer
+    Serial.read();
 }
 
 void loop()
 {
+  static bool printReadMessages = true; // Print all messages once. Then only print new messages. Unless a message is deleted.
+  static int previousUsed = -1; // Store the previous number of used memory locations
+  
   // Read the number of used and total messages
   int used;
   int total;
@@ -100,9 +104,9 @@ void loop()
   }
   else
   {
-    if (used > previousUsed) // Has a new message arrived?
+    if ((used != previousUsed) || printReadMessages) // Has a new message arrived? Or was the delete menu opened?
     {
-      Serial.print(F("Number of used memory locations: "));
+      Serial.print(F("\r\nNumber of used memory locations: "));
       Serial.println(used);
       Serial.print(F("Total number of memory locations: "));
       Serial.println(total);
@@ -118,11 +122,13 @@ void loop()
         String dateTime = "";
         String message = "";
         // Read the message from this location. Reading from empty message locations returns an ERROR
+        // unread can be: "REC UNREAD", "REC READ", "STO UNSENT", "STO SENT"
+        // If the location is empty, readSMSmessage will return a SARA_R5_ERROR_UNEXPECTED_RESPONSE
         if (mySARA.readSMSmessage(memoryLocation, &unread, &from, &dateTime, &message) == SARA_R5_SUCCESS)
         {
-          if (unread == "REC UNREAD") // Only print new (previously-unread) messages. Comment this line to display all messages.
+          if (printReadMessages || (unread == "REC UNREAD")) 
           {
-            Serial.print(F("Message index: "));
+            Serial.print(F("Message location: "));
             Serial.println(memoryLocation);
             Serial.print(F("Status: "));
             Serial.println(unread);
@@ -138,12 +144,129 @@ void loop()
         memoryLocation++; // Move on to the next memory location
       }
 
+      printReadMessages = false;
       previousUsed = used; // Update previousUsed
 
       Serial.println(F("Waiting for a new message..."));
       Serial.println();
+      Serial.println(F("Hit any key to delete a message..."));
+      Serial.println();
     }
   }
 
-  delay(5000); // Check for new messages every 5 seconds
+  int delayCount = 0;
+  while (delayCount < 5000)
+  {
+    delay(1); // Delay for five seconds, unless the user presses a key
+    delayCount++;
+
+    if (Serial.available())
+    {
+      Serial.println(F("To delete a single message:                        enter its location followed by LF / Newline"));
+      Serial.println(F("To delete all read messages:                       enter r followed by LF / Newline"));
+      Serial.println(F("To delete all read and sent messages:              enter s followed by LF / Newline"));
+      Serial.println(F("To delete all read, sent and unsent messages:      enter u followed by LF / Newline"));
+      Serial.println(F("To delete all messages, including unread messages: enter a followed by LF / Newline"));
+      Serial.println(F("To exit:                                           enter LF / Newline"));
+
+      Serial.read(); // Read and discard the char that opened the menu
+
+      int location = 0;
+      bool selected = false;
+      while (!selected)
+      {
+        while (!Serial.available()) ; // Wait for a character to arrive
+        char c = Serial.read(); // Read it
+        if (c == '\n') // Is it a LF?
+        {
+          if ((location >= 1) && (location <= total)) // Delete a single message at location
+          {
+            if (mySARA.deleteSMSmessage(location) == SARA_R5_SUCCESS)
+            {
+              Serial.println(F("\r\nMessage deleted!\r\n"));
+              printReadMessages = true;
+            }
+            else
+            {
+              Serial.println(F("\r\nMessage not deleted!\r\n"));
+            }
+          }
+          else if (location == 1001) // r
+          {
+            if (mySARA.deleteReadSMSmessages() == SARA_R5_SUCCESS)
+            {
+              Serial.println(F("\r\nRead messages deleted!\r\n"));
+              printReadMessages = true;
+            }
+            else
+            {
+              Serial.println(F("\r\nMessages not deleted!\r\n"));
+            }
+          }
+          else if (location == 1002) // s
+          {
+            if (mySARA.deleteReadSentSMSmessages() == SARA_R5_SUCCESS)
+            {
+              Serial.println(F("\r\nRead and sent messages deleted!\r\n"));
+              printReadMessages = true;
+            }
+            else
+            {
+              Serial.println(F("\r\nMessages not deleted!\r\n"));
+            }
+          }
+          else if (location == 1003) // u
+          {
+            if (mySARA.deleteReadSentUnsentSMSmessages() == SARA_R5_SUCCESS)
+            {
+              Serial.println(F("\r\nRead, sent and unsent messages deleted!\r\n"));
+              printReadMessages = true;
+            }
+            else
+            {
+              Serial.println(F("\r\nMessages not deleted!\r\n"));
+            }
+          }
+          else if (location == 1004) // a
+          {
+            if (mySARA.deleteAllSMSmessages() == SARA_R5_SUCCESS)
+            {
+              Serial.println(F("\r\nAll messages deleted!\r\n"));
+              printReadMessages = true;
+            }
+            else
+            {
+              Serial.println(F("\r\nMessages not deleted!\r\n"));
+            }
+          }
+          else
+            Serial.println(F("\r\nExit...\r\n"));
+          selected = true;
+        }
+        else if ((c >= '0') && (c <= '9'))
+        {
+          location *= 10; // Multiply by 10
+          location += c - '0'; // Add the digit
+        }
+        else if (c == 'r')
+        {
+          location = 1001;
+        }
+        else if (c == 's')
+        {
+          location = 1002;
+        }
+        else if (c == 'u')
+        {
+          location = 1003;
+        }
+        else if (c == 'a')
+        {
+          location = 1004;
+        }
+      }
+
+      delayCount = 5000;
+    }
+  }
 }

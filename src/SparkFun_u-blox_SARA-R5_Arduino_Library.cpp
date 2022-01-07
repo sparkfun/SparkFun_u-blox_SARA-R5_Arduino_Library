@@ -1886,7 +1886,7 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
   {
     if (_printDebug == true)
     {
-      _debugPort->print(F("getPreferredMessageStorage: memory: "));
+      _debugPort->print(F("getPreferredMessageStorage: memory1 (read and delete): "));
       _debugPort->print(memory);
       _debugPort->print(F(" used: "));
       _debugPort->print(u);
@@ -2007,6 +2007,25 @@ SARA_R5_error_t SARA_R5::readSMSmessage(int location, String *unread, String *fr
   free(command);
   free(response);
 
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::deleteSMSmessage(int location, int deleteFlag)
+{
+  char *command;
+  SARA_R5_error_t err;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_DELETE_MESSAGE) + 12);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  if (deleteFlag == 0)
+    sprintf(command, "%s=%d", SARA_R5_DELETE_MESSAGE, location);
+  else
+    sprintf(command, "%s=%d,%d", SARA_R5_DELETE_MESSAGE, location, deleteFlag);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_55_SECS_TIMEOUT);
+
+  free(command);
   return err;
 }
 

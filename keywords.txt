@@ -97,6 +97,11 @@ setSMSMessageFormat	KEYWORD2
 sendSMS	KEYWORD2
 getPreferredMessageStorage	KEYWORD2
 readSMSmessage	KEYWORD2
+deleteSMSmessage	KEYWORD2
+deleteReadSMSmessages	KEYWORD2
+deleteReadSentSMSmessages	KEYWORD2
+deleteReadSentUnsentSMSmessages	KEYWORD2
+deleteAllSMSmessages	KEYWORD2
 setBaud	KEYWORD2
 setFlowControl	KEYWORD2
 setGpioMode	KEYWORD2

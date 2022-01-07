@@ -78,6 +78,7 @@
 // Timing
 #define SARA_R5_STANDARD_RESPONSE_TIMEOUT 1000
 #define SARA_R5_10_SEC_TIMEOUT 10000
+#define SARA_R5_55_SECS_TIMEOUT 55000
 #define SARA_R5_2_MIN_TIMEOUT 120000
 #define SARA_R5_3_MIN_TIMEOUT 180000
 #define SARA_R5_SET_BAUD_TIMEOUT 500
@@ -122,6 +123,7 @@ const char SARA_R5_SEND_TEXT[] = "+CMGS";          // Send SMS message
 const char SARA_R5_NEW_MESSAGE_IND[] = "+CNMI";    // New [SMS] message indication
 const char SARA_R5_PREF_MESSAGE_STORE[] = "+CPMS"; // Preferred message storage
 const char SARA_R5_READ_TEXT_MESSAGE[] = "+CMGR";  // Read message
+const char SARA_R5_DELETE_MESSAGE[] = "+CMGD";     // Delete message
 // V24 control and V25ter (UART interface)
 const char SARA_R5_FLOW_CONTROL[] = "&K";   // Flow control
 const char SARA_R5_COMMAND_BAUD[] = "+IPR"; // Baud rate
@@ -599,6 +601,11 @@ public:
   SARA_R5_error_t sendSMS(String number, String message);
   SARA_R5_error_t getPreferredMessageStorage(int *used, int *total, String memory = "ME");
   SARA_R5_error_t readSMSmessage(int location, String *unread, String *from, String *dateTime, String *message);
+  SARA_R5_error_t deleteSMSmessage(int location, int deleteFlag = 0); // Default to deleting the single message at the specified location
+  SARA_R5_error_t deleteReadSMSmessages(void)           { return (deleteSMSmessage( 1, 1 )); }; // Delete all the read messages from preferred storage
+  SARA_R5_error_t deleteReadSentSMSmessages(void)       { return (deleteSMSmessage( 1, 2 )); }; // Delete the read and sent messages from preferred storage
+  SARA_R5_error_t deleteReadSentUnsentSMSmessages(void) { return (deleteSMSmessage( 1, 3 )); }; // Delete the read, sent and unsent messages from preferred storage
+  SARA_R5_error_t deleteAllSMSmessages(void)            { return (deleteSMSmessage( 1, 4 )); }; // Delete the read, sent, unsent and unread messages from preferred storage
 
   // V24 Control and V25ter (UART interface) AT commands
   SARA_R5_error_t setBaud(unsigned long baud);
