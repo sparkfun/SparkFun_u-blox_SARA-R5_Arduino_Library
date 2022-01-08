@@ -165,7 +165,7 @@ void prettyPrintString(String theString) // Pretty-print a String in HEX and ASC
       Serial.print(F(" "));
     }
 
-    if ((i + j) == theLength)
+    if (((i + j) == theLength) && (j < 16))
     {
       for (int k = 0; k < (16 - (theLength % 16)); k++)
       {
