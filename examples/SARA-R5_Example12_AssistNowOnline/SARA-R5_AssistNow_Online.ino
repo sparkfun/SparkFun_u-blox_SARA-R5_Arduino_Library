@@ -94,7 +94,7 @@ bool getAssistNowOnlineData(String theFile)
   // HTTP GET
   mySARA.sendHTTPGET(0, theRequestStr, theFile);
 
-  // Wait for 20 seconds while calling mySARA.bufferedPoll() to see the HTTP result. Comment these lines if required.
+  // Wait for 20 seconds while calling mySARA.bufferedPoll() to see the HTTP result.
   Serial.print(F("getAssistNowOnlineData: Waiting up to 20 seconds for the HTTP Result"));
   int i = 0;
   while ((i < 20000) && (httpResultSeen == false))
