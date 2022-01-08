@@ -3963,73 +3963,174 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
   SARA_R5_error_t err;
   char *command;
   char *response;
-  char *contentsPtr;
 
-  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + 8 + filename.length());
+  // Start by getting the file size so we know in advance how much data to expect
+  int fileSize = 0;
+  err = getFileSize(filename, &fileSize);
+  if (err != SARA_R5_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: getFileSize returned err "));
+      _debugPort->println(err);
+    }
+    return err;
+  }
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + filename.length() + 8);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=\"%s\"", SARA_R5_FILE_SYSTEM_READ_FILE, filename.c_str());
 
-  response = sara_r5_calloc_char(1072); // Hopefully this should be way more than enough?! (1024 + 48 extra)
+  response = sara_r5_calloc_char(fileSize + minimumResponseAllocation);
   if (response == NULL)
   {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: response alloc failed: "));
+      _debugPort->println(fileSize + minimumResponseAllocation);
+    }
     free(command);
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
-                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT, 1072);
+  // A large file will completely fill the backlog buffer - but it will be pruned afterwards
+  // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
+  // To try and avoid this, look for \"\r\nOK\r\n
+  const char fileReadTerm[] = "\"\r\nOK\r\n";
+  err = sendCommandWithResponse(command, fileReadTerm,
+                                response, (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT),
+                                (fileSize + minimumResponseAllocation));
+
   if (err != SARA_R5_ERROR_SUCCESS)
   {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: sendCommandWithResponse returned err "));
+      _debugPort->println(err);
+    }
     free(command);
     free(response);
     return err;
   }
 
   // Response format: \r\n+URDFILE: "filename",36,"these bytes are the data of the file"\r\n\r\nOK\r\n
-  contentsPtr = strchr(response, '\"'); // Find the third quote
-  contentsPtr = strchr(contentsPtr + 1, '\"');
-  contentsPtr = strchr(contentsPtr + 1, '\"');
-
-  if (contentsPtr == NULL)
+  int scanned = 0;
+  int readFileSize = 0;
+  char *searchPtr = strstr(response, "+URDFILE: ");
+  if (searchPtr != NULL)
   {
+    searchPtr = strchr(searchPtr, '\"'); // Find the first quote
+    searchPtr = strchr(++searchPtr, '\"'); // Find the second quote
+
+    int scanned = sscanf(searchPtr, "\",%d,", &readFileSize); // Get the file size (again)
+    if (scanned == 1)
+    {
+      searchPtr = strchr(++searchPtr, '\"'); // Find the third quote
+
+      if (searchPtr == NULL)
+      {
+        if (_printDebug == true)
+        {
+          _debugPort->println(F("getFileContents: third quote not found!"));
+        }
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+
+      int bytesRead = 0;
+
+      while (bytesRead < readFileSize)
+      {
+        searchPtr++; // Increment searchPtr then copy file char into contents
+        contents->concat(*(searchPtr)); // Append file char to contents
+        bytesRead++;
+      }
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("getFileContents: total bytes read: "));
+        _debugPort->println(bytesRead);
+      }
+      err = SARA_R5_ERROR_SUCCESS;
+    }
+    else
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("getFileContents: sscanf failed! scanned is "));
+        _debugPort->println(scanned);
+      }
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+  }
+  else
+  {
+    if (_printDebug == true)
+      _debugPort->println(F("getFileContents: strstr failed!"));
+    err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_LIST_FILES) + filename.length() + 8);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=2,\"%s\"", SARA_R5_FILE_SYSTEM_LIST_FILES, filename.c_str());
+
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileSize: Fail: Error: "));
+      _debugPort->print(err);
+      _debugPort->print(F("  Response: {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
+    free(command);
+    free(response);
+    return err;
+  }
+
+  char *responseStart = strstr(response, "+ULSTFILE: ");
+  if (responseStart == NULL)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileSize: Failure: {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
     free(command);
     free(response);
     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
 
-  bool keepGoing = true;
-  int bytesRead = 0;
-
-  if (_printDebug == true)
-    _debugPort->print(F("getFileContents: file contents are \""));
-
-  while (keepGoing)
-  {
-    char c = *(++contentsPtr); // Increment contentsPtr then copy file char into c
-    if ((c == '\0') || (c == '\"') || (bytesRead == 1024))
-    {
-      keepGoing = false;
-    }
-    else
-    {
-      bytesRead++;
-      contents->concat(c); // Append c to contents
-      if (_printDebug == true)
-        _debugPort->print(c);
-    }
-  }
-  if (_printDebug == true)
-  {
-    _debugPort->println(F("\""));
-    _debugPort->print(F("getFileContents: total bytes read: "));
-    _debugPort->println(bytesRead);
-  }
+  int fileSize;
+  sscanf(responseStart, "+ULSTFILE: %d", &fileSize);
+  *size = fileSize;
 
   free(command);
   free(response);
-
-  return SARA_R5_ERROR_SUCCESS;
+  return err;
 }
 
 SARA_R5_error_t SARA_R5::modulePowerOff(void)
