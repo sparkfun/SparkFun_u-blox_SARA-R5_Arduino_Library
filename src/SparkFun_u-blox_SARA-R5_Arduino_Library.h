@@ -548,6 +548,10 @@ public:
   // TODO: Return a clock struct
   SARA_R5_error_t clock(uint8_t *y, uint8_t *mo, uint8_t *d,
                         uint8_t *h, uint8_t *min, uint8_t *s, int8_t *tz); // TZ can be +/- and is in increments of 15 minutes. -28 == 7 hours behind UTC/GMT
+  SARA_R5_error_t setClock(String theTime);
+  SARA_R5_error_t setClock(uint8_t y, uint8_t mo, uint8_t d,
+                            uint8_t h, uint8_t min, uint8_t s, int8_t tz); // TZ can be +/- and is in increments of 15 minutes. -28 == 7 hours behind UTC/GMT
+  void autoTimeZoneForBegin(bool enable = true); // Call autoTimeZoneForBegin(false) _before_ .begin if you want to disable the automatic time zone
   SARA_R5_error_t autoTimeZone(bool enable); // Enable/disable automatic time zone adjustment
   SARA_R5_error_t setUtimeMode(SARA_R5_utime_mode_t mode = SARA_R5_UTIME_MODE_PPS, SARA_R5_utime_sensor_t sensor = SARA_R5_UTIME_SENSOR_GNSS_LTE); // Time mode, source etc. (+UTIME)
   SARA_R5_error_t getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_sensor_t *sensor);
@@ -666,9 +670,9 @@ public:
   SARA_R5_gpio_mode_t getGpioMode(SARA_R5_gpio_t gpio);
 
   // IP Transport Layer
-  int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0); // Open a socket. Returns the socket number. Not required for UDP sockets.
+  int socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPort = 0); // Open a socket. Returns the socket number.
   SARA_R5_error_t socketClose(int socket, unsigned long timeout = SARA_R5_2_MIN_TIMEOUT); // Close the socket
-  SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port); // TCP - connect to a remote IP Address using the specified port
+  SARA_R5_error_t socketConnect(int socket, const char *address, unsigned int port); // TCP - connect to a remote IP Address using the specified port. Not required for UDP sockets.
   SARA_R5_error_t socketConnect(int socket, IPAddress address, unsigned int port);
   // Write data to the specified socket. Works with binary data - but you must specify the data length when using the const char * version
   // Works with both TCP and UDP sockets - but socketWriteUDP is preferred for UDP and doesn't require socketOpen to be called first
@@ -818,6 +822,7 @@ private:
   IPAddress _lastLocalIP;
   uint8_t _maxInitDepth;
   uint8_t _currentInitDepth = 0;
+  bool _autoTimeZoneForBegin = true;
 
   #define _RXBuffSize 2056
   const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.

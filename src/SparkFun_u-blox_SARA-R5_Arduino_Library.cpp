@@ -40,6 +40,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _lastLocalIP = {0, 0, 0, 0};
   for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
     _lastSocketProtocol[i] = 0; // Set to zero initially. Will be set to TCP/UDP by socketOpen etc.
+  _autoTimeZoneForBegin = true;
 
   memset(_saraRXBuffer, 0, _RXBuffSize);
   memset(_pruneBuffer, 0, _RXBuffSize);
@@ -960,6 +961,68 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   free(command);
   free(response);
   return err;
+}
+
+SARA_R5_error_t SARA_R5::setClock(uint8_t y, uint8_t mo, uint8_t d,
+                                  uint8_t h, uint8_t min, uint8_t s, int8_t tz)
+{
+  //Convert y,mo,d,h,min,s,tz into a String
+  //Some platforms don't support sprintf correctly (for %02d or %+02d) so we need to build the String manually
+  //Format is "yy/MM/dd,hh:mm:ss+TZ"
+  //TZ can be +/- and is in increments of 15 minutes (not hours)
+
+  String theTime = "";
+
+  theTime.concat(y / 10);
+  theTime.concat(y % 10);
+  theTime.concat('/');
+  theTime.concat(mo / 10);
+  theTime.concat(mo % 10);
+  theTime.concat('/');
+  theTime.concat(d / 10);
+  theTime.concat(d % 10);
+  theTime.concat(',');
+  theTime.concat(h / 10);
+  theTime.concat(h % 10);
+  theTime.concat(':');
+  theTime.concat(min / 10);
+  theTime.concat(min % 10);
+  theTime.concat(':');
+  theTime.concat(s / 10);
+  theTime.concat(s % 10);
+  if (tz < 0)
+  {
+    theTime.concat('-');
+    tz = 0 - tz;
+  }
+  else
+    theTime.concat('+');
+  theTime.concat(tz / 10);
+  theTime.concat(tz % 10);
+
+  return (setClock(theTime));
+}
+
+SARA_R5_error_t SARA_R5::setClock(String theTime)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_CLOCK) + theTime.length() + 8);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=\"%s\"", SARA_R5_COMMAND_CLOCK, theTime.c_str());
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+void SARA_R5::autoTimeZoneForBegin(bool tz)
+{
+  _autoTimeZoneForBegin = tz;
 }
 
 SARA_R5_error_t SARA_R5::setUtimeMode(SARA_R5_utime_mode_t mode, SARA_R5_utime_sensor_t sensor)
@@ -2696,9 +2759,9 @@ SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    char *searchPtr = strstr(response, "+UPSND: ");
+    char *searchPtr = strstr(response, "+USORF: ");
     if (searchPtr != NULL)
-      scanNum = sscanf(searchPtr, "+UPSND: %d,%d",
+      scanNum = sscanf(searchPtr, "+USORF: %d,%d",
                         &socketStore, &readLength);
     if (scanNum != 2)
     {
@@ -4258,7 +4321,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   //setGpioMode(GPIO2, GNSS_SUPPLY_ENABLE);
   setGpioMode(GPIO6, TIME_PULSE_OUTPUT);
   setSMSMessageFormat(SARA_R5_MESSAGE_FORMAT_TEXT);
-  autoTimeZone(true);
+  autoTimeZone(_autoTimeZoneForBegin);
   for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
   {
     socketClose(i, 100);

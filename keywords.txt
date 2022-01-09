@@ -72,6 +72,8 @@ getSubscriberNo	KEYWORD2
 getCapabilities	KEYWORD2
 reset	KEYWORD2
 clock	KEYWORD2
+setClock	KEYWORD2
+autoTimeZoneForBegin	KEYWORD2
 autoTimeZone	KEYWORD2
 setUtimeMode	KEYWORD2
 getUtimeMode	KEYWORD2
