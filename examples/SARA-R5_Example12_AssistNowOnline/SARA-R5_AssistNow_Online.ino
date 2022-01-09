@@ -49,7 +49,7 @@ void processHTTPcommandResult(int profile, int command, int result)
 
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-bool getAssistNowOnlineData(String theFile)
+bool getAssistNowOnlineData(String theFilename)
 {
   // Use HTTP GET to receive the AssistNow_Online data. Store it in the SARA-R5's internal file system.
 
@@ -75,7 +75,7 @@ bool getAssistNowOnlineData(String theFile)
   Serial.println(theRequestStr);
 
   Serial.print(F("getAssistNowOnlineData: the AssistNow data will be stored in: "));
-  Serial.println(theFile);
+  Serial.println(theFilename);
 
   // Reset HTTP profile 0
   mySARA.resetHTTPprofile(0);
@@ -92,7 +92,7 @@ bool getAssistNowOnlineData(String theFile)
   httpResultSeen = false; // Clear the flag
 
   // HTTP GET
-  mySARA.sendHTTPGET(0, theRequestStr, theFile);
+  mySARA.sendHTTPGET(0, theRequestStr, theFilename);
 
   // Wait for 20 seconds while calling mySARA.bufferedPoll() to see the HTTP result.
   Serial.print(F("getAssistNowOnlineData: Waiting up to 20 seconds for the HTTP Result"));
@@ -114,7 +114,7 @@ bool getAssistNowOnlineData(String theFile)
   }
 
   int fileSize;
-  if (mySARA.getFileSize(theFile, &fileSize) != SARA_R5_SUCCESS)
+  if (mySARA.getFileSize(theFilename, &fileSize) != SARA_R5_SUCCESS)
   {
     Serial.print(F("getAssistNowOnlineData: No file written?!"));
     return false;    

@@ -156,9 +156,9 @@ void setup()
 
   // Request the AssistNow data from the server. Data is stored in the SARA's file system.
   
-  String theFile = "assistnow_online.ubx"; // The file that will contain the AssistNow Online data
+  String theFilename = "assistnow_online.ubx"; // The file that will contain the AssistNow Online data
   
-  if (getAssistNowOnlineData(theFile) == false) // See SARA-R5_AssistNow_Online.ino
+  if (getAssistNowOnlineData(theFilename) == false) // See SARA-R5_AssistNow_Online.ino
   {
     Serial.println(F("getAssistNowOnlineData failed! Freezing..."));
     while (1)
@@ -171,7 +171,7 @@ void setup()
 
   // Read the data from file
   String theAssistData = "";
-  if (mySARA.getFileContents(theFile, &theAssistData) != SARA_R5_SUCCESS)
+  if (mySARA.getFileContents(theFilename, &theAssistData) != SARA_R5_SUCCESS)
   {
     Serial.println(F("getFileContents failed! Freezing..."));
     while (1)
@@ -198,6 +198,13 @@ void setup()
 
   // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
   myGNSS.setI2CpollingWait(125);
+
+  // Delete the file after use. This is optional as the SARA will automatically overwrite the file.
+  // And you might want to reuse it? AssistNow Online data is valid for 2-4 hours.
+  //if (mySARA.deleteFile(theFilename) != SARA_R5_SUCCESS)
+  //{
+  //  Serial.println(F("Warning: deleteFile failed!"));
+  //}  
 }
 
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

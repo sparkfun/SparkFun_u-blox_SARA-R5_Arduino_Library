@@ -167,8 +167,10 @@ const char SARA_R5_GNSS_CONFIGURE_SENSOR[] = "+ULOCGNSS";    // Configure GNSS s
 const char SARA_R5_GNSS_CONFIGURE_LOCATION[] = "+ULOCCELL";  // Configure cellular location sensor (CellLocate®)
 const char SARA_R5_AIDING_SERVER_CONFIGURATION[] = "+UGSRV"; // Configure aiding server (CellLocate®)
 // ### File System
-const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE";    // Read a file
-const char SARA_R5_FILE_SYSTEM_LIST_FILES[] = "+ULSTFILE";  // List of files, size of file, etc.
+// TO DO: Add support for file tags. Default tag to USER
+const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE";      // Read a file
+const char SARA_R5_FILE_SYSTEM_LIST_FILES[] = "+ULSTFILE";    // List of files, size of file, etc.
+const char SARA_R5_FILE_SYSTEM_DELETE_FILE[] = "+UDELFILE";   // Delete a file
 // ### Response
 const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
@@ -786,8 +788,10 @@ public:
                                       unsigned int gnssTypes = 65, unsigned int mode = 0, unsigned int dataType = 15);
 
   // File system
+  // TO DO: add full support for file tags. Default tag to USER
   SARA_R5_error_t getFileContents(String filename, String *contents);
   SARA_R5_error_t getFileSize(String filename, int *size);
+  SARA_R5_error_t deleteFile(String filename);
 
   // Functionality
   SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);

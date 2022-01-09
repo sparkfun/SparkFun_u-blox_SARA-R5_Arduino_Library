@@ -4133,6 +4133,31 @@ SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::deleteFile(String filename)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_DELETE_FILE) + filename.length() + 8);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=\"%s\"", SARA_R5_FILE_SYSTEM_DELETE_FILE, filename.c_str());
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("deleteFile: Fail: Error: "));
+      _debugPort->println(err);
+    }
+  }
+
+  free(command);
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::modulePowerOff(void)
 {
   SARA_R5_error_t err;

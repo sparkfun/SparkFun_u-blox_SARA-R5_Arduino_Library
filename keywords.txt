@@ -164,6 +164,7 @@ gpsRequest	KEYWORD2
 gpsAidingServerConf	KEYWORD2
 getFileContents	KEYWORD2
 getFileSize	KEYWORD2
+deleteFile	KEYWORD2
 functionality	KEYWORD2
 sendCustomCommandWithResponse	KEYWORD2
 
