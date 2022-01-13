@@ -41,6 +41,8 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
     _lastSocketProtocol[i] = 0; // Set to zero initially. Will be set to TCP/UDP by socketOpen etc.
   _autoTimeZoneForBegin = true;
+  _bufferedPollReentrant = false;
+  _pollReentrant = false;
 
   memset(_saraRXBuffer, 0, _RXBuffSize);
   memset(_pruneBuffer, 0, _RXBuffSize);
@@ -92,6 +94,11 @@ void SARA_R5::enableDebugging(Stream &debugPort)
 // It also has a built-in timeout - which ::poll does not
 bool SARA_R5::bufferedPoll(void)
 {
+  if (_bufferedPollReentrant == true) // Check for reentry (i.e. bufferedPoll has been called from inside a callback)
+    return false;
+
+  _bufferedPollReentrant = true;
+
   int avail = 0;
   char c = 0;
   bool handled = false;
@@ -190,8 +197,11 @@ bool SARA_R5::bufferedPoll(void)
   }
 
   free(event);
+
+  _bufferedPollReentrant = false;
+
   return handled;
-}
+} // /bufferedPoll
 
 // Parse incoming URC's - the associated parse functions pass the data to the user via the callbacks (if defined)
 bool SARA_R5::processURCEvent(const char *event)
@@ -480,6 +490,11 @@ bool SARA_R5::processURCEvent(const char *event)
 // ::bufferedPoll is the new improved version. It processes any data in the backlog and includes a timeout.
 bool SARA_R5::poll(void)
 {
+  if (_pollReentrant == true) // Check for reentry (i.e. poll has been called from inside a callback)
+    return false;
+
+  _pollReentrant = true;
+
   int avail = 0;
   char c = 0;
   bool handled = false;
@@ -512,6 +527,9 @@ bool SARA_R5::poll(void)
     {
     }
   }
+
+  _pollReentrant = false;
+
   return handled;
 }
 
@@ -4086,7 +4104,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
     searchPtr = strchr(searchPtr, '\"'); // Find the first quote
     searchPtr = strchr(++searchPtr, '\"'); // Find the second quote
 
-    int scanned = sscanf(searchPtr, "\",%d,", &readFileSize); // Get the file size (again)
+    scanned = sscanf(searchPtr, "\",%d,", &readFileSize); // Get the file size (again)
     if (scanned == 1)
     {
       searchPtr = strchr(++searchPtr, '\"'); // Find the third quote

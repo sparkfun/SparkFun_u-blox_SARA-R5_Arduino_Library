@@ -823,6 +823,8 @@ private:
   uint8_t _maxInitDepth;
   uint8_t _currentInitDepth = 0;
   bool _autoTimeZoneForBegin = true;
+  bool _bufferedPollReentrant = false; // Prevent reentry of bufferedPoll - just in case it gets called from a callback
+  bool _pollReentrant = false; // Prevent reentry of poll - just in case it gets called from a callback
 
   #define _RXBuffSize 2056
   const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
