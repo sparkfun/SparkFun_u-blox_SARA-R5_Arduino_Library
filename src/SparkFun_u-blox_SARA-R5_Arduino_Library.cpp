@@ -2634,8 +2634,10 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest, int 
     if (_printDebug == true)
     {
       if (bytesLeftToRead > 0)
+      {
         _debugPort->print(F("socketRead: multiple read. bytesLeftToRead: "));
         _debugPort->println(bytesLeftToRead);
+      }
     }
   } // /while (bytesLeftToRead > 0)
 
@@ -2862,8 +2864,10 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest,
     if (_printDebug == true)
     {
       if (bytesLeftToRead > 0)
+      {
         _debugPort->print(F("socketReadUDP: multiple read. bytesLeftToRead: "));
         _debugPort->println(bytesLeftToRead);
+      }
     }
   } // /while (bytesLeftToRead > 0)
 
