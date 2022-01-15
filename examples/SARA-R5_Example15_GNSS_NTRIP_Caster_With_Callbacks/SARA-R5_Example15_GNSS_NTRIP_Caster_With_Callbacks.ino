@@ -171,7 +171,13 @@ void setup()
   IPAddress myAddress;
   mySARA.getNetworkAssignedIPAddress(0, &myAddress);
   Serial.print(F("\r\nMy IP Address is: "));
-  Serial.println(myAddress.toString());
+  Serial.print(myAddress[0]);
+  Serial.print(F("."));
+  Serial.print(myAddress[1]);
+  Serial.print(F("."));
+  Serial.print(myAddress[2]);
+  Serial.print(F("."));
+  Serial.println(myAddress[3]);
 
   //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 

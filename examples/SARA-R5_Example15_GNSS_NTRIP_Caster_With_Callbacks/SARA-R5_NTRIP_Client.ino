@@ -118,6 +118,7 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
       if (millis() > (startTime + 5000))
       {
         Serial.println(F("beginClient: Caster timed out!"));
+        closeConnection(theSocket, connectionIsOpen);
         return (false);
       }
       delay(100);
@@ -171,6 +172,7 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
     {
       Serial.print(F("beginClient: Failed to connect to "));
       Serial.println(casterHost);
+      closeConnection(theSocket, connectionIsOpen);
       return (false);
     }
     else
