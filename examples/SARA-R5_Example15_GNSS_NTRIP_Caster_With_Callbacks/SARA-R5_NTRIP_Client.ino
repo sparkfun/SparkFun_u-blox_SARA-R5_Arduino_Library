@@ -83,6 +83,10 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
       String strEncodedCredentials = b.encode(userCredentials);
       char encodedCredentials[strEncodedCredentials.length() + 1];
       strEncodedCredentials.toCharArray(encodedCredentials, sizeof(encodedCredentials)); //Convert String to char array
+#elif defined(ARDUINO_ARCH_APOLLO3) || defined(ARDUINO_ARDUINO_NANO33BLE)
+      char encodedCredentials[sizeof(userCredentials) * 8];
+      size_t olen;
+      mbedtls_base64_encode((unsigned char *)encodedCredentials, sizeof(userCredentials) * 8, &olen, (const unsigned char *)userCredentials, strlen(userCredentials));
 #else
       //Encode with nfriendly library
       int encodedLen = base64_enc_len(strlen(userCredentials));

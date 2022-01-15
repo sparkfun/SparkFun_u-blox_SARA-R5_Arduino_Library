@@ -39,7 +39,7 @@
 // The ESP32 core has a built in base64 library but not every platform does
 // We'll use an external lib if necessary.
 
-#if defined(ARDUINO_ARCH_ESP32)
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_APOLLO3) || defined(ARDUINO_ARDUINO_NANO33BLE)
 #include "base64.h" //Built-in ESP32 library
 #else
 #include <Base64.h> //nfriendly library from https://github.com/adamvr/arduino-base64, will work with any platform
