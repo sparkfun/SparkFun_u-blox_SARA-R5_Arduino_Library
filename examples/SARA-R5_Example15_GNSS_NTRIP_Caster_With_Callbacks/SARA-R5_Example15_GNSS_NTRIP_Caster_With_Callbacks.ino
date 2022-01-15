@@ -175,6 +175,12 @@ void setup()
 
   //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+  // Set a callback to process the socket data
+  // This will push the RTCM data to the GNSS
+  mySARA.setSocketReadCallback(&processSocketData);
+  
+  //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
   // Set a callback to process the socket close
   // 
   // Note: the SARA-R5 only sends a +UUSOCL URC when the socket os closed by the remote
@@ -228,7 +234,7 @@ void loop()
   enum states // Use a 'state machine' to open and close the connection
   {
     open_connection,
-    process_connection_and_wait_for_keypress,
+    check_connection_and_wait_for_keypress,
     close_connection,
     waiting_for_keypress
   };
@@ -243,7 +249,7 @@ void loop()
       if (beginClient((int *)&socketNum, (bool *)&connectionOpen)) // Try to open the connection to the caster
       {
         Serial.println(F("Connected to the NTRIP caster! Press any key to disconnect..."));
-        state = process_connection_and_wait_for_keypress; // Move on
+        state = check_connection_and_wait_for_keypress; // Move on
       }
       else
       {
@@ -259,13 +265,12 @@ void loop()
 
     //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-    case process_connection_and_wait_for_keypress:
+    case check_connection_and_wait_for_keypress:
       // If the connection has dropped or timed out, or if the user has pressed a key
-      if ((processConnection((int)socketNum, (bool)connectionOpen) == false) || (keyPressed()))
+      if ((checkConnection((int)socketNum, (bool)connectionOpen) == false) || (keyPressed()))
       {
         state = close_connection; // Move on
       }
-      delay(50); // Don't pound the SARA too hard
       break;
     
     //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

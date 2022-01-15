@@ -43,6 +43,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _autoTimeZoneForBegin = true;
   _bufferedPollReentrant = false;
   _pollReentrant = false;
+  _currentInitDepth = 0;
 
   memset(_saraRXBuffer, 0, _RXBuffSize);
   memset(_pruneBuffer, 0, _RXBuffSize);
@@ -2490,16 +2491,23 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, String address, int port, St
   return socketWriteUDP(socket, address.c_str(), port, str.c_str(), str.length());
 }
 
-SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
+SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest, int *bytesRead)
 {
   char *command;
   char *response;
   char *strBegin;
-  int readIndex = 0;
+  int readIndexTotal = 0;
+  int readIndexThisRead = 0;
   SARA_R5_error_t err;
   int scanNum = 0;
   int readLength = 0;
   int socketStore = 0;
+  int bytesLeftToRead = length;
+  int bytesToRead;
+
+  // Set *bytesRead to zero
+  if (bytesRead != NULL)
+    *bytesRead = 0;
 
   // Check if length is zero
   if (length == 0)
@@ -2509,12 +2517,14 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
     return SARA_R5_ERROR_UNEXPECTED_PARAM;
   }
 
+  // Allocate memory for the command
   command = sara_r5_calloc_char(strlen(SARA_R5_READ_SOCKET) + 32);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-  sprintf(command, "%s=%d,%d", SARA_R5_READ_SOCKET, socket, length);
 
-  int responseLength = length + strlen(SARA_R5_READ_SOCKET) + minimumResponseAllocation;
+  // Allocate memory for the response
+  // We only need enough to read _saraR5maxSocketRead bytes - not the whole thing
+  int responseLength = _saraR5maxSocketRead + strlen(SARA_R5_READ_SOCKET) + minimumResponseAllocation;
   response = sara_r5_calloc_char(responseLength);
   if (response == NULL)
   {
@@ -2522,15 +2532,37 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
-                                SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
+  // If there are more than _saraR5maxSocketRead (1024) bytes to be read,
+  // we need to do multiple reads to get all the data
 
-  if (err == SARA_R5_ERROR_SUCCESS)
+  while (bytesLeftToRead > 0)
   {
-    // Extract the data - and check the quote is present
+    if (bytesLeftToRead > _saraR5maxSocketRead) // Limit a single read to _saraR5maxSocketRead
+      bytesToRead = _saraR5maxSocketRead;
+    else
+      bytesToRead = bytesLeftToRead;
+
+    sprintf(command, "%s=%d,%d", SARA_R5_READ_SOCKET, socket, bytesToRead);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
+
+    if (err != SARA_R5_ERROR_SUCCESS)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketRead: sendCommandWithResponse err "));
+        _debugPort->println(err);
+      }
+      free(command);
+      free(response);
+      return err;
+    }
+
+    // Extract the data
     char *searchPtr = strstr(response, "+USORD: ");
     if (searchPtr != NULL)
-      scanNum = sscanf(searchPtr, "+USORD: %d,%d,\"",
+      scanNum = sscanf(searchPtr, "+USORD: %d,%d",
                         &socketStore, &readLength);
     if (scanNum != 2)
     {
@@ -2544,21 +2576,32 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    // Check that readLength == length
-    // TO DO: handle this properly. The user needs to know how many bytes were read.
-    if (readLength != length)
+    // Check that readLength == bytesToRead
+    if (readLength != bytesToRead)
     {
       if (_printDebug == true)
       {
-        _debugPort->print(F("socketRead: length mismatch! length="));
-        _debugPort->print(length);
+        _debugPort->print(F("socketRead: length mismatch! bytesToRead="));
+        _debugPort->print(bytesToRead);
         _debugPort->print(F(" readLength="));
         _debugPort->println(readLength);
       }
     }
 
+    // Check that readLength > 0
+    if (readLength == 0)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->println(F("socketRead: zero length!"));
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_ZERO_READ_LENGTH;
+    }
+
     // Find the first double-quote:
-    strBegin = strchr(response, '\"');
+    strBegin = strchr(searchPtr, '\"');
 
     if (strBegin == NULL)
     {
@@ -2568,20 +2611,38 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest)
     }
 
     // Now copy the data into readDest
-    while (readIndex < readLength)
+    readIndexThisRead = 1; // Start after the quote
+    while (readIndexThisRead < (readLength + 1))
     {
-      readDest[readIndex] = strBegin[1 + readIndex];
-      readIndex++;
+      readDest[readIndexTotal] = strBegin[readIndexThisRead];
+      readIndexTotal++;
+      readIndexThisRead++;
     }
 
     if (_printDebug == true)
       _debugPort->println(F("socketRead: success"));
-  }
+
+    // Update *bytesRead
+    if (bytesRead != NULL)
+      *bytesRead = readIndexTotal;
+
+    // How many bytes are left to read?
+    // This would have been bytesLeftToRead -= bytesToRead
+    // Except the SARA can potentially return less data than requested...
+    // So we need to subtract readLength instead.
+    bytesLeftToRead -= readLength;
+    if (_printDebug == true)
+    {
+      if (bytesLeftToRead > 0)
+        _debugPort->print(F("socketRead: multiple read. bytesLeftToRead: "));
+        _debugPort->println(bytesLeftToRead);
+    }
+  } // /while (bytesLeftToRead > 0)
 
   free(command);
   free(response);
 
-  return err;
+  return SARA_R5_ERROR_SUCCESS;
 }
 
 SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
@@ -2635,18 +2696,26 @@ SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
   return err;
 }
 
-SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress, int *remotePort)
+SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest,
+                                      IPAddress *remoteIPAddress, int *remotePort, int *bytesRead)
 {
   char *command;
   char *response;
   char *strBegin;
-  int readIndex = 0;
+  int readIndexTotal = 0;
+  int readIndexThisRead = 0;
   SARA_R5_error_t err;
   int scanNum = 0;
   int remoteIPstore[4] = { 0, 0, 0, 0 };
   int portStore = 0;
   int readLength = 0;
   int socketStore = 0;
+  int bytesLeftToRead = length;
+  int bytesToRead;
+
+  // Set *bytesRead to zero
+  if (bytesRead != NULL)
+    *bytesRead = 0;
 
   // Check if length is zero
   if (length == 0)
@@ -2656,12 +2725,14 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
     return SARA_R5_ERROR_UNEXPECTED_PARAM;
   }
 
+  // Allocate memory for the command
   command = sara_r5_calloc_char(strlen(SARA_R5_READ_UDP_SOCKET) + 32);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-  sprintf(command, "%s=%d,%d", SARA_R5_READ_UDP_SOCKET, socket, length);
 
-  int responseLength = length + strlen(SARA_R5_READ_UDP_SOCKET) + minimumResponseAllocation;
+  // Allocate memory for the response
+  // We only need enough to read _saraR5maxSocketRead bytes - not the whole thing
+  int responseLength = _saraR5maxSocketRead + strlen(SARA_R5_READ_UDP_SOCKET) + minimumResponseAllocation;
   response = sara_r5_calloc_char(responseLength);
   if (response == NULL)
   {
@@ -2669,15 +2740,37 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
-                                SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
+  // If there are more than _saraR5maxSocketRead (1024) bytes to be read,
+  // we need to do multiple reads to get all the data
 
-  if (err == SARA_R5_ERROR_SUCCESS)
+  while (bytesLeftToRead > 0)
   {
-    // Extract the data - and check the third quote is present
+    if (bytesLeftToRead > _saraR5maxSocketRead) // Limit a single read to _saraR5maxSocketRead
+      bytesToRead = _saraR5maxSocketRead;
+    else
+      bytesToRead = bytesLeftToRead;
+
+    sprintf(command, "%s=%d,%d", SARA_R5_READ_UDP_SOCKET, socket, bytesToRead);
+
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
+
+    if (err != SARA_R5_ERROR_SUCCESS)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("socketReadUDP: sendCommandWithResponse err "));
+        _debugPort->println(err);
+      }
+      free(command);
+      free(response);
+      return err;
+    }
+
+    // Extract the data
     char *searchPtr = strstr(response, "+USORF: ");
     if (searchPtr != NULL)
-      scanNum = sscanf(searchPtr, "+USORF: %d,\"%d.%d.%d.%d\",%d,%d,\"",
+      scanNum = sscanf(searchPtr, "+USORF: %d,\"%d.%d.%d.%d\",%d,%d",
                         &socketStore, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
                         &portStore, &readLength);
     if (scanNum != 7)
@@ -2692,21 +2785,32 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
       return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
     }
 
-    // Check that readLength == length
-    // TO DO: handle this properly. The user needs to know how many bytes were read.
-    if (readLength != length)
+    // Check that readLength == bytesToRead
+    if (readLength != bytesToRead)
     {
       if (_printDebug == true)
       {
-        _debugPort->print(F("socketReadUDP: length mismatch! length="));
-        _debugPort->print(length);
+        _debugPort->print(F("socketReadUDP: length mismatch! bytesToRead="));
+        _debugPort->print(bytesToRead);
         _debugPort->print(F(" readLength="));
         _debugPort->println(readLength);
       }
     }
 
+    // Check that readLength > 0
+    if (readLength == 0)
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->println(F("socketRead: zero length!"));
+      }
+      free(command);
+      free(response);
+      return SARA_R5_ERROR_ZERO_READ_LENGTH;
+    }
+
     // Find the third double-quote
-    strBegin = strchr(response, '\"');
+    strBegin = strchr(searchPtr, '\"');
     strBegin = strchr(strBegin + 1, '\"');
     strBegin = strchr(strBegin + 1, '\"');
 
@@ -2718,10 +2822,12 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
     }
 
     // Now copy the data into readDest
-    while (readIndex < readLength)
+    readIndexThisRead = 1; // Start after the quote
+    while (readIndexThisRead < (readLength + 1))
     {
-      readDest[readIndex] = strBegin[1 + readIndex];
-      readIndex++;
+      readDest[readIndexTotal] = strBegin[readIndexThisRead];
+      readIndexTotal++;
+      readIndexThisRead++;
     }
 
     // If remoteIPaddress is not NULL, copy the remote IP address
@@ -2743,12 +2849,28 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest, I
 
     if (_printDebug == true)
       _debugPort->println(F("socketReadUDP: success"));
-  }
+
+    // Update *bytesRead
+    if (bytesRead != NULL)
+      *bytesRead = readIndexTotal;
+
+    // How many bytes are left to read?
+    // This would have been bytesLeftToRead -= bytesToRead
+    // Except the SARA can potentially return less data than requested...
+    // So we need to subtract readLength instead.
+    bytesLeftToRead -= readLength;
+    if (_printDebug == true)
+    {
+      if (bytesLeftToRead > 0)
+        _debugPort->print(F("socketReadUDP: multiple read. bytesLeftToRead: "));
+        _debugPort->println(bytesLeftToRead);
+    }
+  } // /while (bytesLeftToRead > 0)
 
   free(command);
   free(response);
 
-  return err;
+  return SARA_R5_ERROR_SUCCESS;
 }
 
 SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
@@ -4312,7 +4434,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     if (_printDebug == true)
       _debugPort->println(F("init: Power cycling module."));
     powerOff();
-    delay(1000);
+    delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
     powerOn();
     delay(2000);
     if (at() != SARA_R5_ERROR_SUCCESS)
@@ -4780,7 +4902,8 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
   if (readDest == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
 
-  err = socketRead(socket, length, readDest);
+  int bytesRead;
+  err = socketRead(socket, length, readDest, &bytesRead);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     free(readDest);
@@ -4790,7 +4913,7 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
   if (_socketReadCallback != NULL)
   {
     String dataAsString = ""; // Create an empty string
-    for (int i = 0; i < length; i++) // Copy the data from readDest into the String in a binary-compatible way
+    for (int i = 0; i < bytesRead; i++) // Copy the data from readDest into the String in a binary-compatible way
       dataAsString.concat(readDest[i]);
     _socketReadCallback(socket, dataAsString);
   }
@@ -4799,7 +4922,7 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
   {
     IPAddress dummyAddress = { 0, 0, 0, 0 };
     int dummyPort = 0;
-    _socketReadCallbackPlus(socket, (const char *)readDest, length, dummyAddress, dummyPort);
+    _socketReadCallbackPlus(socket, (const char *)readDest, bytesRead, dummyAddress, dummyPort);
   }
 
   free(readDest);
@@ -4828,7 +4951,8 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = socketReadUDP(socket, length, readDest, &remoteAddress, &remotePort);
+  int bytesRead;
+  err = socketReadUDP(socket, length, readDest, &remoteAddress, &remotePort, &bytesRead);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     free(readDest);
@@ -4838,14 +4962,14 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
   if (_socketReadCallback != NULL)
   {
     String dataAsString = ""; // Create an empty string
-    for (int i = 0; i < length; i++) // Copy the data from readDest into the String in a binary-compatible way
+    for (int i = 0; i < bytesRead; i++) // Copy the data from readDest into the String in a binary-compatible way
       dataAsString.concat(readDest[i]);
     _socketReadCallback(socket, dataAsString);
   }
 
   if (_socketReadCallbackPlus != NULL)
   {
-    _socketReadCallbackPlus(socket, (const char *)readDest, length, remoteAddress, remotePort);
+    _socketReadCallbackPlus(socket, (const char *)readDest, bytesRead, remoteAddress, remotePort);
   }
 
   free(readDest);

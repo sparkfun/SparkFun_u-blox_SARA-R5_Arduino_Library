@@ -2,7 +2,6 @@
 #include "secrets.h" // Update secrets.h with your AssistNow token string
 
 const unsigned long maxTimeBeforeHangup_ms = 20000UL; //If we fail to get a complete RTCM frame after 20s, then disconnect from caster
-const int maxSocketRead = 1000; // Limit socket reads to this length
 
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -130,8 +129,8 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
 
     //Check reply
     int connectionResult = 0;
-    char response[512 * 4];
-    memset(response, 0, 512 * 4);
+    char response[512];
+    memset(response, 0, 512);
     size_t responseSpot = 0;
     while ((availableLength > 0) && (connectionResult == 0)) // Read bytes from the caster and store them
     {
@@ -189,74 +188,24 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
 
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-//Read and push the RTCM data to the GNSS
+//Check the connection
 //Return false if: the connection has dropped, or if we receive no data for maxTimeBeforeHangup_ms
-bool processConnection(int theSocket, bool connectionIsOpen)
+bool checkConnection(int theSocket, bool connectionIsOpen)
 {
-  if (!connectionIsOpen)
+  if ((theSocket >= 0) && connectionIsOpen) // Check that the connection is still open
   {
-    Serial.print(F("processConnection: the connection is closed"));
-    if (theSocket < 0)
-    {
-      Serial.print(F(" and the socket is closed too!"));      
-    }
-    else
-    {
-      Serial.print(F("!"));
-    }
-    return (false);
+    ; // Nothing to do here. The RTCM is pushed to the GNSS by the callabck.
   }
-
-  if (theSocket < 0)
+  else
   {
-    Serial.print(F("processConnection: the socket is closed!"));      
-    return (false);
-  }
-
-  int availableLength = 0;
-  mySARA.socketReadAvailable(theSocket, &availableLength);
-
-  if (availableLength > 0)
-  {
-    Serial.print(F("processConnection: Socket "));
-    Serial.print(theSocket);
-    Serial.print(F(" has "));
-    Serial.print(availableLength);
-    Serial.println(F(" bytes available"));
-
-    if (availableLength > maxSocketRead)
-    {
-      Serial.println(F("processConnection: only reading 1024 bytes"));
-      availableLength = 1000;
-    }
-
-    uint8_t *socketData = new uint8_t[availableLength];
-
-    if (socketData == NULL)
-    {
-      Serial.print(F("processConnection: new (malloc) failed!"));
-      return (false);
-    }
-
-    if (mySARA.socketRead(theSocket, availableLength, (char *)socketData) != SARA_R5_SUCCESS)
-    {
-      Serial.print(F("processConnection: socketRead failed!"));
-      free(socketData);
-      return (false);      
-    }
-  
-    Serial.println(F("processConnection: Pushing it to the GNSS..."));
-    myGNSS.pushRawData(socketData, availableLength);
-
-    delete[] socketData;
-
-    lastReceivedRTCM_ms = millis(); // Update lastReceivedRTCM_ms
-  }
+    Serial.println(F("checkConnection: Connection dropped!"));
+    return (false); // Connection has dropped - return false
+  }  
   
   //Timeout if we don't have new data for maxTimeBeforeHangup_ms
   if ((millis() - lastReceivedRTCM_ms) > maxTimeBeforeHangup_ms)
   {
-    Serial.println(F("processConnection: RTCM timeout!"));
+    Serial.println(F("checkConnection: RTCM timeout!"));
     return (false); // Connection has timed out - return false
   }
 

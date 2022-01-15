@@ -1,12 +1,35 @@
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+// processSocketData is provided to the SARA-R5 library via a 
+// callback setter -- setSocketReadCallback. (See setup())
+void processSocketData(int socket, String theData)
+{
+  Serial.print(F("processSocketData: Data received on socket "));
+  Serial.print(socket);
+  Serial.print(F(". Length is "));
+  Serial.print(theData.length());
+  
+  if (connectionOpen)
+  {
+    Serial.println(F(". Pushing it to the GNSS..."));
+    myGNSS.pushRawData((uint8_t *)theData.c_str(), theData.length());
+
+    lastReceivedRTCM_ms = millis(); // Update lastReceivedRTCM_ms
+  }
+  else
+  {
+    Serial.println();
+  }
+}
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 // processSocketClose is provided to the SARA-R5 library via a 
 // callback setter -- setSocketCloseCallback. (See setup())
 // 
 // Note: the SARA-R5 only sends a +UUSOCL URC when the socket is closed by the remote
 void processSocketClose(int socket)
 {
-  Serial.println();
   Serial.print(F("processSocketClose: Socket "));
   Serial.print(socket);
   Serial.println(F(" closed!"));
@@ -24,7 +47,6 @@ void processSocketClose(int socket)
 // callback setter -- setPSDActionCallback. (See setup())
 void processPSDAction(int result, IPAddress ip)
 {
-  Serial.println();
   Serial.print(F("processPSDAction: result: "));
   Serial.print(String(result));
   if (result == 0)

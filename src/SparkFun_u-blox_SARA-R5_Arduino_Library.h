@@ -240,15 +240,16 @@ typedef enum
 
 typedef enum
 {
-  SARA_R5_ERROR_INVALID = -1,        // -1
-  SARA_R5_ERROR_SUCCESS = 0,         // 0
-  SARA_R5_ERROR_OUT_OF_MEMORY,       // 1
-  SARA_R5_ERROR_TIMEOUT,             // 2
-  SARA_R5_ERROR_UNEXPECTED_PARAM,    // 3
-  SARA_R5_ERROR_UNEXPECTED_RESPONSE, // 4
-  SARA_R5_ERROR_NO_RESPONSE,         // 5
-  SARA_R5_ERROR_DEREGISTERED,        // 6
-  SARA_R5_ERROR_ERROR                // 7
+  SARA_R5_ERROR_INVALID = -1,         // -1
+  SARA_R5_ERROR_SUCCESS = 0,          // 0
+  SARA_R5_ERROR_OUT_OF_MEMORY,        // 1
+  SARA_R5_ERROR_TIMEOUT,              // 2
+  SARA_R5_ERROR_UNEXPECTED_PARAM,     // 3
+  SARA_R5_ERROR_UNEXPECTED_RESPONSE,  // 4
+  SARA_R5_ERROR_NO_RESPONSE,          // 5
+  SARA_R5_ERROR_DEREGISTERED,         // 6
+  SARA_R5_ERROR_ZERO_READ_LENGTH,     // 7
+  SARA_R5_ERROR_ERROR                 // 8
 } SARA_R5_error_t;
 #define SARA_R5_SUCCESS SARA_R5_ERROR_SUCCESS
 
@@ -687,14 +688,16 @@ public:
   // Read data from the specified socket
   // Call socketReadAvailable first to determine how much data is available - or use the callbacks (triggered by URC's)
   // Works for both TCP and UDP - but socketReadUDP is preferred for UDP as it records the remote IP Address and port
-  SARA_R5_error_t socketRead(int socket, int length, char *readDest);
+  // bytesRead - if provided - will be updated with the number of bytes actually read. This could be less than length!
+  SARA_R5_error_t socketRead(int socket, int length, char *readDest, int *bytesRead = NULL);
   // Return the number of bytes available (waiting to be read) on the chosen socket
   // Uses +USORD. Valid for both TCP and UDP sockets - but socketReadAvailableUDP is preferred for UDP
   SARA_R5_error_t socketReadAvailable(int socket, int *length);
   // Read data from the specified UDP port
   // Call socketReadAvailableUDP first to determine how much data is available - or use the callbacks (triggered by URC's)
   // The remote IP Address and port are returned via *remoteIPAddress and *remotePort (if not NULL)
-  SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = NULL, int *remotePort = NULL);
+  // bytesRead - if provided - will be updated with the number of bytes actually read. This could be less than length!
+  SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = NULL, int *remotePort = NULL, int *bytesRead = NULL);
   // Return the number of bytes available (waiting to be read) on the chosen UDP socket
   SARA_R5_error_t socketReadAvailableUDP(int socket, int *length);
   // Start listening for a connection on the specified port. The connection is reported via the socket listen callback
@@ -871,6 +874,8 @@ private:
 
   // Send a command -- prepend AT if at is true
   void sendCommand(const char *command, bool at);
+
+  const int _saraR5maxSocketRead = 1024; // The limit on bytes that can be read in a single read
 
   SARA_R5_error_t parseSocketReadIndication(int socket, int length);
   SARA_R5_error_t parseSocketReadIndicationUDP(int socket, int length);
