@@ -183,7 +183,7 @@ void setup()
 
   // Set a callback to process the socket data
   // This will push the RTCM data to the GNSS
-  mySARA.setSocketReadCallback(&processSocketData);
+  mySARA.setSocketReadCallbackPlus(&processSocketData);
   
   //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
