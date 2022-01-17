@@ -120,16 +120,6 @@ bool getAssistNowOfflineData(String theFilename)
     return false;
   }
 
-  int fileSize;
-  if (mySARA.getFileSize(theFilename, &fileSize) != SARA_R5_SUCCESS)
-  {
-    Serial.print(F("getAssistNowOfflineData: No file written?!"));
-    return false;    
-  }
-  
-  Serial.print(F("File size is: "));
-  Serial.println(fileSize);
-
   return true;
 }
 
@@ -184,6 +174,65 @@ void prettyPrintString(String theString) // Pretty-print a String in HEX and ASC
     {
       if ((theString[i + j] >= 0x20) && (theString[i + j] <= 0x7E))
         Serial.write(theString[i + j]);
+      else
+        Serial.print(F("."));
+    }
+
+    Serial.println();
+  }
+
+  Serial.println();
+}
+
+//=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+void prettyPrintChars(char *theData, int theLength) // Pretty-print char data in HEX and ASCII format
+{
+  Serial.println();
+  Serial.print(F("String length is "));
+  Serial.print(theLength);
+  Serial.print(F(" (0x"));
+  Serial.print(theLength, HEX);
+  Serial.println(F(")"));
+  Serial.println();
+
+  for (int i = 0; i < theLength; i += 16)
+  {
+    if (i < 10000) Serial.print(F("0"));
+    if (i < 1000) Serial.print(F("0"));
+    if (i < 100) Serial.print(F("0"));
+    if (i < 10) Serial.print(F("0"));
+    Serial.print(i);
+
+    Serial.print(F(" 0x"));
+
+    if (i < 0x1000) Serial.print(F("0"));
+    if (i < 0x100) Serial.print(F("0"));
+    if (i < 0x10) Serial.print(F("0"));
+    Serial.print(i, HEX);
+
+    Serial.print(F(" "));
+
+    int j;
+    for (j = 0; ((i + j) < theLength) && (j < 16); j++)
+    {
+      if (theData[i + j] < 0x10) Serial.print(F("0"));
+      Serial.print(theData[i + j], HEX);
+      Serial.print(F(" "));
+    }
+
+    if (((i + j) == theLength) && (j < 16))
+    {
+      for (int k = 0; k < (16 - (theLength % 16)); k++)
+      {
+        Serial.print(F("   "));
+      }
+    }
+      
+    for (j = 0; ((i + j) < theLength) && (j < 16); j++)
+    {
+      if ((theData[i + j] >= 0x20) && (theData[i + j] <= 0x7E))
+        Serial.write(theData[i + j]);
       else
         Serial.print(F("."));
     }
