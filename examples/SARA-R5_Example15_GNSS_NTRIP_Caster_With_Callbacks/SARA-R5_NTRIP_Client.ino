@@ -14,11 +14,11 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
     Serial.print(F("beginClient: Socket is already open"));
     if (*connectionIsOpen)
     {
-      Serial.print(F(" and the connection is open!"));      
+      Serial.println(F(" and the connection is open!"));      
     }
     else
     {
-      Serial.print(F("!"));
+      Serial.println(F("!"));
     }
     return (false);
   }
@@ -56,23 +56,28 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
 
     // Set up the server request (GET)
     const int SERVER_BUFFER_SIZE = 512;
-    char serverRequest[SERVER_BUFFER_SIZE];
+    char *serverRequest = new char[SERVER_BUFFER_SIZE];
+    memset(serverRequest, 0, SERVER_BUFFER_SIZE);
     snprintf(serverRequest,
              SERVER_BUFFER_SIZE,
              "GET /%s HTTP/1.0\r\nUser-Agent: NTRIP SparkFun u-blox Client v1.0\r\n",
              mountPoint);
 
     // Set up the credentials
-    char credentials[512];
+    const int CREDENTIALS_BUFFER_SIZE = 512;
+    char *credentials = new char[CREDENTIALS_BUFFER_SIZE];
+    memset(credentials, 0, CREDENTIALS_BUFFER_SIZE);
     if (strlen(casterUser) == 0)
     {
-      strncpy(credentials, "Accept: */*\r\nConnection: close\r\n", sizeof(credentials));
+      strncpy(credentials, "Accept: */*\r\nConnection: close\r\n", CREDENTIALS_BUFFER_SIZE);
     }
     else
     {
       //Pass base64 encoded user:pw
-      char userCredentials[sizeof(casterUser) + sizeof(casterUserPW) + 1]; //The ':' takes up a spot
-      snprintf(userCredentials, sizeof(userCredentials), "%s:%s", casterUser, casterUserPW);
+      int userCredentialsSize = sizeof(casterUser) + sizeof(casterUserPW) + 1; //The ':' takes up a spot
+      char *userCredentials = new char[userCredentialsSize];
+      memset(userCredentials, 0, userCredentialsSize);
+      snprintf(userCredentials, userCredentialsSize, "%s:%s", casterUser, casterUserPW);
 
       Serial.print(F("beginClient: Sending credentials: "));
       Serial.println(userCredentials);
@@ -81,20 +86,27 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
       //Encode with ESP32 built-in library
       base64 b;
       String strEncodedCredentials = b.encode(userCredentials);
-      char encodedCredentials[strEncodedCredentials.length() + 1];
-      strEncodedCredentials.toCharArray(encodedCredentials, sizeof(encodedCredentials)); //Convert String to char array
+      int encodedCredentialsSize = strEncodedCredentials.length() + 1;
+      char *encodedCredentials = new char[encodedCredentialsSize];
+      memset(encodedCredentials, 0, encodedCredentialsSize);
+      strEncodedCredentials.toCharArray(encodedCredentials, encodedCredentialsSize); //Convert String to char array
 #elif defined(ARDUINO_ARCH_APOLLO3) || defined(ARDUINO_ARDUINO_NANO33BLE)
-      char encodedCredentials[sizeof(userCredentials) * 8];
+      int encodedCredentialsSize = userCredentialsSize * 8;
+      char *encodedCredentials = new char[encodedCredentialsSize];
+      memset(encodedCredentials, 0, encodedCredentialsSize);
       size_t olen;
-      mbedtls_base64_encode((unsigned char *)encodedCredentials, sizeof(userCredentials) * 8, &olen, (const unsigned char *)userCredentials, strlen(userCredentials));
+      mbedtls_base64_encode((unsigned char *)encodedCredentials, encodedCredentialsSize, &olen, (const unsigned char *)userCredentials, strlen(userCredentials));
 #else
       //Encode with nfriendly library
-      int encodedLen = base64_enc_len(strlen(userCredentials));
-      char encodedCredentials[encodedLen];                                         //Create array large enough to house encoded data
+      int encodedLen = base64_enc_len(userCredentialsSize);
+      char *encodedCredentials = new char[encodedLen]; //Create array large enough to house encoded data
+      memset(encodedCredentials, 0, encodedLen);
       base64_encode(encodedCredentials, userCredentials, strlen(userCredentials)); //Note: Input array is consumed
 #endif
 
-      snprintf(credentials, sizeof(credentials), "Authorization: Basic %s\r\n", encodedCredentials);
+      snprintf(credentials, CREDENTIALS_BUFFER_SIZE, "Authorization: Basic %s\r\n", encodedCredentials);
+      delete[] userCredentials;
+      delete[] encodedCredentials;
     }
 
     // Add the encoded credentials to the server request
@@ -104,7 +116,7 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
     Serial.print(F("beginClient: serverRequest size: "));
     Serial.print(strlen(serverRequest));
     Serial.print(F(" of "));
-    Serial.print(sizeof(serverRequest));
+    Serial.print(SERVER_BUFFER_SIZE);
     Serial.println(F(" bytes available"));
 
     // Send the server request
@@ -123,6 +135,8 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
       {
         Serial.println(F("beginClient: Caster timed out!"));
         closeConnection(theSocket, connectionIsOpen);
+        delete[] serverRequest;
+        delete[] credentials;
         return (false);
       }
       delay(100);
@@ -134,12 +148,12 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
 
     //Check reply
     int connectionResult = 0;
-    char response[512 * 4];
+    char *response = new char[512 * 4];
     memset(response, 0, 512 * 4);
     size_t responseSpot = 0;
     while ((availableLength > 0) && (connectionResult == 0)) // Read bytes from the caster and store them
     {
-      if ((responseSpot + availableLength) >= (sizeof(response) - 1)) // Exit the loop if we get too much data
+      if ((responseSpot + availableLength) >= ((512 * 4) - 1)) // Exit the loop if we get too much data
         break;
 
       mySARA.socketRead(*theSocket, availableLength, &response[responseSpot]);
@@ -171,6 +185,11 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
     response[responseSpot] = '\0'; // NULL-terminate the response
 
     //Serial.print(F("beginClient: Caster responded with: ")); Serial.println(response); // Uncomment this line to see the full response
+
+    // Free the memory allocated for serverRequest, credentials and response
+    delete[] serverRequest;
+    delete[] credentials;
+    delete[] response;
 
     if (connectionResult != 200)
     {
