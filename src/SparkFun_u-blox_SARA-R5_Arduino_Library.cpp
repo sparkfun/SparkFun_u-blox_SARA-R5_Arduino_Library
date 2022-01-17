@@ -2426,7 +2426,7 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str, int len)
   sprintf(command, "%s=%d,%d", SARA_R5_WRITE_SOCKET, socket, dataLen);
 
   err = sendCommandWithResponse(command, "@", response,
-                                SARA_R5_2_MIN_TIMEOUT);
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT * 5);
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
@@ -2498,7 +2498,7 @@ SARA_R5_error_t SARA_R5::socketWriteUDP(int socket, const char *address, int por
 
   sprintf(command, "%s=%d,\"%s\",%d,%d", SARA_R5_WRITE_UDP_SOCKET,
           socket, address, port, dataLen);
-  err = sendCommandWithResponse(command, "@", response, SARA_R5_IP_CONNECT_TIMEOUT);
+  err = sendCommandWithResponse(command, "@", response, SARA_R5_STANDARD_RESPONSE_TIMEOUT * 5);
 
   if (err == SARA_R5_ERROR_SUCCESS)
   {
