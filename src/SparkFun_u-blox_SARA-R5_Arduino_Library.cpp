@@ -4685,7 +4685,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       // {
       //   if (printedSomething == false)
       //     _debugPort->print(F("waitForResponse: "));
-      //   _debugPort->print(c);
+      //   _debugPort->write(c);
       //   printedSomething = true;
       // }
       if (c == expectedResponse[responseIndex])
@@ -4755,7 +4755,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   int index = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
-  bool printedSomething = false;
+  //bool printedSomething = false;
 
   if (_printDebug == true)
   {
@@ -4771,15 +4771,15 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
     {
       char c = readChar();
-      if (_printDebug == true)
-      {
-        if (printedSomething == false)
-        {
-          _debugPort->print(F("sendCommandWithResponse: Response: "));
-          printedSomething = true;
-        }
-        _debugPort->write(c);
-      }
+      // if (_printDebug == true)
+      // {
+      //   if (printedSomething == false)
+      //   {
+      //     _debugPort->print(F("sendCommandWithResponse: Response: "));
+      //     printedSomething = true;
+      //   }
+      //   _debugPort->write(c);
+      // }
       if (responseDest != NULL)
       {
         if (destIndex < destSize) // Only add this char to response if there is room for it
@@ -4789,11 +4789,11 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
         {
           if (_printDebug == true)
           {
-            if (printedSomething)
-              _debugPort->println();
+            // if (printedSomething)
+            //   _debugPort->println();
             _debugPort->print(F("sendCommandWithResponse: Panic! responseDest is full!"));
-            if (printedSomething)
-              _debugPort->print(F("sendCommandWithResponse: Ignored response: "));
+            // if (printedSomething)
+            //   _debugPort->print(F("sendCommandWithResponse: Ignored response: "));
           }
         }
       }
@@ -4825,9 +4825,9 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     }
   }
 
-  if (_printDebug == true)
-    if (printedSomething)
-      _debugPort->println();
+  // if (_printDebug == true)
+  //   if (printedSomething)
+  //     _debugPort->println();
 
   pruneBacklog(); // Prune any incoming non-actionable URC's and responses/errors from the backlog
 
