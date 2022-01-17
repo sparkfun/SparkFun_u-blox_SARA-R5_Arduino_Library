@@ -796,7 +796,8 @@ public:
 
   // File system
   // TO DO: add full support for file tags. Default tag to USER
-  SARA_R5_error_t getFileContents(String filename, String *contents);
+  SARA_R5_error_t getFileContents(String filename, String *contents); // OK for text files. But will fail with binary files (containing \0) on some platforms.
+  SARA_R5_error_t getFileContents(String filename, char *contents); // OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
   SARA_R5_error_t getFileSize(String filename, int *size);
   SARA_R5_error_t deleteFile(String filename);
 

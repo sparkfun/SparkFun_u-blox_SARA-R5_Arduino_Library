@@ -4165,6 +4165,7 @@ SARA_R5_error_t SARA_R5::gpsAidingServerConf(const char *primaryServer, const ch
   return err;
 }
 
+// OK for text files. But will fail with binary files (containing \0) on some platforms.
 SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
 {
   SARA_R5_error_t err;
@@ -4251,6 +4252,9 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
       while (bytesRead < readFileSize)
       {
         searchPtr++; // Increment searchPtr then copy file char into contents
+      // Important Note: some implementations of concat, like the one on ESP32, are binary-compatible.
+      // But some, like SAMD, are not. They use strlen or strcpy internally - which don't like \0's.
+      // The only true binary-compatible solution is to use getFileContents(String filename, char *contents)...
         contents->concat(*(searchPtr)); // Append file char to contents
         bytesRead++;
       }
@@ -4283,6 +4287,124 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
   return err;
 }
 
+// OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
+SARA_R5_error_t SARA_R5::getFileContents(String filename, char *contents)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+
+  // Start by getting the file size so we know in advance how much data to expect
+  int fileSize = 0;
+  err = getFileSize(filename, &fileSize);
+  if (err != SARA_R5_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: getFileSize returned err "));
+      _debugPort->println(err);
+    }
+    return err;
+  }
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + filename.length() + 8);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=\"%s\"", SARA_R5_FILE_SYSTEM_READ_FILE, filename.c_str());
+
+  response = sara_r5_calloc_char(fileSize + minimumResponseAllocation);
+  if (response == NULL)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: response alloc failed: "));
+      _debugPort->println(fileSize + minimumResponseAllocation);
+    }
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  // A large file will completely fill the backlog buffer - but it will be pruned afterwards
+  // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
+  // To try and avoid this, look for \"\r\nOK\r\n
+  const char fileReadTerm[] = "\"\r\nOK\r\n";
+  err = sendCommandWithResponse(command, fileReadTerm,
+                                response, (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT),
+                                (fileSize + minimumResponseAllocation));
+
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getFileContents: sendCommandWithResponse returned err "));
+      _debugPort->println(err);
+    }
+    free(command);
+    free(response);
+    return err;
+  }
+
+  // Response format: \r\n+URDFILE: "filename",36,"these bytes are the data of the file"\r\n\r\nOK\r\n
+  int scanned = 0;
+  int readFileSize = 0;
+  char *searchPtr = strstr(response, "+URDFILE: ");
+  if (searchPtr != NULL)
+  {
+    searchPtr = strchr(searchPtr, '\"'); // Find the first quote
+    searchPtr = strchr(++searchPtr, '\"'); // Find the second quote
+
+    scanned = sscanf(searchPtr, "\",%d,", &readFileSize); // Get the file size (again)
+    if (scanned == 1)
+    {
+      searchPtr = strchr(++searchPtr, '\"'); // Find the third quote
+
+      if (searchPtr == NULL)
+      {
+        if (_printDebug == true)
+        {
+          _debugPort->println(F("getFileContents: third quote not found!"));
+        }
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+      }
+
+      int bytesRead = 0;
+
+      while (bytesRead < readFileSize)
+      {
+        searchPtr++; // Increment searchPtr then copy file char into contents
+        contents[bytesRead] = *searchPtr; // Append file char to contents
+        bytesRead++;
+      }
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("getFileContents: total bytes read: "));
+        _debugPort->println(bytesRead);
+      }
+      err = SARA_R5_ERROR_SUCCESS;
+    }
+    else
+    {
+      if (_printDebug == true)
+      {
+        _debugPort->print(F("getFileContents: sscanf failed! scanned is "));
+        _debugPort->println(scanned);
+      }
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
+  }
+  else
+  {
+    if (_printDebug == true)
+      _debugPort->println(F("getFileContents: strstr failed!"));
+    err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
 SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
 {
   SARA_R5_error_t err;
@@ -4920,7 +5042,11 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndication(int socket, int length)
   if (_socketReadCallback != NULL)
   {
     String dataAsString = ""; // Create an empty string
-    for (int i = 0; i < bytesRead; i++) // Copy the data from readDest into the String in a binary-compatible way
+    // Copy the data from readDest into the String in a binary-compatible way
+    // Important Note: some implementations of concat, like the one on ESP32, are binary-compatible.
+    // But some, like SAMD, are not. They use strlen or strcpy internally - which don't like \0's.
+    // The only true binary-compatible solution is to use socketReadCallbackPlus...
+    for (int i = 0; i < bytesRead; i++)
       dataAsString.concat(readDest[i]);
     _socketReadCallback(socket, dataAsString);
   }
@@ -4969,6 +5095,9 @@ SARA_R5_error_t SARA_R5::parseSocketReadIndicationUDP(int socket, int length)
   if (_socketReadCallback != NULL)
   {
     String dataAsString = ""; // Create an empty string
+    // Important Note: some implementations of concat, like the one on ESP32, are binary-compatible.
+    // But some, like SAMD, are not. They use strlen or strcpy internally - which don't like \0's.
+    // The only true binary-compatible solution is to use socketReadCallbackPlus...
     for (int i = 0; i < bytesRead; i++) // Copy the data from readDest into the String in a binary-compatible way
       dataAsString.concat(readDest[i]);
     _socketReadCallback(socket, dataAsString);
