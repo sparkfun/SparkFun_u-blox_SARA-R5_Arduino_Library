@@ -4758,9 +4758,10 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   bool printedSomething = false;
 
   if (_printDebug == true)
+  {
     _debugPort->print(F("sendCommandWithResponse: Command: "));
-  if (_printDebug == true)
     _debugPort->println(String(command));
+  }
 
   sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
@@ -4773,9 +4774,11 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       if (_printDebug == true)
       {
         if (printedSomething == false)
+        {
           _debugPort->print(F("sendCommandWithResponse: Response: "));
-        _debugPort->print(c);
-        printedSomething = true;
+          printedSomething = true;
+        }
+        _debugPort->write(c);
       }
       if (responseDest != NULL)
       {
