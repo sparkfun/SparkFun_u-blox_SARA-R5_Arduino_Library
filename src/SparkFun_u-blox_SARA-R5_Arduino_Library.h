@@ -832,9 +832,9 @@ private:
 
   #define _RXBuffSize 2056
   const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
-  char _saraRXBuffer[_RXBuffSize];
-  char _pruneBuffer[_RXBuffSize];
-  char _saraResponseBacklog[_RXBuffSize];
+  char *_saraRXBuffer; // Allocated in SARA_R5::begin
+  char *_pruneBuffer;
+  char *_saraResponseBacklog;
   int _saraResponseBacklogLength = 0; // The backlog could contain binary data so we can't use strlen to find its length
 
   void (*_socketListenCallback)(int, IPAddress, unsigned int, int, IPAddress, unsigned int);
