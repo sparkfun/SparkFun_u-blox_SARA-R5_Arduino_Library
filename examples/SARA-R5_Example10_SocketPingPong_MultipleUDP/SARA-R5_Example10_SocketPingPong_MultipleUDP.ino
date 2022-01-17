@@ -121,7 +121,13 @@ void processSocketData(int socket, const char *theData, int length, IPAddress re
   Serial.print(F("Data received on socket "));
   Serial.print(socket);
   Serial.print(F(" from IP "));
-  Serial.print(remoteAddress.toString());
+  Serial.print(remoteAddress[0]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[1]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[2]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[3]);
   Serial.print(F(" using port "));
   Serial.print(remotePort);
   Serial.print(F(" :"));
@@ -148,18 +154,10 @@ void processSocketData(int socket, const char *theData, int length, IPAddress re
   {
     if (pingCount[connection] < pingPongLimit)
     {
-      // Use the const char * version
-      //const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
-      //mySARA.socketWriteUDP(socket, remoteAddress, remotePort, ping, 4); // Send the "Ping"
+      // Use the const char * version for binary data
+      const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
+      mySARA.socketWriteUDP(socket, remoteAddress, remotePort, ping, 4); // Send the "Ping"
   
-      // Or use the String version. Both are OK for binary data.
-      String ping = "";
-      ping.concat('\0'); // Construct the ping in a binary-friendly way
-      ping.concat('\1');
-      ping.concat('\2');
-      ping.concat('\3');
-      mySARA.socketWriteUDP(socket, remoteAddress.toString(), remotePort, ping); // Send the "Ping"
-      
       pingCount[connection]++;
     }
   }
@@ -196,7 +194,13 @@ void processPSDAction(int result, IPAddress ip)
   if (result == 0)
     Serial.print(F(" (success)"));
   Serial.print(F("  IP Address: \""));
-  Serial.print(ip.toString());
+  Serial.print(ip[0]);
+  Serial.print(F("."));
+  Serial.print(ip[1]);
+  Serial.print(F("."));
+  Serial.print(ip[2]);
+  Serial.print(F("."));
+  Serial.print(ip[3]);
   Serial.println(F("\""));
 }
 
@@ -292,7 +296,13 @@ void setup()
   IPAddress myAddress;
   mySARA.getNetworkAssignedIPAddress(0, &myAddress);
   Serial.print(F("\r\nMy IP Address is: "));
-  Serial.println(myAddress.toString());
+  Serial.print(myAddress[0]);
+  Serial.print(F("."));
+  Serial.print(myAddress[1]);
+  Serial.print(F("."));
+  Serial.print(myAddress[2]);
+  Serial.print(F("."));
+  Serial.println(myAddress[3]);
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -344,7 +354,13 @@ void setup()
   }
 
   Serial.print(F("Remote address is "));
-  Serial.println(theAddress.toString());
+  Serial.print(theAddress[0]);
+  Serial.print(F("."));
+  Serial.print(theAddress[1]);
+  Serial.print(F("."));
+  Serial.print(theAddress[2]);
+  Serial.print(F("."));
+  Serial.println(theAddress[3]);
   
   // Open the sockets
   for (int i = 0; i < numConnections; i++)
