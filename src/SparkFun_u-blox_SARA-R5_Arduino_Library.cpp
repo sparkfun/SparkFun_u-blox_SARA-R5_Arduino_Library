@@ -4405,6 +4405,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, char *contents)
   free(response);
   return err;
 }
+
 SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
 {
   SARA_R5_error_t err;
