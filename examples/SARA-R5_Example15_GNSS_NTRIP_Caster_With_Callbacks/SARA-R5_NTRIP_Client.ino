@@ -98,8 +98,8 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
     }
 
     // Add the encoded credentials to the server request
-    strncat(serverRequest, credentials, SERVER_BUFFER_SIZE);
-    strncat(serverRequest, "\r\n", SERVER_BUFFER_SIZE);
+    strncat(serverRequest, credentials, SERVER_BUFFER_SIZE - 1);
+    strncat(serverRequest, "\r\n", SERVER_BUFFER_SIZE - 1);
 
     Serial.print(F("beginClient: serverRequest size: "));
     Serial.print(strlen(serverRequest));
@@ -134,8 +134,8 @@ bool beginClient(int *theSocket, bool *connectionIsOpen)
 
     //Check reply
     int connectionResult = 0;
-    char response[512];
-    memset(response, 0, 512);
+    char response[512 * 4];
+    memset(response, 0, 512 * 4);
     size_t responseSpot = 0;
     while ((availableLength > 0) && (connectionResult == 0)) // Read bytes from the caster and store them
     {
