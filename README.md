@@ -16,7 +16,7 @@ An Arduino library for the u-blox SARA-R5 LTE-M / NB-IoT modules with secure clo
 
 v1.1 has had a thorough update and includes new features and examples. This library now supports up to 7 simultaneous TCP or UDP sockets. There are new examples to show how to play ping pong with both TCP and UDP sockets.
 
-v1.1 also supports binary data transfers correctly. There are new examples showing how you can integrate this library with the [SparkFun u-blox GNSS Arduino Library](https://github.com/sparkfun/SparkFun_u-blox_GNSS_Arduino_Library), to use the SARA-R5 to: download AssistNow Online and Offline data and push it to the GNSS; open a connection to a NTRIP Caster (such as RTK2go, Skylark or Emlid Caster) and push RTK correction data to the GNSS.
+v1.1 also supports binary data transfers correctly. There are new examples showing how you can integrate this library with the [SparkFun u-blox GNSS Arduino Library](https://github.com/sparkfun/SparkFun_u-blox_GNSS_Arduino_Library) and use the SARA-R5 to: download AssistNow Online and Offline data and push it to the GNSS; open a connection to a NTRIP Caster (such as RTK2go, Skylark or Emlid Caster) and push RTK correction data to the GNSS.
 
 You can install this library using the Arduino IDE Library Manager: search for _**SparkFun u-blox SARA-R5**_
 
