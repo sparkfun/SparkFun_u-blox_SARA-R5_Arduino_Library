@@ -143,14 +143,14 @@ void processSocketListen(int listeningSocket, IPAddress localIP, unsigned int li
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 // processSocketData is provided to the SARA-R5 library via a 
-// callback setter -- setSocketReadCallback. (See setup())
-void processSocketData(int socket, String theData)
+// callback setter -- setSocketReadCallbackPlus. (See setup())
+void processSocketData(int socket, const char *theData, int dataLength, IPAddress remoteAddress, int remotePort)
 {
   Serial.println();
   Serial.print(F("Data received on socket "));
   Serial.print(socket);
   Serial.print(F(" :"));
-  for (int i = 0; i < theData.length(); i++)
+  for (int i = 0; i < dataLength; i++)
   {
     Serial.print(F(" 0x"));
     if (theData[i] < 16)
@@ -168,18 +168,10 @@ void processSocketData(int socket, String theData)
 
   if ((theData[0] == 0x04) && (theData[1] == 0x05) && (theData[2] == 0x06) && (theData[3] == 0x07)) // Look for the "Pong"
   {
-    // Use the const char * version
-    //const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
-    //mySARA.socketWrite(socket, ping, 4); // Send the "Ping"
+    // Use the const char * version for binary data
+    const char ping[] = { 0x00, 0x01, 0x02, 0x03 };
+    mySARA.socketWrite(socket, ping, 4); // Send the "Ping"
 
-    // Or use the String version. Both are OK for binary data.
-    String ping = "";
-    ping.concat('\0'); // Construct the ping in a binary-friendly way
-    ping.concat('\1');
-    ping.concat('\2');
-    ping.concat('\3');
-    mySARA.socketWrite(socket, ping); // Send the "Ping"
-    
     pingCount++;
   }
 
@@ -215,13 +207,13 @@ void processPSDAction(int result, IPAddress ip)
   if (result == 0)
     Serial.print(F(" (success)"));
   Serial.print(F("  IP Address: \""));
-  Serial.print(String(ip[0]));
+  Serial.print(ip[0]);
   Serial.print(F("."));
-  Serial.print(String(ip[1]));
+  Serial.print(ip[1]);
   Serial.print(F("."));
-  Serial.print(String(ip[2]));
+  Serial.print(ip[2]);
   Serial.print(F("."));
-  Serial.print(String(ip[3]));
+  Serial.print(ip[3]);
   Serial.println(F("\""));
 }
 
@@ -311,7 +303,13 @@ void setup()
   IPAddress myAddress;
   mySARA.getNetworkAssignedIPAddress(0, &myAddress);
   Serial.print(F("\r\nMy IP Address is: "));
-  Serial.println(myAddress.toString());
+  Serial.print(myAddress[0]);
+  Serial.print(F("."));
+  Serial.print(myAddress[1]);
+  Serial.print(F("."));
+  Serial.print(myAddress[2]);
+  Serial.print(F("."));
+  Serial.println(myAddress[3]);
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -321,7 +319,7 @@ void setup()
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
   // Set a callback to process the socket data
-  mySARA.setSocketReadCallback(&processSocketData);
+  mySARA.setSocketReadCallbackPlus(&processSocketData);
   
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -409,8 +407,14 @@ void setup()
       }
     }
 
-    Serial.print(F("Remote address is "));
-    Serial.println(theAddress.toString());
+    Serial.print(F("Remote address is: "));
+    Serial.print(theAddress[0]);
+    Serial.print(F("."));
+    Serial.print(theAddress[1]);
+    Serial.print(F("."));
+    Serial.print(theAddress[2]);
+    Serial.print(F("."));
+    Serial.println(theAddress[3]);
     
     // Open the socket
     socketNum = mySARA.socketOpen(SARA_R5_TCP);
@@ -541,7 +545,13 @@ void printSocketParameters(int socket)
   IPAddress remoteAddress;
   int remotePort;
   mySARA.querySocketRemoteIPAddress(socket, &remoteAddress, &remotePort);
-  Serial.println(remoteAddress.toString());
+  Serial.print(remoteAddress[0]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[1]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[2]);
+  Serial.print(F("."));
+  Serial.println(remoteAddress[3]);
 
   Serial.print(F("Socket status (TCP sockets only): "));
   SARA_R5_tcp_socket_status_t socketStatus;

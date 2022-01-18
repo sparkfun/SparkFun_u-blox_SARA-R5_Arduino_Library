@@ -173,16 +173,27 @@ void setup()
 
   // Read the AssistNow data from file and push it to the module
 
-  // Read the data from file
-  String theAssistData = "";
-  if (mySARA.getFileContents(theFilename, &theAssistData) != SARA_R5_SUCCESS)
+  int fileSize;
+  if (mySARA.getFileSize(theFilename, &fileSize) != SARA_R5_SUCCESS)
   {
-    Serial.println(F("getFileContents failed! Freezing..."));
+    Serial.print(F("getFileSize failed! Freezing..."));
     while (1)
       ; // Do nothing more    
   }
+  
+  Serial.print(F("AssistNow file size is: "));
+  Serial.println(fileSize);
 
-  //prettyPrintString(theAssistData); // Uncomment this line to see the whole file contents (including the HTTP header)
+  // Read the data from file
+  char *theAssistData = new char[fileSize];
+  if (mySARA.getFileContents(theFilename, theAssistData) != SARA_R5_SUCCESS)
+  {
+    Serial.println(F("getFileContents failed! Freezing..."));
+    while (1)
+      ; // Do nothing more
+  }
+
+  //prettyPrintChars(theAssistData, fileSize); // Uncomment this line to see the whole file contents (including the HTTP header)
   
   // Tell the module to return UBX_MGA_ACK_DATA0 messages when we push the AssistNow data
   myGNSS.setAckAiding(1);
@@ -198,7 +209,10 @@ void setup()
   // We have called setAckAiding(1) to instruct the module to return MGA-ACK messages.
   // So, set the pushAssistNowData mgaAck parameter to SFE_UBLOX_MGA_ASSIST_ACK_YES.
   // Wait for up to 100ms for each ACK to arrive! 100ms is a bit excessive... 7ms is nearer the mark.
-  myGNSS.pushAssistNowData(theAssistData, theAssistData.length(), SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
+  myGNSS.pushAssistNowData((const uint8_t *)theAssistData, fileSize, SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
+
+  // Delete the memory allocated to store the AssistNow data
+  delete[] theAssistData;
 
   // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
   myGNSS.setI2CpollingWait(125);

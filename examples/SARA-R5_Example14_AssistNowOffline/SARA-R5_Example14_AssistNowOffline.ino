@@ -210,16 +210,27 @@ void setup()
 
   // Read the AssistNow data from file
 
+  int fileSize;
+  if (mySARA.getFileSize(theFilename, &fileSize) != SARA_R5_SUCCESS)
+  {
+    Serial.print(F("getFileSize failed! Freezing..."));
+    while (1)
+      ; // Do nothing more    
+  }
+  
+  Serial.print(F("File size is: "));
+  Serial.println(fileSize);
+
   // Read the data from file
-  String theAssistData = "";
-  if (mySARA.getFileContents(theFilename, &theAssistData) != SARA_R5_SUCCESS)
+  char *theAssistData = new char[fileSize];
+  if (mySARA.getFileContents(theFilename, theAssistData) != SARA_R5_SUCCESS)
   {
     Serial.println(F("getFileContents failed! Freezing..."));
     while (1)
       ; // Do nothing more    
   }
 
-  //prettyPrintString(theAssistData); // Uncomment this line to see the whole file contents (including the HTTP header)
+  //prettyPrintChars(theAssistData, fileSize); // Uncomment this line to see the whole file contents (including the HTTP header)
 
   //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -254,13 +265,13 @@ void setup()
   // Find where the AssistNow data for today starts and ends
 
   size_t todayStart = 0; // Default to sending all the data
-  size_t tomorrowStart = (size_t)theAssistData.length();
+  size_t tomorrowStart = (size_t)fileSize;
   
-  if (theAssistData.length() > 0)
+  if (fileSize > 0)
   {
     // Find the start of today's data
-    todayStart = myGNSS.findMGAANOForDate(theAssistData, (size_t)theAssistData.length(), year + 2000, month, day);
-    if (todayStart < (size_t)theAssistData.length())
+    todayStart = myGNSS.findMGAANOForDate((const uint8_t *)theAssistData, (size_t)fileSize, year + 2000, month, day);
+    if (todayStart < (size_t)fileSize)
     {
       Serial.print(F("Found the data for today starting at location "));
       Serial.println(todayStart);
@@ -271,8 +282,8 @@ void setup()
     }
     
     // Find the start of tomorrow's data
-    tomorrowStart = myGNSS.findMGAANOForDate(theAssistData, (size_t)theAssistData.length(), year + 2000, month, day, 1);
-    if (tomorrowStart < (size_t)theAssistData.length())
+    tomorrowStart = myGNSS.findMGAANOForDate((const uint8_t *)theAssistData, (size_t)fileSize, year + 2000, month, day, 1);
+    if (tomorrowStart < (size_t)fileSize)
     {
       Serial.print(F("Found the data for tomorrow starting at location "));
       Serial.println(tomorrowStart);
@@ -309,9 +320,12 @@ void setup()
     //
     // pushAssistNowData is clever and will only push valid UBX-format data.
     // It will ignore the HTTP header at the start of the AssistNow file.
-    myGNSS.pushAssistNowData(todayStart, true, theAssistData, tomorrowStart - todayStart, SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
+    myGNSS.pushAssistNowData(todayStart, true, (const uint8_t *)theAssistData, tomorrowStart - todayStart, SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
 
-    // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
+    // Delete the memory allocated to store the AssistNow data
+    delete[] theAssistData;
+
+  // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
     myGNSS.setI2CpollingWait(125);
   }
 

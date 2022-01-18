@@ -320,7 +320,13 @@ void setup()
   IPAddress myAddress;
   mySARA.getNetworkAssignedIPAddress(0, &myAddress);
   Serial.print(F("\r\nMy IP Address is: "));
-  Serial.println(myAddress.toString());
+  Serial.print(myAddress[0]);
+  Serial.print(F("."));
+  Serial.print(myAddress[1]);
+  Serial.print(F("."));
+  Serial.print(myAddress[2]);
+  Serial.print(F("."));
+  Serial.println(myAddress[3]);
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -419,7 +425,13 @@ void setup()
     }
 
     Serial.print(F("Remote address is "));
-    Serial.println(theAddress.toString());
+    Serial.print(theAddress[0]);
+    Serial.print(F("."));
+    Serial.print(theAddress[1]);
+    Serial.print(F("."));
+    Serial.print(theAddress[2]);
+    Serial.print(F("."));
+    Serial.println(theAddress[3]);
     
     // Open the sockets
     for (int i = 0; i < numConnections; i++)
@@ -569,7 +581,13 @@ void printSocketParameters(int socket)
   IPAddress remoteAddress;
   int remotePort;
   mySARA.querySocketRemoteIPAddress(socket, &remoteAddress, &remotePort);
-  Serial.println(remoteAddress.toString());
+  Serial.print(remoteAddress[0]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[1]);
+  Serial.print(F("."));
+  Serial.print(remoteAddress[2]);
+  Serial.print(F("."));
+  Serial.println(remoteAddress[3]);
 
   Serial.print(F("Socket status (TCP sockets only): "));
   SARA_R5_tcp_socket_status_t socketStatus;
