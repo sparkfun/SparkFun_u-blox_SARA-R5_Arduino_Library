@@ -222,8 +222,8 @@ void setup()
   Serial.println(fileSize);
 
   // Read the data from file
-  char theAssistData[fileSize]; 
-  if (mySARA.getFileContents(theFilename, (char *)theAssistData) != SARA_R5_SUCCESS)
+  char *theAssistData = new char[fileSize];
+  if (mySARA.getFileContents(theFilename, theAssistData) != SARA_R5_SUCCESS)
   {
     Serial.println(F("getFileContents failed! Freezing..."));
     while (1)
@@ -322,7 +322,10 @@ void setup()
     // It will ignore the HTTP header at the start of the AssistNow file.
     myGNSS.pushAssistNowData(todayStart, true, (const uint8_t *)theAssistData, tomorrowStart - todayStart, SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
 
-    // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
+    // Delete the memory allocated to store the AssistNow data
+    delete[] theAssistData;
+
+  // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
     myGNSS.setI2CpollingWait(125);
   }
 

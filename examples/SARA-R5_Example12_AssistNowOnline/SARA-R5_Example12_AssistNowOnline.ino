@@ -185,12 +185,12 @@ void setup()
   Serial.println(fileSize);
 
   // Read the data from file
-  char theAssistData[fileSize];
-  if (mySARA.getFileContents(theFilename, (char *)theAssistData) != SARA_R5_SUCCESS)
+  char *theAssistData = new char[fileSize];
+  if (mySARA.getFileContents(theFilename, theAssistData) != SARA_R5_SUCCESS)
   {
     Serial.println(F("getFileContents failed! Freezing..."));
     while (1)
-      ; // Do nothing more    
+      ; // Do nothing more
   }
 
   //prettyPrintChars(theAssistData, fileSize); // Uncomment this line to see the whole file contents (including the HTTP header)
@@ -210,6 +210,9 @@ void setup()
   // So, set the pushAssistNowData mgaAck parameter to SFE_UBLOX_MGA_ASSIST_ACK_YES.
   // Wait for up to 100ms for each ACK to arrive! 100ms is a bit excessive... 7ms is nearer the mark.
   myGNSS.pushAssistNowData((const uint8_t *)theAssistData, fileSize, SFE_UBLOX_MGA_ASSIST_ACK_YES, 100);
+
+  // Delete the memory allocated to store the AssistNow data
+  delete[] theAssistData;
 
   // Set setI2CpollingWait to 125ms to avoid pounding the I2C bus
   myGNSS.setI2CpollingWait(125);
