@@ -220,22 +220,17 @@ bool checkConnection(int theSocket, bool connectionIsOpen)
   // See if new PVT data is available
   if (myGNSS.getPVT()) // getPVT will return true if fresh data is available
   {
-    long latitude = myGNSS.getLatitude(); // Print the latitude
+    double latitude = (double)myGNSS.getLatitude(); // Print the latitude
     Serial.print(F("checkConnection: Lat: "));
-    Serial.print(latitude / 10000000L);
-    Serial.print(F("."));
-    Serial.print(abs(latitude % 10000000L));
+    Serial.print(latitude / 10000000.0, 7);
   
-    long longitude = myGNSS.getLongitude(); // Print the longitude
+    double longitude = (double)myGNSS.getLongitude(); // Print the longitude
     Serial.print(F("  Long: "));
-    Serial.print(longitude / 10000000L);
-    Serial.print(F("."));
-    Serial.print(abs(longitude % 10000000L));
+    Serial.print(longitude / 10000000.0, 7);
   
-    long altitude = myGNSS.getAltitudeMSL(); // Print the height above mean sea level
+    double altitude = (double)myGNSS.getAltitudeMSL(); // Print the height above mean sea level
     Serial.print(F("  Height: "));
-    Serial.print(altitude);
-    Serial.print(F(" (mm)"));
+    Serial.print(altitude / 1000.0, 3);
   
     uint8_t fixType = myGNSS.getFixType(); // Print the fix type
     Serial.print(F("  Fix: "));
