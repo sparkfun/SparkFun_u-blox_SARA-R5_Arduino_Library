@@ -16,7 +16,7 @@
 
 #include <SparkFun_u-blox_SARA-R5_Arduino_Library.h>
 
-SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
+SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitTries)
 {
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   _softSerial = NULL;
@@ -26,7 +26,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _resetPin = resetPin;
   _powerPin = powerPin;
   _invertPowerPin = false;
-  _maxInitDepth = maxInitDepth;
+  _maxInitTries = maxInitTries;
   _socketListenCallback = NULL;
   _socketReadCallback = NULL;
   _socketReadCallbackPlus = NULL;
@@ -47,7 +47,6 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _autoTimeZoneForBegin = true;
   _bufferedPollReentrant = false;
   _pollReentrant = false;
-  _currentInitDepth = 0;
   _saraResponseBacklogLength = 0;
 }
 
@@ -690,8 +689,8 @@ size_t SARA_R5::write(const char *buffer, size_t size)
 SARA_R5_error_t SARA_R5::at(void)
 {
   SARA_R5_error_t err;
-
-  err = sendCommandWithResponse(NULL, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+  
+  err = sendCommandWithResponse(NULL, SARA_R5_RESPONSE_OK, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   return err;
@@ -705,19 +704,10 @@ SARA_R5_error_t SARA_R5::enableEcho(bool enable)
   command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_ECHO) + 2);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-  if (enable)
-  {
-    sprintf(command, "%s1", SARA_R5_COMMAND_ECHO);
-  }
-  else
-  {
-    sprintf(command, "%s0", SARA_R5_COMMAND_ECHO);
-  }
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
+  sprintf(command, "%s%d", SARA_R5_COMMAND_ECHO, enable ? 1 : 0);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
-
   free(command);
-
   return err;
 }
 
@@ -4628,7 +4618,11 @@ SARA_R5_error_t SARA_R5::appendFileContents(String filename, const char *str, in
 
   err = sendCommandWithResponse(command, ">", response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT*2);
-  delay(50);
+  
+  unsigned long writeDelay = millis();
+  while (millis() < (writeDelay + 50))
+    delay(1); //uBlox specification says to wait 50ms after receiving "@" to write data.
+
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (_printDebug == true)
@@ -5025,58 +5019,60 @@ void SARA_R5::modulePowerOn(void)
 SARA_R5_error_t SARA_R5::init(unsigned long baud,
                               SARA_R5::SARA_R5_init_type_t initType)
 {
-  SARA_R5_error_t err;
-
-  //If we have recursively called init too many times, bail
-  _currentInitDepth++;
-  if (_currentInitDepth == _maxInitDepth)
+  int retries = _maxInitTries;
+  SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
+  
+  do
   {
+    if (_printDebug == true)
+      _debugPort->println(F("init: Begin module init."));
+
+    beginSerial(baud);
+
+    if (initType == SARA_R5_INIT_AUTOBAUD)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("init: Attempting autobaud connection to module."));
+      
+      err = autobaud(baud);
+      if (err != SARA_R5_ERROR_SUCCESS) {
+        initType = SARA_R5_INIT_RESET;
+      }
+    }
+    else if (initType == SARA_R5_INIT_RESET)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("init: Power cycling module."));
+      
+      powerOff();
+      delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
+      powerOn();
+      delay(2000);
+      
+      err = at();
+      if (err != SARA_R5_ERROR_SUCCESS)
+      {
+         initType = SARA_R5_INIT_AUTOBAUD;
+      }
+    }
+    if (err == SARA_R5_ERROR_SUCCESS)
+    {
+      err = enableEcho(false); // = disableEcho
+      if (err != SARA_R5_ERROR_SUCCESS)
+      {
+        if (_printDebug == true)
+          _debugPort->println(F("init: Module failed echo test."));
+        initType =  SARA_R5_INIT_AUTOBAUD;
+      }
+    }
+  }
+  while ((retries --) && (err != SARA_R5_ERROR_SUCCESS));
+  
+  // we tried but seems failed
+  if (err != SARA_R5_ERROR_SUCCESS) {
     if (_printDebug == true)
       _debugPort->println(F("init: Module failed to init. Exiting."));
     return (SARA_R5_ERROR_NO_RESPONSE);
-  }
-
-  if (_printDebug == true)
-    _debugPort->println(F("init: Begin module init."));
-
-  // There's no 'easy' way to tell if the serial port has already been begun for us.
-  // We have to assume it has not been begun and so do it here.
-  // For special cases like Software Serial on ESP32, we need to begin _and_ end the port externally
-  // _before_ calling the SARA_R5 .begin.
-  // See SARA-R5_Example2_Identification_ESPSoftwareSerial for more details.
-  beginSerial(baud);
-
-  if (initType == SARA_R5_INIT_AUTOBAUD)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("init: Attempting autobaud connection to module."));
-    if (autobaud(baud) != SARA_R5_ERROR_SUCCESS)
-    {
-      return init(baud, SARA_R5_INIT_RESET);
-    }
-  }
-  else if (initType == SARA_R5_INIT_RESET)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("init: Power cycling module."));
-    powerOff();
-    delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
-    powerOn();
-    delay(2000);
-    if (at() != SARA_R5_ERROR_SUCCESS)
-    {
-      return init(baud, SARA_R5_INIT_AUTOBAUD);
-    }
-  }
-
-  // Use disable echo to test response
-  err = enableEcho(false);
-
-  if (err != SARA_R5_ERROR_SUCCESS)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("init: Module failed echo test."));
-    return init(baud, SARA_R5_INIT_AUTOBAUD);
   }
 
   if (_printDebug == true)
@@ -5323,7 +5319,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       }
       else
       {
-        responseIndex = 0;
+        responseIndex = ((responseIndex < responseLen) && (c == expectedResponse[0])) ? 1 : 0;
       }
       if ((errorIndex < errorLen) && (c == expectedError[errorIndex]))
       {
@@ -5335,7 +5331,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       }
       else
       {
-        errorIndex = 0;
+        errorIndex = ((errorIndex < errorLen) && (c == expectedError[0])) ? 1 : 0;
       }
       //_saraResponseBacklog is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
@@ -5362,7 +5358,6 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
   if (found == true)
   {
     if (true == _printAtDebug) {
-      _debugAtPort->print("\r\n");
       _debugAtPort->print((error == true) ? expectedError : expectedResponse);
     }
     
@@ -5446,7 +5441,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       }
       else
       {
-        errorIndex = 0;
+        errorIndex = ((errorIndex < errorLen) && (c == expectedError[0])) ? 1 : 0;
       }
       if ((responseIndex < responseLen) && (c == expectedResponse[responseIndex]))
       {
@@ -5457,7 +5452,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       }
       else
       {
-        responseIndex = 0;
+        responseIndex = ((responseIndex < responseLen) && (c == expectedResponse[0])) ? 1 : 0;
       }
       //_saraResponseBacklog is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
@@ -5474,7 +5469,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       }
     }
   }
-
+  
   // if (_printDebug == true)
   //   if (printedSomething)
   //     _debugPort->println();

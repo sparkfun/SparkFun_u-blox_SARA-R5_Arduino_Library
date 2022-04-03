@@ -185,9 +185,9 @@ const char SARA_R5_SEC_PROFILE[] = "+USECPRF";
 const char SARA_R5_SEC_MANAGER[] = "+USECMNG";
 
 // ### Response
-const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
-const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
-const char SARA_R5_RESPONSE_CONNECT[] = "CONNECT\r\n";
+const char SARA_R5_RESPONSE_OK[] = "\r\nOK\r\n";
+const char SARA_R5_RESPONSE_ERROR[] = "\r\nERROR\r\n";
+const char SARA_R5_RESPONSE_CONNECT[] = "\r\nCONNECT\r\n";
 #define SARA_R5_RESPONSE_OK_OR_ERROR NULL
 
 // CTRL+Z and ESC ASCII codes for SMS message sends
@@ -573,8 +573,8 @@ class SARA_R5 : public Print
 public:
   // Constructor
   // The library will use the powerPin and resetPin (if provided) to power the module off/on and perform an emergency reset
-  // maxInitDepth sets the maximum number of initialization attempts (recursive). .init is called by .begin.
-  SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitDepth = 9);
+  // maxInitTries sets the maximum number of initialization attempts. .init is called by .begin.
+  SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitTries = 9);
 
   // Begin -- initialize module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
@@ -949,8 +949,7 @@ private:
   unsigned long _baud;
   IPAddress _lastRemoteIP;
   IPAddress _lastLocalIP;
-  uint8_t _maxInitDepth;
-  uint8_t _currentInitDepth = 0;
+  uint8_t _maxInitTries;
   bool _autoTimeZoneForBegin = true;
   bool _bufferedPollReentrant = false; // Prevent reentry of bufferedPoll - just in case it gets called from a callback
   bool _pollReentrant = false; // Prevent reentry of poll - just in case it gets called from a callback
