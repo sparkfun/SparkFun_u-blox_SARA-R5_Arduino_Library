@@ -102,13 +102,13 @@ const char SARA_R5_COMMAND_IMEI[] = "+CSN";       // IMEI identification
 const char SARA_R5_COMMAND_IMSI[] = "+CIMI";      // IMSI identification
 const char SARA_R5_COMMAND_CCID[] = "+CCID";      // SIM CCID
 const char SARA_R5_COMMAND_REQ_CAP[] = "+GCAP";   // Request capabilities list
-/// ### Control and status
+// ### Control and status
 const char SARA_R5_COMMAND_POWER_OFF[] = "+CPWROFF"; // Module switch off
 const char SARA_R5_COMMAND_FUNC[] = "+CFUN";         // Functionality (reset, etc.)
 const char SARA_R5_COMMAND_CLOCK[] = "+CCLK";        // Real-time clock
 const char SARA_R5_COMMAND_AUTO_TZ[] = "+CTZU";      // Automatic time zone update
 const char SARA_R5_COMMAND_TZ_REPORT[] = "+CTZR";    // Time zone reporting
-/// ### Network service
+// ### Network service
 const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
 const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
 const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
