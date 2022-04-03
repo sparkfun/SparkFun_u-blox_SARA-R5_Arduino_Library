@@ -36,6 +36,10 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitDepth)
   _psdActionRequestCallback = NULL;
   _pingRequestCallback = NULL;
   _httpCommandRequestCallback = NULL;
+  _mqttCommandRequestCallback = NULL;
+  _debugAtPort = NULL;
+  _debugPort = NULL;
+  _printDebug = false;
   _lastRemoteIP = {0, 0, 0, 0};
   _lastLocalIP = {0, 0, 0, 0};
   for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
@@ -139,6 +143,14 @@ void SARA_R5::enableDebugging(Stream &debugPort)
   _printDebug = true;
 }
 
+//Calling this function with nothing sets the debug port to Serial
+//You can also call it with other streams like Serial1, SerialUSB, etc.
+void SARA_R5::enableAtDebugging(Stream &debugPort)
+{
+  _debugAtPort = &debugPort;
+  _printAtDebug = true;
+}
+
 // This function was originally written by Matthew Menze for the LTE Shield (SARA-R4) library
 // See: https://github.com/sparkfun/SparkFun_LTE_Shield_Arduino_Library/pull/8
 // It does the same job as ::poll but also processed any 'old' data stored in the backlog first
@@ -220,9 +232,12 @@ bool SARA_R5::bufferedPoll(void)
 
       //Process the event
       bool latestHandled = processURCEvent((const char *)event);
-      if (latestHandled)
+      if (latestHandled) {
+        if ((true == _printAtDebug) && (NULL != event)) {
+          _debugAtPort->print(event);
+        }
         handled = true; // handled will be true if latestHandled has ever been true
-
+      }
       if ((_saraResponseBacklogLength > 0) && ((avail + _saraResponseBacklogLength) < _RXBuffSize)) // Has any new data been added to the backlog?
       {
         if (_printDebug == true)
@@ -484,6 +499,25 @@ bool SARA_R5::processURCEvent(const char *event)
       return true;
     }
   }
+  { // URC: +UUMQTTC (HTTP Command Result)
+      int command, result;
+      int scanNum;
+
+      scanNum = sscanf(event, "+UUMQTTC: %d,%d", &command, &result);
+
+      if (scanNum == 2)
+      {
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: MQTT command result"));
+
+        if (_mqttCommandRequestCallback != NULL)
+        {
+          _mqttCommandRequestCallback(command, result);
+        }
+        
+        return true;
+      }
+  }
   { // URC: +UUPING (Ping Result)
     int retry = 0;
     int p_size = 0;
@@ -565,7 +599,9 @@ bool SARA_R5::poll(void)
 
     // Now search for all supported URC's
     handled = processURCEvent(_saraRXBuffer);
-
+    if (handled && (true == _printAtDebug)) {
+      _debugAtPort->write(_saraRXBuffer, avail);
+    }
     if ((handled == false) && (strlen(_saraRXBuffer) > 2))
     {
       if (_printDebug == true)
@@ -630,56 +666,32 @@ void SARA_R5::setHTTPCommandCallback(void (*httpCommandRequestCallback)(int prof
   _httpCommandRequestCallback = httpCommandRequestCallback;
 }
 
+void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result))
+{
+  _mqttCommandRequestCallback = mqttCommandRequestCallback;
+}
+
+
 size_t SARA_R5::write(uint8_t c)
 {
-  if (_hardSerial != NULL)
-  {
-    return _hardSerial->write(c);
-  }
-#ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-  else if (_softSerial != NULL)
-  {
-    return _softSerial->write(c);
-  }
-#endif
-  return (size_t)0;
+  return hwWrite(c);
 }
 
 size_t SARA_R5::write(const char *str)
 {
-  if (_hardSerial != NULL)
-  {
-    return _hardSerial->print(str);
-  }
-#ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-  else if (_softSerial != NULL)
-  {
-    return _softSerial->print(str);
-  }
-#endif
-  return (size_t)0;
+  return hwPrint(str);
 }
 
 size_t SARA_R5::write(const char *buffer, size_t size)
 {
-  if (_hardSerial != NULL)
-  {
-    return _hardSerial->write((const uint8_t *)buffer, (int)size);
-  }
-#ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
-  else if (_softSerial != NULL)
-  {
-    return _softSerial->write((const uint8_t *)buffer, (int)size);
-  }
-#endif
-  return (size_t)0;
+  return hwWriteData(buffer, size);
 }
 
 SARA_R5_error_t SARA_R5::at(void)
 {
   SARA_R5_error_t err;
 
-  err = sendCommandWithResponse(NULL, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(NULL, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   return err;
@@ -701,7 +713,7 @@ SARA_R5_error_t SARA_R5::enableEcho(bool enable)
   {
     sprintf(command, "%s0", SARA_R5_COMMAND_ECHO);
   }
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -718,7 +730,7 @@ String SARA_R5::getManufacturerID(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_MANU_ID,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
@@ -739,7 +751,7 @@ String SARA_R5::getModelID(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_MODEL_ID,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
@@ -760,7 +772,7 @@ String SARA_R5::getFirmwareVersion(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_FW_VER_ID,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
@@ -781,7 +793,7 @@ String SARA_R5::getSerialNo(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_SERIAL_NO,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
@@ -802,7 +814,7 @@ String SARA_R5::getIMEI(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_IMEI,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", imeiResponse) != 1)
@@ -823,7 +835,7 @@ String SARA_R5::getIMSI(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_IMSI,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n%s\r\n", imsiResponse) != 1)
@@ -844,7 +856,7 @@ String SARA_R5::getCCID(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_CCID,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n+CCID: %s", ccidResponse) != 1)
@@ -865,7 +877,7 @@ String SARA_R5::getSubscriberNo(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_CNUM,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_10_SEC_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_10_SEC_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n+CNUM: %s", idResponse) != 1)
@@ -886,7 +898,7 @@ String SARA_R5::getCapabilities(void)
   response = sara_r5_calloc_char(minimumResponseAllocation);
 
   err = sendCommandWithResponse(SARA_R5_COMMAND_REQ_CAP,
-                                SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     if (sscanf(response, "\r\n+GCAP: %s", idResponse) != 1)
@@ -942,7 +954,7 @@ String SARA_R5::clock(void)
     return "";
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
@@ -1000,7 +1012,7 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   // Response format (if TZ is negative): \r\n+CCLK: "YY/MM/DD,HH:MM:SS-TZ"\r\n\r\nOK\r\n
@@ -1082,7 +1094,7 @@ SARA_R5_error_t SARA_R5::setClock(String theTime)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=\"%s\"", SARA_R5_COMMAND_CLOCK, theTime.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -1107,7 +1119,7 @@ SARA_R5_error_t SARA_R5::setUtimeMode(SARA_R5_utime_mode_t mode, SARA_R5_utime_s
   else
     sprintf(command, "%s=%d,%d", SARA_R5_GNSS_REQUEST_TIME, mode, sensor);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_10_SEC_TIMEOUT);
   free(command);
   return err;
@@ -1134,7 +1146,7 @@ SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_10_SEC_TIMEOUT);
 
   // Response format: \r\n+UTIME: <mode>[,<sensor>]\r\n\r\nOK\r\n
@@ -1175,7 +1187,7 @@ SARA_R5_error_t SARA_R5::setUtimeIndication(SARA_R5_utime_urc_configuration_t co
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_GNSS_TIME_INDICATION, config);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   free(command);
   return err;
@@ -1201,7 +1213,7 @@ SARA_R5_error_t SARA_R5::getUtimeIndication(SARA_R5_utime_urc_configuration_t *c
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   // Response format: \r\n+UTIMEIND: <mode>\r\n\r\nOK\r\n
@@ -1239,7 +1251,7 @@ SARA_R5_error_t SARA_R5::setUtimeConfiguration(int32_t offsetNanoseconds, int32_
   sprintf(command, "%s=%ld,%ld", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
 #endif
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   free(command);
   return err;
@@ -1266,7 +1278,7 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   // Response format: \r\n+UTIMECFG: <offset_nano>,<offset_sec>\r\n\r\nOK\r\n
@@ -1304,7 +1316,7 @@ SARA_R5_error_t SARA_R5::autoTimeZone(bool enable)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_COMMAND_AUTO_TZ, enable ? 1 : 0);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   free(command);
   return err;
@@ -1330,7 +1342,7 @@ int8_t SARA_R5::rssi(void)
   }
 
   err = sendCommandWithResponse(command,
-                                SARA_R5_RESPONSE_OK, response, 10000,
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, 10000,
                                 minimumResponseAllocation, AT_COMMAND);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
@@ -1372,7 +1384,7 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     return SARA_R5_REGISTRATION_INVALID;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT,
                                 minimumResponseAllocation, AT_COMMAND);
   if (err != SARA_R5_ERROR_SUCCESS)
@@ -1496,7 +1508,7 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
             cid, pdpStr, apn.c_str());
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -1528,7 +1540,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT, 1024);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -1615,6 +1627,20 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::setSimPin(String pin)
+{
+  SARA_R5_error_t err;
+  char *command;
+  command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_SIMPIN) + 4 + pin.length());
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=\"%s\"", SARA_R5_COMMAND_SIMPIN, pin.c_str());
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::setSIMstateReportingMode(int mode)
 {
   SARA_R5_error_t err;
@@ -1625,7 +1651,7 @@ SARA_R5_error_t SARA_R5::setSIMstateReportingMode(int mode)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_SIM_STATE, mode);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   free(command);
   return err;
@@ -1651,7 +1677,7 @@ SARA_R5_error_t SARA_R5::getSIMstateReportingMode(int *mode)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -1735,7 +1761,7 @@ uint8_t SARA_R5::getOperators(struct operator_stats *opRet, int maxOps)
   }
 
   // AT+COPS maximum response time is 3 minutes (180000 ms)
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_3_MIN_TIMEOUT, responseSize);
 
   // Sample responses:
@@ -1808,7 +1834,7 @@ SARA_R5_error_t SARA_R5::registerOperator(struct operator_stats oper)
   sprintf(command, "%s=1,2,\"%lu\"", SARA_R5_OPERATOR_SELECTION, oper.numOp);
 
   // AT+COPS maximum response time is 3 minutes (180000 ms)
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_3_MIN_TIMEOUT);
 
   free(command);
@@ -1826,7 +1852,7 @@ SARA_R5_error_t SARA_R5::automaticOperatorSelection()
   sprintf(command, "%s=0,0", SARA_R5_OPERATOR_SELECTION);
 
   // AT+COPS maximum response time is 3 minutes (180000 ms)
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_3_MIN_TIMEOUT);
 
   free(command);
@@ -1854,7 +1880,7 @@ SARA_R5_error_t SARA_R5::getOperator(String *oper)
   }
 
   // AT+COPS maximum response time is 3 minutes (180000 ms)
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_3_MIN_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -1908,7 +1934,7 @@ SARA_R5_error_t SARA_R5::deregisterOperator(void)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=2", SARA_R5_OPERATOR_SELECTION);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_3_MIN_TIMEOUT);
 
   free(command);
@@ -1926,7 +1952,7 @@ SARA_R5_error_t SARA_R5::setSMSMessageFormat(SARA_R5_message_format_t textMode)
   sprintf(command, "%s=%d", SARA_R5_MESSAGE_FORMAT,
           (textMode == SARA_R5_MESSAGE_FORMAT_TEXT) ? 1 : 0);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -1966,7 +1992,7 @@ SARA_R5_error_t SARA_R5::sendSMS(String number, String message)
     message.toCharArray(messageCStr, message.length() + 1);
     messageCStr[message.length()] = ASCII_CTRL_Z;
 
-    err = sendCommandWithResponse(messageCStr, SARA_R5_RESPONSE_OK,
+    err = sendCommandWithResponse(messageCStr, SARA_R5_RESPONSE_OK_OR_ERROR,
                                   NULL, SARA_R5_3_MIN_TIMEOUT, minimumResponseAllocation, NOT_AT_COMMAND);
 
     free(messageCStr);
@@ -2000,7 +2026,7 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_3_MIN_TIMEOUT);
 
   if (err != SARA_R5_ERROR_SUCCESS)
@@ -2056,7 +2082,7 @@ SARA_R5_error_t SARA_R5::readSMSmessage(int location, String *unread, String *fr
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_10_SEC_TIMEOUT, 1024);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -2155,7 +2181,7 @@ SARA_R5_error_t SARA_R5::deleteSMSmessage(int location, int deleteFlag)
   else
     sprintf(command, "%s=%d,%d", SARA_R5_DELETE_MESSAGE, location, deleteFlag);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_55_SECS_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, SARA_R5_55_SECS_TIMEOUT);
 
   free(command);
   return err;
@@ -2186,7 +2212,7 @@ SARA_R5_error_t SARA_R5::setBaud(unsigned long baud)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%lu", SARA_R5_COMMAND_BAUD, baud);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_SET_BAUD_TIMEOUT);
 
   free(command);
@@ -2204,7 +2230,7 @@ SARA_R5_error_t SARA_R5::setFlowControl(SARA_R5_flow_control_t value)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s%d", SARA_R5_FLOW_CONTROL, value);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -2228,7 +2254,7 @@ SARA_R5_error_t SARA_R5::setGpioMode(SARA_R5_gpio_t gpio,
   else
     sprintf(command, "%s=%d,%d", SARA_R5_COMMAND_GPIO, gpio, mode);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_10_SEC_TIMEOUT);
 
   free(command);
@@ -2257,7 +2283,7 @@ SARA_R5::SARA_R5_gpio_mode_t SARA_R5::getGpioMode(SARA_R5_gpio_t gpio)
     return GPIO_MODE_INVALID;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err != SARA_R5_ERROR_SUCCESS)
@@ -2305,7 +2331,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
     return -1;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err != SARA_R5_ERROR_SUCCESS)
@@ -2363,7 +2389,7 @@ SARA_R5_error_t SARA_R5::socketClose(int socket, unsigned long timeout)
   }
   sprintf(command, "%s=%d", SARA_R5_CLOSE_SOCKET, socket);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, timeout);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response, timeout);
 
   if ((err != SARA_R5_ERROR_SUCCESS) && (_printDebug == true))
   {
@@ -2388,7 +2414,7 @@ SARA_R5_error_t SARA_R5::socketConnect(int socket, const char *address,
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,\"%s\",%d", SARA_R5_CONNECT_SOCKET, socket, address, port);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_IP_CONNECT_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, SARA_R5_IP_CONNECT_TIMEOUT);
 
   free(command);
 
@@ -2594,7 +2620,7 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest, int 
 
     sprintf(command, "%s=%d,%d", SARA_R5_READ_SOCKET, socket, bytesToRead);
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
 
     if (err != SARA_R5_ERROR_SUCCESS)
@@ -2718,7 +2744,7 @@ SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -2804,7 +2830,7 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest,
 
     sprintf(command, "%s=%d,%d", SARA_R5_READ_UDP_SOCKET, socket, bytesToRead);
 
-    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT, responseLength);
 
     if (err != SARA_R5_ERROR_SUCCESS)
@@ -2948,7 +2974,7 @@ SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -2988,7 +3014,7 @@ SARA_R5_error_t SARA_R5::socketListen(int socket, unsigned int port)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_LISTEN_SOCKET, socket, port);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3026,7 +3052,7 @@ SARA_R5_error_t SARA_R5::socketDirectLinkTimeTrigger(int socket, unsigned long t
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=5,%d,%ld", SARA_R5_UD_CONFIGURATION, socket, timerTrigger);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3047,7 +3073,7 @@ SARA_R5_error_t SARA_R5::socketDirectLinkDataLengthTrigger(int socket, int dataL
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=6,%d,%d", SARA_R5_UD_CONFIGURATION, socket, dataLengthTrigger);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3068,7 +3094,7 @@ SARA_R5_error_t SARA_R5::socketDirectLinkCharacterTrigger(int socket, int charac
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=7,%d,%d", SARA_R5_UD_CONFIGURATION, socket, characterTrigger);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3089,7 +3115,7 @@ SARA_R5_error_t SARA_R5::socketDirectLinkCongestionTimer(int socket, unsigned lo
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=8,%d,%ld", SARA_R5_UD_CONFIGURATION, socket, congestionTimer);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3117,7 +3143,7 @@ SARA_R5_error_t SARA_R5::querySocketType(int socket, SARA_R5_socket_protocol_t *
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3169,7 +3195,7 @@ SARA_R5_error_t SARA_R5::querySocketLastError(int socket, int *error)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3220,7 +3246,7 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3271,7 +3297,7 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesReceived(int socket, uint32_t *tot
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3322,7 +3348,7 @@ SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *addre
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3378,7 +3404,7 @@ SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, SARA_R5_tcp_socket_sta
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3429,7 +3455,7 @@ SARA_R5_error_t SARA_R5::querySocketOutUnackData(int socket, uint32_t *total)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3480,7 +3506,7 @@ int SARA_R5::socketGetLastError()
 
   sprintf(command, "%s", SARA_R5_GET_ERROR);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3514,7 +3540,7 @@ SARA_R5_error_t SARA_R5::resetHTTPprofile(int profile)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_HTTP_PROFILE, profile);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3535,7 +3561,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverIPaddress(int profile, IPAddress address)
   sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_IP,
           address[0], address[1], address[2], address[3]);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3556,7 +3582,7 @@ SARA_R5_error_t SARA_R5::setHTTPserverName(int profile, String server)
   sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_NAME,
           server.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3577,7 +3603,7 @@ SARA_R5_error_t SARA_R5::setHTTPusername(int profile, String username)
   sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_USERNAME,
           username.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3598,7 +3624,7 @@ SARA_R5_error_t SARA_R5::setHTTPpassword(int profile, String password)
   sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_PASSWORD,
           password.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3619,7 +3645,7 @@ SARA_R5_error_t SARA_R5::setHTTPauthentication(int profile, bool authenticate)
   sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_AUTHENTICATION,
           authenticate);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3640,14 +3666,35 @@ SARA_R5_error_t SARA_R5::setHTTPserverPort(int profile, int port)
   sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SERVER_PORT,
           port);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
   return err;
 }
 
-SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure)
+SARA_R5_error_t SARA_R5::setHTTPcustomHeader(int profile, String header)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+    return SARA_R5_ERROR_ERROR;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 12 + header.length());
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_ADD_CUSTOM_HEADERS,
+          header.c_str());
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure, int secprofile)
 {
   SARA_R5_error_t err;
   char *command;
@@ -3658,10 +3705,13 @@ SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure)
   command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-  sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
+  if (secprofile == -1)
+      sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
           secure);
+  else sprintf(command, "%s=%d,%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
+        secure, secprofile);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3681,7 +3731,7 @@ SARA_R5_error_t SARA_R5::ping(String remote_host, int retry, int p_size,
   sprintf(command, "%s=\"%s\",%d,%d,%ld,%d", SARA_R5_PING_COMMAND,
           remote_host.c_str(), retry, p_size, timeout, ttl);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3703,7 +3753,7 @@ SARA_R5_error_t SARA_R5::sendHTTPGET(int profile, String path, String responseFi
   sprintf(command, "%s=%d,%d,\"%s\",\"%s\"", SARA_R5_HTTP_COMMAND, profile, SARA_R5_HTTP_COMMAND_GET,
           path.c_str(), responseFilename.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3726,7 +3776,30 @@ SARA_R5_error_t SARA_R5::sendHTTPPOSTdata(int profile, String path, String respo
   sprintf(command, "%s=%d,%d,\"%s\",\"%s\",\"%s\",%d", SARA_R5_HTTP_COMMAND, profile, SARA_R5_HTTP_COMMAND_POST_DATA,
           path.c_str(), responseFilename.c_str(), data.c_str(), httpContentType);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::sendHTTPPOSTfile(int profile, String path, String responseFilename,
+                                          String requestFile, SARA_R5_http_content_types_t httpContentType)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  if (profile >= SARA_R5_NUM_HTTP_PROFILES)
+    return SARA_R5_ERROR_ERROR;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_COMMAND) + 24 +
+                                path.length() + responseFilename.length() + requestFile.length());
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,%d,\"%s\",\"%s\",\"%s\",%d", SARA_R5_HTTP_COMMAND, profile, SARA_R5_HTTP_COMMAND_POST_FILE,
+          path.c_str(), responseFilename.c_str(), requestFile.c_str(), httpContentType);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3753,7 +3826,7 @@ SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3777,6 +3850,324 @@ SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int
   return err;
 }
 
+SARA_R5_error_t SARA_R5::nvMQTT(SARA_R5_mqtt_nv_parameter_t parameter)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_NVM) + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_MQTT_NVM, parameter);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setMQTTclientId(String clientId)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_PROFILE) + clientId.length() + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,\"%s\"", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_CLIENT_ID, clientId.c_str());
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setMQTTserver(String serverName, int port)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_PROFILE) + serverName.length() + 16);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,\"%s\",%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SERVERNAME, serverName.c_str(), port);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setMQTTsecure(bool secure, int secprofile)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_PROFILE) + 16);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    if (secprofile == -1) sprintf(command, "%s=%d,%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SECURE, secure);
+    else sprintf(command, "%s=%d,%d,%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SECURE, secure, secprofile);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::connectMQTT(void)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_LOGIN);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+  
+SARA_R5_error_t SARA_R5::disconnectMQTT(void)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_LOGOUT);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+  
+SARA_R5_error_t SARA_R5::subscribeMQTTtopic(int max_Qos, String topic)
+{
+  SARA_R5_error_t err;
+  char *command;
+  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + topic.length() + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_SUBSCRIBE, max_Qos, topic.c_str());
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+ 
+SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(String topic)
+{
+  SARA_R5_error_t err;
+  char *command;
+  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + topic.length() + 16);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d,\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_UNSUBSCRIBE, topic.c_str());
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::readMQTT(int* pQos, char* pTopic, uint8_t *readDest, int readLength, int *bytesRead)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+  int scanNum = 0;
+  int total_length, topic_length, data_length;
+  
+  // Set *bytesRead to zero
+  if (bytesRead != NULL)
+    *bytesRead = 0;
+
+  // Allocate memory for the command
+  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 10);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+  // Allocate memory for the response
+  int responseLength = readLength + minimumResponseAllocation;
+  response = sara_r5_calloc_char(responseLength);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+  
+  // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
+  // To try and avoid this, look for \"\r\n\r\nOK\r\n there is a extra \r\n beetween " and the the standard \r\nOK\r\n
+  const char mqttReadTerm[] = "\"\r\n\r\nOK\r\n";
+  sprintf(command, "%s=%d,%d", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_READ, 1);
+  err = sendCommandWithResponse(command, mqttReadTerm, response,
+                                (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT), responseLength);
+  
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("readMQTT: sendCommandWithResponse err "));
+      _debugPort->println(err);
+    }
+    free(command);
+    free(response);
+    return err;
+  }
+
+  // Extract the data
+  char *searchPtr = strstr(response, "+UMQTTC: 6");
+  if (searchPtr != NULL)
+    scanNum = sscanf(searchPtr, "+UMQTTC: 6,%d,%d,%d,\"%[^\"]\",%d\"", pQos, &total_length, &topic_length, pTopic, &data_length);
+  if (scanNum != 5)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("readMQTT: error: scanNum is "));
+      _debugPort->println(scanNum);
+    }
+    free(command);
+    free(response);
+    return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  searchPtr = strstr(searchPtr, "\"");
+  searchPtr = strstr(searchPtr+1, "\"");
+  searchPtr = strstr(searchPtr+1, "\"");
+  *bytesRead = (data_length > readLength) ? readLength : data_length;
+  memcpy(readDest, searchPtr, *bytesRead);
+  
+  free(command);
+  free(response);
+
+  return (data_length > readLength) ? SARA_R5_ERROR_OUT_OF_MEMORY : SARA_R5_ERROR_SUCCESS;
+}
+
+SARA_R5_error_t SARA_R5::getMQTTprotocolError(int *error_code, int *error_code2)
+{
+  SARA_R5_error_t err;
+  char *response;
+
+  int code, code2;
+
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(SARA_R5_MQTT_PROTOCOL_ERROR, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+UMQTTER: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+UMQTTER:%d,%d\r\n",
+                        &code, &code2);
+    if (scanned == 2)
+    {
+      *error_code = code;
+      *error_code2 = code2;
+    }
+    else
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::resetSecurityProfile(int secprofile)
+{
+  SARA_R5_error_t err;
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SEC_PROFILE) + 6);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+
+  sprintf(command, "%s=%d", SARA_R5_SEC_PROFILE, secprofile);
+
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::configSecurityProfile(int secprofile, SARA_R5_sec_profile_parameter_t parameter, int value)
+{
+    SARA_R5_error_t err;
+    char *command;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_SEC_PROFILE) + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,%d", SARA_R5_SEC_PROFILE, secprofile,parameter,value);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::configSecurityProfileString(int secprofile, SARA_R5_sec_profile_parameter_t parameter, String value)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_SEC_PROFILE) + value.length() + 10);
+    if (command == NULL)
+      return SARA_R5_ERROR_OUT_OF_MEMORY;
+    sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_SEC_PROFILE, secprofile,parameter,value.c_str());
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setSecurityManager(SARA_R5_sec_manager_opcode_t opcode, SARA_R5_sec_manager_parameter_t parameter, String name, String data)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_SEC_MANAGER) + name.length() + 20);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+  int dataLen = data.length();
+  sprintf(command, "%s=%d,%d,\"%s\",%d", SARA_R5_SEC_MANAGER, opcode, parameter, name.c_str(), dataLen);
+
+  err = sendCommandWithResponse(command, ">", response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("dataDownload: writing "));
+      _debugPort->print(dataLen);
+      _debugPort->println(F(" bytes"));
+    }
+    hwWriteData(data.c_str(), dataLen);
+    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT*3);
+  }
+    
+
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("dataDownload: Error: "));
+      _debugPort->print(err);
+      _debugPort->print(F(" => {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value)
 {
   SARA_R5_error_t err;
@@ -3791,7 +4182,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
   sprintf(command, "%s=%d,%d,%d", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
           value);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3817,7 +4208,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
   sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
           value.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3838,7 +4229,7 @@ SARA_R5_error_t SARA_R5::setPDPconfiguration(int profile, SARA_R5_pdp_configurat
   sprintf(command, "%s=%d,%d,\"%d.%d.%d.%d\"", SARA_R5_MESSAGE_PDP_CONFIG, profile, parameter,
           value[0], value[1], value[2], value[3]);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3858,7 +4249,7 @@ SARA_R5_error_t SARA_R5::performPDPaction(int profile, SARA_R5_pdp_actions_t act
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d", SARA_R5_MESSAGE_PDP_ACTION, profile, action);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3881,7 +4272,7 @@ SARA_R5_error_t SARA_R5::activatePDPcontext(bool status, int cid)
   else
     sprintf(command, "%s=%d,%d", SARA_R5_MESSAGE_PDP_CONTEXT_ACTIVATE, status, cid);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -3910,7 +4301,7 @@ SARA_R5_error_t SARA_R5::getNetworkAssignedIPAddress(int profile, IPAddress *add
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -3962,7 +4353,7 @@ bool SARA_R5::isGPSon(void)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
                                 SARA_R5_10_SEC_TIMEOUT);
 
   if (err == SARA_R5_ERROR_SUCCESS)
@@ -4010,7 +4401,7 @@ SARA_R5_error_t SARA_R5::gpsPower(bool enable, gnss_system_t gnss_sys, gnss_aidi
     sprintf(command, "%s=0", SARA_R5_GNSS_POWER);
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, 10000);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, 10000);
 
   free(command);
   return err;
@@ -4096,7 +4487,7 @@ SARA_R5_error_t SARA_R5::gpsEnableRmc(bool enable)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_GNSS_GPRMC, enable ? 1 : 0);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, SARA_R5_10_SEC_TIMEOUT);
 
   free(command);
   return err;
@@ -4122,7 +4513,7 @@ SARA_R5_error_t SARA_R5::gpsGetRmc(struct PositionData *pos, struct SpeedData *s
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, SARA_R5_10_SEC_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_10_SEC_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     // Fast-forward response string to $GPRMC starter
@@ -4187,7 +4578,7 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
           sensor, detailed ? 1 : 0, timeout, accuracy);
 #endif
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_10_SEC_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, SARA_R5_10_SEC_TIMEOUT);
 
   free(command);
   return err;
@@ -4208,12 +4599,70 @@ SARA_R5_error_t SARA_R5::gpsAidingServerConf(const char *primaryServer, const ch
           primaryServer, secondaryServer, authToken,
           days, period, resolution, gnssTypes, mode, dataType);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
   return err;
 }
+
+
+// OK for text files. But will fail with binary files (containing \0) on some platforms.
+SARA_R5_error_t SARA_R5::appendFileContents(String filename, const char *str, int len)
+{
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_DOWNLOAD_FILE) + filename.length() + 10);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+  int dataLen = len == -1 ? strlen(str) : len;
+  sprintf(command, "%s=\"%s\",%d", SARA_R5_FILE_SYSTEM_DOWNLOAD_FILE, filename.c_str(), dataLen);
+
+  err = sendCommandWithResponse(command, ">", response,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT*2);
+  delay(50);
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("fileDownload: writing "));
+      _debugPort->print(dataLen);
+      _debugPort->println(F(" bytes"));
+    }
+    hwWriteData(str, dataLen);
+    
+    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT*5);
+  }
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("fileDownload: Error: "));
+      _debugPort->print(err);
+      _debugPort->print(F(" => {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
+  }
+
+  free(command);
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::appendFileContents(String filename, String str)
+{
+    return appendFileContents(filename, str.c_str(), str.length());
+}
+
 
 // OK for text files. But will fail with binary files (containing \0) on some platforms.
 SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
@@ -4234,7 +4683,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
     }
     return err;
   }
-
+  
   command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + filename.length() + 8);
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
@@ -4474,7 +4923,7 @@ SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     if (_printDebug == true)
@@ -4523,7 +4972,7 @@ SARA_R5_error_t SARA_R5::deleteFile(String filename)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=\"%s\"", SARA_R5_FILE_SYSTEM_DELETE_FILE, filename.c_str());
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   if (err != SARA_R5_ERROR_SUCCESS)
   {
@@ -4549,7 +4998,7 @@ SARA_R5_error_t SARA_R5::modulePowerOff(void)
 
   sprintf(command, "%s", SARA_R5_COMMAND_POWER_OFF);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK, NULL,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
                                 SARA_R5_POWER_OFF_TIMEOUT);
 
   free(command);
@@ -4641,7 +5090,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   autoTimeZone(_autoTimeZoneForBegin);
   for (int i = 0; i < SARA_R5_NUM_SOCKETS; i++)
   {
-    socketClose(i, 100);
+    socketClose(i, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   }
 
   return SARA_R5_ERROR_SUCCESS;
@@ -4753,7 +5202,7 @@ SARA_R5_error_t SARA_R5::functionality(SARA_R5_functionality_t function)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d", SARA_R5_COMMAND_FUNC, function);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_3_MIN_TIMEOUT);
 
   free(command);
@@ -4774,7 +5223,7 @@ SARA_R5_error_t SARA_R5::setMNOprofile(mobile_network_operator_t mno, bool autoR
   else
     sprintf(command, "%s=%d", SARA_R5_COMMAND_MNO, (uint8_t)mno);
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
   free(command);
@@ -4805,7 +5254,7 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK,
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err != SARA_R5_ERROR_SUCCESS)
   {
@@ -4844,11 +5293,15 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 {
   unsigned long timeIn;
   bool found = false;
+  bool error = false;
   int responseIndex = 0, errorIndex = 0;
   // bool printedSomething = false;
 
   timeIn = millis();
 
+  int responseLen = (int)strlen(expectedResponse);
+  int errorLen = (int)strlen(expectedError);
+  
   while ((!found) && ((timeIn + timeout) > millis()))
   {
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
@@ -4861,9 +5314,9 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       //   _debugPort->write(c);
       //   printedSomething = true;
       // }
-      if (c == expectedResponse[responseIndex])
+      if ((responseIndex < responseLen) && (c == expectedResponse[responseIndex]))
       {
-        if (++responseIndex == (int)strlen(expectedResponse))
+        if (++responseIndex == responseLen)
         {
           found = true;
         }
@@ -4872,10 +5325,11 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
       {
         responseIndex = 0;
       }
-      if (c == expectedError[errorIndex])
+      if ((errorIndex < errorLen) && (c == expectedError[errorIndex]))
       {
-        if (++errorIndex == (int)strlen(expectedError))
+        if (++errorIndex == errorLen)
         {
+          error = true;
           found = true;
         }
       }
@@ -4907,14 +5361,12 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
   if (found == true)
   {
-    if (responseIndex > 0) // Let success have priority
-    {
-      return SARA_R5_ERROR_SUCCESS;
+    if (true == _printAtDebug) {
+      _debugAtPort->print("\r\n");
+      _debugAtPort->print((error == true) ? expectedError : expectedResponse);
     }
-    else if (errorIndex > 0)
-    {
-      return SARA_R5_ERROR_ERROR;
-    }
+    
+    return (error == true) ? SARA_R5_ERROR_ERROR : SARA_R5_ERROR_SUCCESS;
   }
 
   return SARA_R5_ERROR_NO_RESPONSE;
@@ -4925,9 +5377,14 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     unsigned long commandTimeout, int destSize, bool at)
 {
   bool found = false;
-  int index = 0;
+  bool error = false;
+  int responseIndex = 0;
+  int errorIndex = 0;
   int destIndex = 0;
   unsigned int charsRead = 0;
+  int responseLen = 0;
+  int errorLen = 0;
+  const char* expectedError= NULL;
   //bool printedSomething = false;
 
   if (_printDebug == true)
@@ -4935,10 +5392,18 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     _debugPort->print(F("sendCommandWithResponse: Command: "));
     _debugPort->println(String(command));
   }
-
+  
   sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
-
+  if (SARA_R5_RESPONSE_OK_OR_ERROR == expectedResponse) {
+    expectedResponse = SARA_R5_RESPONSE_OK;
+    expectedError = SARA_R5_RESPONSE_ERROR;
+    responseLen = sizeof(SARA_R5_RESPONSE_OK)-1;
+    errorLen = sizeof(SARA_R5_RESPONSE_ERROR)-1;
+  } else {
+    responseLen = (int)strlen(expectedResponse);
+  }
+  
   while ((!found) && ((timeIn + commandTimeout) > millis()))
   {
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
@@ -4971,16 +5436,28 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
         }
       }
       charsRead++;
-      if (c == expectedResponse[index])
+      if ((errorIndex < errorLen) && (c == expectedError[errorIndex]))
       {
-        if (++index == (int)strlen(expectedResponse))
+        if (++errorIndex == errorLen)
+        {
+          error = true;
+          found = true;
+        }
+      }
+      else
+      {
+        errorIndex = 0;
+      }
+      if ((responseIndex < responseLen) && (c == expectedResponse[responseIndex]))
+      {
+        if (++responseIndex == responseLen)
         {
           found = true;
         }
       }
       else
       {
-        index = 0;
+        responseIndex = 0;
       }
       //_saraResponseBacklog is a global array that holds the backlog of any events
       //that came in while waiting for response. To be processed later within bufferedPoll().
@@ -5006,7 +5483,10 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
 
   if (found)
   {
-    return SARA_R5_ERROR_SUCCESS;
+    if ((true == _printAtDebug) && ((NULL != responseDest) || (NULL != expectedResponse))) {
+      _debugAtPort->print((NULL != responseDest) ? responseDest : expectedResponse);
+    }
+    return error ? SARA_R5_ERROR_ERROR : SARA_R5_ERROR_SUCCESS;
   }
   else if (charsRead == 0)
   {
@@ -5014,6 +5494,9 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   }
   else
   {
+    if ((true == _printAtDebug) && (NULL != responseDest)) {
+      _debugAtPort->print(responseDest);
+    }
     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
 }
@@ -5056,7 +5539,7 @@ void SARA_R5::sendCommand(const char *command, bool at)
   {
     hwPrint(SARA_R5_COMMAND_AT);
     hwPrint(command);
-    hwPrint("\r");
+    hwPrint("\r\n");
   }
   else
   {
@@ -5196,6 +5679,9 @@ SARA_R5_error_t SARA_R5::parseSocketCloseIndication(String *closeIndication)
 
 size_t SARA_R5::hwPrint(const char *s)
 {
+  if ((true == _printAtDebug) && (NULL != s)) {
+    _debugAtPort->print(s);
+  }
   if (_hardSerial != NULL)
   {
     return _hardSerial->print(s);
@@ -5212,6 +5698,9 @@ size_t SARA_R5::hwPrint(const char *s)
 
 size_t SARA_R5::hwWriteData(const char *buff, int len)
 {
+  if ((true == _printAtDebug) && (NULL != buff) && (0 < len) ) {
+    _debugAtPort->write(buff,len);
+  }
   if (_hardSerial != NULL)
   {
     return _hardSerial->write((const uint8_t *)buff, len);
@@ -5227,6 +5716,9 @@ size_t SARA_R5::hwWriteData(const char *buff, int len)
 
 size_t SARA_R5::hwWrite(const char c)
 {
+  if (true == _printAtDebug) {
+    _debugAtPort->write(c);
+  }
   if (_hardSerial != NULL)
   {
     return _hardSerial->write(c);
