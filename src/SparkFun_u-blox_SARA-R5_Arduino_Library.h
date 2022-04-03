@@ -677,7 +677,9 @@ public:
   SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
   SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip);                                 // Return the apn and IP address for the chosen context identifier
 
+  SARA_R5_error_t getSimStatus(String* code);
   SARA_R5_error_t setSimPin(String pin);
+  
   // SIM
   // Status report Mode:
   // Bit   States reported

@@ -1615,6 +1615,45 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::getSimStatus(String* code)
+{
+  SARA_R5_error_t err;
+  char *command;
+  char *response;
+  command = sara_r5_calloc_char(strlen(SARA_R5_COMMAND_SIMPIN) + 2);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s?", SARA_R5_COMMAND_SIMPIN);
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == NULL)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    int scanned = 0;
+    char c[16];
+    char *searchPtr = strstr(response, "+CPIN: ");
+    if (searchPtr != NULL)
+      scanned = sscanf(searchPtr, "+CPIN: %s\r\n", c);
+    if (scanned == 1)
+    {
+      *code = c;
+    }
+    else
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+  
+  free(command);
+  free(response);
+  
+  return err;
+}
+                                
 SARA_R5_error_t SARA_R5::setSimPin(String pin)
 {
   SARA_R5_error_t err;
