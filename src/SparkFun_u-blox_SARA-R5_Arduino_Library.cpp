@@ -914,10 +914,8 @@ SARA_R5_error_t SARA_R5::reset(void)
     {
       beginSerial(SARA_R5_DEFAULT_BAUD_RATE);
       setBaud(_baud);
-      delay(200);
       beginSerial(_baud);
       err = at();
-      delay(500);
     }
     return init(_baud);
   }
@@ -5022,12 +5020,12 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
   int retries = _maxInitTries;
   SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
   
+  beginSerial(baud);
+  
   do
   {
     if (_printDebug == true)
       _debugPort->println(F("init: Begin module init."));
-
-    beginSerial(baud);
 
     if (initType == SARA_R5_INIT_AUTOBAUD)
     {
@@ -5035,6 +5033,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
         _debugPort->println(F("init: Attempting autobaud connection to module."));
       
       err = autobaud(baud);
+      
       if (err != SARA_R5_ERROR_SUCCESS) {
         initType = SARA_R5_INIT_RESET;
       }
@@ -5047,6 +5046,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
       powerOff();
       delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
       powerOn();
+      beginSerial(baud);
       delay(2000);
       
       err = at();
@@ -5806,6 +5806,7 @@ int SARA_R5::hwAvailable(void)
 
 void SARA_R5::beginSerial(unsigned long baud)
 {
+  delay(100);
   if (_hardSerial != NULL)
   {
     _hardSerial->begin(baud);
@@ -5859,7 +5860,6 @@ SARA_R5_error_t SARA_R5::autobaud(unsigned long desiredBaud)
   {
     beginSerial(SARA_R5_SUPPORTED_BAUD[b++]);
     setBaud(desiredBaud);
-    delay(200);
     beginSerial(desiredBaud);
     err = at();
   }
