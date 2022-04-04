@@ -37,6 +37,8 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitTries)
   _pingRequestCallback = NULL;
   _httpCommandRequestCallback = NULL;
   _mqttCommandRequestCallback = NULL;
+  _registrationCallback = NULL;
+  _epsRegistrationCallback = NULL;
   _debugAtPort = NULL;
   _debugPort = NULL;
   _printDebug = false;
@@ -566,6 +568,41 @@ bool SARA_R5::processURCEvent(const char *event)
       return true;
     }
   }
+  { // URC: +A
+    int status = 0;
+    unsigned int lac = 0, ci = 0, Act = 0;
+    int scanNum = sscanf(event, "+CREG:  %d,\"%4x\",\"%4x\",%d", &status, &lac, &ci, &Act);
+    if (scanNum == 4)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("processReadEvent: CREG"));
+
+      if (_registrationCallback != NULL)
+      {
+        _registrationCallback((SARA_R5_registration_status_t)status, lac, ci, Act);
+      }
+      
+      return true;
+    }
+  }
+  { // URC: +CEREG
+    int status = 0;
+    unsigned int tac = 0, ci = 0, Act = 0;
+    int scanNum = sscanf(event, "+CEREG: %d,\"%4x\",\"%4x\",%d", &status, &tac, &ci, &Act);
+    if (scanNum == 4)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("processReadEvent: CEREG"));
+
+      if (_epsRegistrationCallback != NULL)
+      {
+        _epsRegistrationCallback((SARA_R5_registration_status_t)status, tac, ci, Act);
+      }
+      
+      return true;
+    }
+  }
+  
   return false;
 }
 
@@ -670,6 +707,33 @@ void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int comm
   _mqttCommandRequestCallback = mqttCommandRequestCallback;
 }
 
+SARA_R5_error_t SARA_R5::setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act))
+{
+  _registrationCallback = registrationCallback;
+  
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_REGISTRATION_STATUS) + 3);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_REGISTRATION_STATUS, 2/*enable URC with location*/);
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setEpsRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status, unsigned int tac, unsigned int ci, int Act))
+{
+  _epsRegistrationCallback = registrationCallback;
+
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_EPSREGISTRATION_STATUS) + 3);
+  if (command == NULL)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  sprintf(command, "%s=%d", SARA_R5_EPSREGISTRATION_STATUS, 2/*enable URC with location*/);
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                NULL, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
 
 size_t SARA_R5::write(uint8_t c)
 {
@@ -1353,17 +1417,17 @@ int8_t SARA_R5::rssi(void)
   return rssi;
 }
 
-SARA_R5_registration_status_t SARA_R5::registration(void)
+SARA_R5_registration_status_t SARA_R5::registration(bool eps)
 {
   char *command;
   char *response;
   SARA_R5_error_t err;
   int status;
-
-  command = sara_r5_calloc_char(strlen(SARA_R5_REGISTRATION_STATUS) + 2);
+  const char* tag = eps ? SARA_R5_EPSREGISTRATION_STATUS : SARA_R5_REGISTRATION_STATUS;
+  command = sara_r5_calloc_char(strlen(tag) + 3);
   if (command == NULL)
     return SARA_R5_REGISTRATION_INVALID;
-  sprintf(command, "%s?", SARA_R5_REGISTRATION_STATUS);
+  sprintf(command, "%s?", tag);
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
   if (response == NULL)
@@ -1381,11 +1445,14 @@ SARA_R5_registration_status_t SARA_R5::registration(void)
     free(response);
     return SARA_R5_REGISTRATION_INVALID;
   }
-
+  
   int scanned = 0;
-  char *searchPtr = strstr(response, "+CREG: ");
-  if (searchPtr != NULL)
-    scanned = sscanf(searchPtr, "+CREG: %*d,%d", &status);
+  const char *startTag = eps ? "+CEREG: " : "+CREG: ";
+  char *searchPtr = strstr(response, startTag);
+  if (searchPtr != NULL) {
+	  const char *format = eps ? "+CEREG: %*d,%d" : "+CREG: %*d,%d";
+	  scanned = sscanf(searchPtr, format, &status);
+  }
   if (scanned != 1)
     status = SARA_R5_REGISTRATION_INVALID;
 

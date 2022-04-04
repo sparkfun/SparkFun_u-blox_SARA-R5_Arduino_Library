@@ -113,6 +113,7 @@ const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
 const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
 const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
 const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
+const char SARA_R5_EPSREGISTRATION_STATUS[] = "+CEREG";
 const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
 const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
 // ### SIM
@@ -185,8 +186,8 @@ const char SARA_R5_SEC_PROFILE[] = "+USECPRF";
 const char SARA_R5_SEC_MANAGER[] = "+USECMNG";
 
 // ### Response
-const char SARA_R5_RESPONSE_OK[] = "\r\nOK\r\n";
-const char SARA_R5_RESPONSE_ERROR[] = "\r\nERROR\r\n";
+const char SARA_R5_RESPONSE_OK[] = "\nOK\r\n";
+const char SARA_R5_RESPONSE_ERROR[] = "\nERROR\r\n";
 const char SARA_R5_RESPONSE_CONNECT[] = "\r\nCONNECT\r\n";
 #define SARA_R5_RESPONSE_OK_OR_ERROR NULL
 
@@ -624,6 +625,10 @@ public:
   void setPingCallback(void (*pingRequestCallback)(int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt));
   void setHTTPCommandCallback(void (*httpCommandRequestCallback)(int profile, int command, int result));
   void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result));
+  SARA_R5_error_t setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status,
+                                                                       unsigned int lac, unsigned int ci, int Act));
+  SARA_R5_error_t setEpsRegistrationCallback(void (*epsRegistrationCallback)(SARA_R5_registration_status_t status,
+                                                                            unsigned int tac, unsigned int ci, int Act));
     
   // Direct write/print to cell serial port
   virtual size_t write(uint8_t c);
@@ -663,7 +668,7 @@ public:
   
   // Network service AT commands
   int8_t rssi(void); // Receive signal strength
-  SARA_R5_registration_status_t registration(void);
+  SARA_R5_registration_status_t registration(bool eps = true);
   bool setNetworkProfile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
   mobile_network_operator_t getNetworkProfile(void);
   typedef enum
@@ -973,6 +978,9 @@ private:
   void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
   void (*_httpCommandRequestCallback)(int, int, int);
   void (*_mqttCommandRequestCallback)(int, int);
+  void (*_registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act);
+  void (*_epsRegistrationCallback)(SARA_R5_registration_status_t status, unsigned int tac, unsigned int ci, int Act);
+
 
   int _lastSocketProtocol[SARA_R5_NUM_SOCKETS]; // Record the protocol for each socket to avoid having to call querySocketType in parseSocketReadIndication
 
