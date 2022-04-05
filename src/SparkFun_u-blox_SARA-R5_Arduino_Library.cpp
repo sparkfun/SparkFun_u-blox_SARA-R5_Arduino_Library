@@ -55,7 +55,7 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitTries)
   _saraResponseBacklog = NULL;
 }
 
-~SARA_R5() {
+SARA_R5::~SARA_R5(void) {
   if (NULL != _saraRXBuffer) {
     delete [] _saraRXBuffer;
     _saraRXBuffer = NULL;
