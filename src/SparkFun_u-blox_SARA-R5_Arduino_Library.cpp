@@ -50,36 +50,59 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitTries)
   _bufferedPollReentrant = false;
   _pollReentrant = false;
   _saraResponseBacklogLength = 0;
+  _saraRXBuffer = NULL;
+  _pruneBuffer = NULL;
+  _saraResponseBacklog = NULL;
+}
+
+~SARA_R5() {
+  if (NULL != _saraRXBuffer) {
+    delete [] _saraRXBuffer;
+    _saraRXBuffer = NULL;
+  }
+  if (NULL != _pruneBuffer) {
+    delete [] _pruneBuffer;
+    _pruneBuffer = NULL;
+  }
+  if (NULL != _saraResponseBacklog) {
+    delete [] _saraResponseBacklog;
+    _saraResponseBacklog = NULL;
+  }
 }
 
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
 bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 {
-  _saraRXBuffer = new char[_RXBuffSize];
-  if (_saraRXBuffer == NULL)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _saraRXBuffer!"));
-    return false;
+  if (NULL == _saraRXBuffer)
+    _saraRXBuffer = new char[_RXBuffSize];
+    if (NULL == _saraRXBuffer)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _saraRXBuffer!"));
+      return false;
+    }
   }
   memset(_saraRXBuffer, 0, _RXBuffSize);
 
-  _pruneBuffer = new char[_RXBuffSize];
-  if (_pruneBuffer == NULL)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _pruneBuffer!"));
-    return false;
+  if (NULL == _pruneBuffer) {
+    _pruneBuffer = new char[_RXBuffSize];
+    if (NULL == _pruneBuffer) {
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _pruneBuffer!"));
+      return false;
+    }
   }
   memset(_pruneBuffer, 0, _RXBuffSize);
-
-  _saraResponseBacklog = new char[_RXBuffSize];
-  if (_saraResponseBacklog == NULL)
-  {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _saraResponseBacklog!"));
-    return false;
-  }
+ 
+  if (NULL == _saraResponseBacklog) {
+    saraResponseBacklog = new char[_RXBuffSize];
+    if (NULL == _saraResponseBacklog) {
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _saraResponseBacklog!"));
+      return false;
+    }
   memset(_saraResponseBacklog, 0, _RXBuffSize);
 
   SARA_R5_error_t err;

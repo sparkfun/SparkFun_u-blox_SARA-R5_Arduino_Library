@@ -577,6 +577,7 @@ public:
   // maxInitTries sets the maximum number of initialization attempts. .init is called by .begin.
   SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitTries = 9);
 
+  ~SARA_R5();
   // Begin -- initialize module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
