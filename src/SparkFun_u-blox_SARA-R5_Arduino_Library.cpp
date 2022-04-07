@@ -2432,7 +2432,7 @@ SARA_R5_error_t SARA_R5::socketWrite(int socket, const char *str, int len)
   {
     unsigned long writeDelay = millis();
     while (millis() < (writeDelay + 50))
-      delay(1); //uBlox specification says to wait 50ms after receiving "@" to write data.
+      delay(1); //u-blox specification says to wait 50ms after receiving "@" to write data.
 
     if (len == -1)
     {
