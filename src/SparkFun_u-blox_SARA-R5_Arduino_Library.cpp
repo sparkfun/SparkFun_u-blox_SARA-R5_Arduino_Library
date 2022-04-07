@@ -57,15 +57,15 @@ SARA_R5::SARA_R5(int powerPin, int resetPin, uint8_t maxInitTries)
 
 SARA_R5::~SARA_R5(void) {
   if (NULL != _saraRXBuffer) {
-    delete [] _saraRXBuffer;
+    delete[] _saraRXBuffer;
     _saraRXBuffer = NULL;
   }
   if (NULL != _pruneBuffer) {
-    delete [] _pruneBuffer;
+    delete[] _pruneBuffer;
     _pruneBuffer = NULL;
   }
   if (NULL != _saraResponseBacklog) {
-    delete [] _saraResponseBacklog;
+    delete[] _saraResponseBacklog;
     _saraResponseBacklog = NULL;
   }
 }
@@ -74,6 +74,7 @@ SARA_R5::~SARA_R5(void) {
 bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 {
   if (NULL == _saraRXBuffer)
+  {
     _saraRXBuffer = new char[_RXBuffSize];
     if (NULL == _saraRXBuffer)
     {
@@ -84,9 +85,10 @@ bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
   }
   memset(_saraRXBuffer, 0, _RXBuffSize);
 
-  if (NULL == _pruneBuffer) {
+  if (NULL == _pruneBuffer)
+  {
     _pruneBuffer = new char[_RXBuffSize];
-    if (NULL == _pruneBuffer) {
+    if (NULL == _pruneBuffer)
     {
       if (_printDebug == true)
         _debugPort->println(F("begin: not enough memory for _pruneBuffer!"));
@@ -95,14 +97,16 @@ bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
   }
   memset(_pruneBuffer, 0, _RXBuffSize);
  
-  if (NULL == _saraResponseBacklog) {
-    saraResponseBacklog = new char[_RXBuffSize];
-    if (NULL == _saraResponseBacklog) {
+  if (NULL == _saraResponseBacklog)
+  {
+    _saraResponseBacklog = new char[_RXBuffSize];
+    if (NULL == _saraResponseBacklog)
     {
       if (_printDebug == true)
         _debugPort->println(F("begin: not enough memory for _saraResponseBacklog!"));
       return false;
     }
+  }
   memset(_saraResponseBacklog, 0, _RXBuffSize);
 
   SARA_R5_error_t err;
@@ -120,30 +124,39 @@ bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 
 bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 {
-  _saraRXBuffer = new char[_RXBuffSize];
-  if (_saraRXBuffer == NULL)
+  if (NULL == _saraRXBuffer)
   {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _saraRXBuffer!"));
-    return false;
+    _saraRXBuffer = new char[_RXBuffSize];
+    if (NULL == _saraRXBuffer)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _saraRXBuffer!"));
+      return false;
+    }
   }
   memset(_saraRXBuffer, 0, _RXBuffSize);
 
-  _pruneBuffer = new char[_RXBuffSize];
-  if (_pruneBuffer == NULL)
+  if (NULL == _pruneBuffer)
   {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _pruneBuffer!"));
-    return false;
+    _pruneBuffer = new char[_RXBuffSize];
+    if (NULL == _pruneBuffer)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _pruneBuffer!"));
+      return false;
+    }
   }
   memset(_pruneBuffer, 0, _RXBuffSize);
-
-  _saraResponseBacklog = new char[_RXBuffSize];
-  if (_saraResponseBacklog == NULL)
+ 
+  if (NULL == _saraResponseBacklog)
   {
-    if (_printDebug == true)
-      _debugPort->println(F("begin: not enough memory for _saraResponseBacklog!"));
-    return false;
+    _saraResponseBacklog = new char[_RXBuffSize];
+    if (NULL == _saraResponseBacklog)
+    {
+      if (_printDebug == true)
+        _debugPort->println(F("begin: not enough memory for _saraResponseBacklog!"));
+      return false;
+    }
   }
   memset(_saraResponseBacklog, 0, _RXBuffSize);
 
