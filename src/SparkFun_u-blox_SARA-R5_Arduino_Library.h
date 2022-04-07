@@ -113,10 +113,12 @@ const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
 const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
 const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
 const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
+const char SARA_R5_EPSREGISTRATION_STATUS[] = "+CEREG";
 const char SARA_R5_READ_OPERATOR_NAMES[] = "+COPN";
 const char SARA_R5_COMMAND_MNO[] = "+UMNOPROF"; // MNO (mobile network operator) Profile
 // ### SIM
 const char SARA_R5_SIM_STATE[] = "+USIMSTAT";
+const char SARA_R5_COMMAND_SIMPIN[] = "+CPIN";    // SIM PIN
 // ### SMS
 const char SARA_R5_MESSAGE_FORMAT[] = "+CMGF";     // Set SMS message format
 const char SARA_R5_SEND_TEXT[] = "+CMGS";          // Send SMS message
@@ -155,6 +157,12 @@ const char SARA_R5_PING_COMMAND[] = "+UPING"; // Ping
 const char SARA_R5_HTTP_PROFILE[] = "+UHTTP";          // Configure the HTTP profile. Up to 4 different profiles can be defined
 const char SARA_R5_HTTP_COMMAND[] = "+UHTTPC";         // Trigger the specified HTTP command
 const char SARA_R5_HTTP_PROTOCOL_ERROR[] = "+UHTTPER"; // Retrieves the error class and code of the latest HTTP operation on the specified HTTP profile.
+
+const char SARA_R5_MQTT_NVM[] = "+UMQTTNV";
+const char SARA_R5_MQTT_PROFILE[] = "+UMQTT";
+const char SARA_R5_MQTT_COMMAND[] = "+UMQTTC";
+const char SARA_R5_MQTT_PROTOCOL_ERROR[] = "+UMQTTER";
+
 // ### GNSS
 const char SARA_R5_GNSS_POWER[] = "+UGPS";                   // GNSS power management configuration
 const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND";           // Assisted GNSS unsolicited indication
@@ -169,12 +177,19 @@ const char SARA_R5_AIDING_SERVER_CONFIGURATION[] = "+UGSRV"; // Configure aiding
 // ### File System
 // TO DO: Add support for file tags. Default tag to USER
 const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE";      // Read a file
+const char SARA_R5_FILE_SYSTEM_DOWNLOAD_FILE[] = "+UDWNFILE";    // Download a file into the module
 const char SARA_R5_FILE_SYSTEM_LIST_FILES[] = "+ULSTFILE";    // List of files, size of file, etc.
 const char SARA_R5_FILE_SYSTEM_DELETE_FILE[] = "+UDELFILE";   // Delete a file
+// ### File System
+// TO DO: Add support for file tags. Default tag to USER
+const char SARA_R5_SEC_PROFILE[] = "+USECPRF";
+const char SARA_R5_SEC_MANAGER[] = "+USECMNG";
+
 // ### Response
-const char SARA_R5_RESPONSE_OK[] = "OK\r\n";
-const char SARA_R5_RESPONSE_ERROR[] = "ERROR\r\n";
-const char SARA_R5_RESPONSE_CONNECT[] = "CONNECT\r\n";
+const char SARA_R5_RESPONSE_OK[] = "\nOK\r\n";
+const char SARA_R5_RESPONSE_ERROR[] = "\nERROR\r\n";
+const char SARA_R5_RESPONSE_CONNECT[] = "\r\nCONNECT\r\n";
+#define SARA_R5_RESPONSE_OK_OR_ERROR NULL
 
 // CTRL+Z and ESC ASCII codes for SMS message sends
 const char ASCII_CTRL_Z = 0x1A;
@@ -425,6 +440,40 @@ typedef enum
 
 typedef enum
 {
+    SARA_R5_MQTT_NV_RESTORE = 0,
+    SARA_R5_MQTT_NV_SET,
+    SARA_R5_MQTT_NV_STORE,
+} SARA_R5_mqtt_nv_parameter_t;
+    
+typedef enum
+{
+    SARA_R5_MQTT_PROFILE_CLIENT_ID = 0,
+    SARA_R5_MQTT_PROFILE_SERVERNAME = 2,
+    SARA_R5_MQTT_PROFILE_IPADDRESS,
+    SARA_R5_MQTT_PROFILE_USERNAMEPWD,
+    SARA_R5_MQTT_PROFILE_QOS = 6,
+    SARA_R5_MQTT_PROFILE_RETAIN,
+    SARA_R5_MQTT_PROFILE_TOPIC,
+    SARA_R5_MQTT_PROFILE_MESSAGE,
+    SARA_R5_MQTT_PROFILE_INACTIVITYTIMEOUT,
+    SARA_R5_MQTT_PROFILE_SECURE,
+} SARA_R5_mqtt_profile_opcode_t;
+
+typedef enum
+{
+    SARA_R5_MQTT_COMMAND_LOGOUT = 0,
+    SARA_R5_MQTT_COMMAND_LOGIN,
+    SARA_R5_MQTT_COMMAND_PUBLISH,
+    SARA_R5_MQTT_COMMAND_PUBLISHFILE,
+    SARA_R5_MQTT_COMMAND_SUBSCRIBE,
+    SARA_R5_MQTT_COMMAND_UNSUBSCRIBE,
+    SARA_R5_MQTT_COMMAND_READ,
+    SARA_R5_MQTT_COMMAND_PING,
+    SARA_R5_MQTT_COMMAND_PUBLISHBINARY,
+} SARA_R5_mqtt_command_opcode_t;
+
+typedef enum
+{
   SARA_R5_PSD_CONFIG_PARAM_PROTOCOL = 0,
   SARA_R5_PSD_CONFIG_PARAM_APN,
   //SARA_R5_PSD_CONFIG_PARAM_USERNAME, // Not allowed on SARA-R5
@@ -457,6 +506,56 @@ typedef enum
 
 typedef enum
 {
+  SARA_R5_SEC_PROFILE_PARAM_CERT_VAL_LEVEL = 0,
+  SARA_R5_SEC_PROFILE_PARAM_TLS_VER,
+  SARA_R5_SEC_PROFILE_PARAM_CYPHER_SUITE,
+  SARA_R5_SEC_PROFILE_PARAM_ROOT_CA,
+  SARA_R5_SEC_PROFILE_PARAM_HOSTNAME,
+  SARA_R5_SEC_PROFILE_PARAM_CLIENT_CERT,
+  SARA_R5_SEC_PROFILE_PARAM_CLIENT_KEY,
+  SARA_R5_SEC_PROFILE_PARAM_CLIENT_KEY_PWD,
+  SARA_R5_SEC_PROFILE_PARAM_PSK,
+  SARA_R5_SEC_PROFILE_PARAM_PSK_IDENT,
+  SARA_R5_SEC_PROFILE_PARAM_SNI,
+} SARA_R5_sec_profile_parameter_t;
+
+typedef enum
+{
+  SARA_R5_SEC_PROFILE_CERTVAL_OPCODE_NO = 0,
+  SARA_R5_SEC_PROFILE_CERTVAL_OPCODE_YESNOURL,
+  SARA_R5_SEC_PROFILE_CERVTAL_OPCODE_YESURL,
+  SARA_R5_SEC_PROFILE_CERTVAL_OPCODE_YESURLDATE,
+} SARA_R5_sec_profile_certval_op_code_t;
+
+typedef enum
+{
+  SARA_R5_SEC_PROFILE_TLS_OPCODE_ANYVER = 0,
+  SARA_R5_SEC_PROFILE_TLS_OPCODE_VER1_0,
+  SARA_R5_SEC_PROFILE_TLS_OPCODE_VER1_1,
+  SARA_R5_SEC_PROFILE_TLS_OPCODE_VER1_2,
+  SARA_R5_SEC_PROFILE_TLS_OPCODE_VER1_3,
+} SARA_R5_sec_profile_tls_op_code_t;
+
+typedef enum
+{
+  SARA_R5_SEC_PROFILE_SUITE_OPCODE_PROPOSEDDEFAULT = 0,
+} SARA_R5_sec_profile_suite_op_code_t;
+
+typedef enum
+{
+    SARA_R5_SEC_MANAGER_OPCODE_IMPORT = 0,
+} SARA_R5_sec_manager_opcode_t;
+
+typedef enum
+{
+    SARA_R5_SEC_MANAGER_ROOTCA = 0,
+    SARA_R5_SEC_MANAGER_CLIENT_CERT,
+    SARA_R5_SEC_MANAGER_CLIENT_KEY,
+    SARA_R5_SEC_MANAGER_SERVER_CERT
+} SARA_R5_sec_manager_parameter_t;
+
+typedef enum
+{
   MINIMUM_FUNCTIONALITY = 0, // (disable both transmit and receive RF circuits by deactivating both CS and PS services)
   FULL_FUNCTIONALITY = 1,
   AIRPLANE_MODE = 4,
@@ -475,9 +574,10 @@ class SARA_R5 : public Print
 public:
   // Constructor
   // The library will use the powerPin and resetPin (if provided) to power the module off/on and perform an emergency reset
-  // maxInitDepth sets the maximum number of initialization attempts (recursive). .init is called by .begin.
-  SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitDepth = 9);
+  // maxInitTries sets the maximum number of initialization attempts. .init is called by .begin.
+  SARA_R5(int powerPin = SARA_R5_POWER_PIN, int resetPin = SARA_R5_RESET_PIN, uint8_t maxInitTries = 9);
 
+  ~SARA_R5();
   // Begin -- initialize module and ensure it's connected
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
@@ -486,7 +586,8 @@ public:
 
   // Debug prints
   void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
-
+  void enableAtDebugging(Stream &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
+  
   // Invert the polarity of the power pin - if required
   // Normally the SARA's power pin is pulled low and released to toggle the power
   // But the Asset Tracker needs this to be pulled high and released instead
@@ -524,7 +625,12 @@ public:
   void setPSDActionCallback(void (*psdActionRequestCallback)(int result, IPAddress ip));
   void setPingCallback(void (*pingRequestCallback)(int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt));
   void setHTTPCommandCallback(void (*httpCommandRequestCallback)(int profile, int command, int result));
-
+  void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result));
+  SARA_R5_error_t setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status,
+                                                                       unsigned int lac, unsigned int ci, int Act));
+  SARA_R5_error_t setEpsRegistrationCallback(void (*epsRegistrationCallback)(SARA_R5_registration_status_t status,
+                                                                            unsigned int tac, unsigned int ci, int Act));
+    
   // Direct write/print to cell serial port
   virtual size_t write(uint8_t c);
   virtual size_t write(const char *str);
@@ -560,10 +666,10 @@ public:
   SARA_R5_error_t getUtimeIndication(SARA_R5_utime_urc_configuration_t *config);
   SARA_R5_error_t setUtimeConfiguration(int32_t offsetNanoseconds = 0, int32_t offsetSeconds = 0); // +UTIMECFG
   SARA_R5_error_t getUtimeConfiguration(int32_t *offsetNanoseconds, int32_t *offsetSeconds);
-
+  
   // Network service AT commands
   int8_t rssi(void); // Receive signal strength
-  SARA_R5_registration_status_t registration(void);
+  SARA_R5_registration_status_t registration(bool eps = true);
   bool setNetworkProfile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
   mobile_network_operator_t getNetworkProfile(void);
   typedef enum
@@ -577,6 +683,9 @@ public:
   SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
   SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip);                                 // Return the apn and IP address for the chosen context identifier
 
+  SARA_R5_error_t getSimStatus(String* code);
+  SARA_R5_error_t setSimPin(String pin);
+  
   // SIM
   // Status report Mode:
   // Bit   States reported
@@ -734,12 +843,31 @@ public:
   SARA_R5_error_t setHTTPpassword(int profile, String password);          // Default: empty string
   SARA_R5_error_t setHTTPauthentication(int profile, bool authenticate);  // Default: no authentication
   SARA_R5_error_t setHTTPserverPort(int profile, int port);               // Default: 80
-  SARA_R5_error_t setHTTPsecure(int profile, bool secure);                // Default: disabled (HTTP on port 80). Set to true for HTTPS on port 443
+  SARA_R5_error_t setHTTPcustomHeader(int profile, String header);        // Default: format 0:Content-Type:application/json"
+  SARA_R5_error_t setHTTPsecure(int profile, bool secure, int secprofile = -1);  // Default: disabled (HTTP on port 80). Set to true for HTTPS on port 443
   // TO DO: Add custom request headers
   SARA_R5_error_t getHTTPprotocolError(int profile, int *error_class, int *error_code); // Read the most recent HTTP protocol error for this profile
   SARA_R5_error_t sendHTTPGET(int profile, String path, String responseFilename);
   SARA_R5_error_t sendHTTPPOSTdata(int profile, String path, String responseFilename, String data, SARA_R5_http_content_types_t httpContentType);
+  SARA_R5_error_t sendHTTPPOSTfile(int profile, String path, String responseFilename, String requestFile, SARA_R5_http_content_types_t httpContentType);
 
+  SARA_R5_error_t nvMQTT(SARA_R5_mqtt_nv_parameter_t parameter);
+  SARA_R5_error_t setMQTTclientId(String clientId);
+  SARA_R5_error_t setMQTTserver(String serverName, int port);
+  SARA_R5_error_t setMQTTsecure(bool secure, int secprofile = -1);
+  SARA_R5_error_t connectMQTT(void);
+  SARA_R5_error_t disconnectMQTT(void);
+  SARA_R5_error_t subscribeMQTTtopic(int max_Qos, String topic);
+  SARA_R5_error_t unsubscribeMQTTtopic(String topic);
+  SARA_R5_error_t readMQTT(int* pQos, char* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
+  SARA_R5_error_t getMQTTprotocolError(int *error_code, int *error_code2);
+  
+  // Configure security profiles
+  SARA_R5_error_t resetSecurityProfile(int secprofile);
+  SARA_R5_error_t configSecurityProfileString(int secprofile, SARA_R5_sec_profile_parameter_t parameter, String value);
+  SARA_R5_error_t configSecurityProfile(int secprofile, SARA_R5_sec_profile_parameter_t parameter, int value);
+  SARA_R5_error_t setSecurityManager(SARA_R5_sec_manager_opcode_t opcode, SARA_R5_sec_manager_parameter_t parameter, String name, String data);
+    
   // Packet Switched Data
   // Configure the PDP using +UPSD. See SARA_R5_pdp_configuration_parameter_t for the list of parameters: protocol, APN, username, DNS, etc.
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value);                         // Set parameters in the chosen PSD profile
@@ -798,9 +926,12 @@ public:
   // TO DO: add full support for file tags. Default tag to USER
   SARA_R5_error_t getFileContents(String filename, String *contents); // OK for text files. But will fail with binary files (containing \0) on some platforms.
   SARA_R5_error_t getFileContents(String filename, char *contents); // OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
+  // Append data to a file, delete file first to not appends the data.
+  SARA_R5_error_t appendFileContents(String filename, String str);
+  SARA_R5_error_t appendFileContents(String filename, const char *str, int len);
   SARA_R5_error_t getFileSize(String filename, int *size);
   SARA_R5_error_t deleteFile(String filename);
-
+    
   // Functionality
   SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
 
@@ -816,7 +947,9 @@ private:
 
   Stream *_debugPort;       //The stream to send debug messages to if enabled. Usually Serial.
   bool _printDebug = false; //Flag to print debugging variables
-
+  Stream *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
+  bool _printAtDebug = false; //Flag to print debugging variables
+  
   int _powerPin;
   int _resetPin;
   bool _invertPowerPin = false;
@@ -824,8 +957,7 @@ private:
   unsigned long _baud;
   IPAddress _lastRemoteIP;
   IPAddress _lastLocalIP;
-  uint8_t _maxInitDepth;
-  uint8_t _currentInitDepth = 0;
+  uint8_t _maxInitTries;
   bool _autoTimeZoneForBegin = true;
   bool _bufferedPollReentrant = false; // Prevent reentry of bufferedPoll - just in case it gets called from a callback
   bool _pollReentrant = false; // Prevent reentry of poll - just in case it gets called from a callback
@@ -846,6 +978,10 @@ private:
   void (*_psdActionRequestCallback)(int, IPAddress);
   void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
   void (*_httpCommandRequestCallback)(int, int, int);
+  void (*_mqttCommandRequestCallback)(int, int);
+  void (*_registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act);
+  void (*_epsRegistrationCallback)(SARA_R5_registration_status_t status, unsigned int tac, unsigned int ci, int Act);
+
 
   int _lastSocketProtocol[SARA_R5_NUM_SOCKETS]; // Record the protocol for each socket to avoid having to call querySocketType in parseSocketReadIndication
 
