@@ -225,7 +225,14 @@ bool SARA_R5::bufferedPoll(void)
 
   if ((hwAvailable() > 0) || (backlogLen > 0)) // If either new data is available, or backlog had data.
   {
-    // Wait for up to _rxWindowMillis for new serial data to arrive. 
+    //Check for incoming serial data. Copy it into the backlog
+
+    // Important note:
+    // On ESP32, Serial.available only provides an update every ~120 bytes during the reception of long messages:
+    // https://gitter.im/espressif/arduino-esp32?at=5e25d6370a1cf54144909c85
+    // Be aware that if a long message is being received, the code below will timeout after _rxWindowMillis = 2 millis.
+    // At 115200 baud, hwAvailable takes ~120 * 10 / 115200 = 10.4 millis before it indicates that data is being received.
+
     while (((millis() - timeIn) < _rxWindowMillis) && (avail < _RXBuffSize))
     {
       if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
@@ -5648,7 +5655,14 @@ SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, cons
 
 void SARA_R5::sendCommand(const char *command, bool at)
 {
-  //Spend up to _rxWindowMillis milliseconds copying any incoming serial data into the backlog
+  //Check for incoming serial data. Copy it into the backlog
+  
+  // Important note:
+  // On ESP32, Serial.available only provides an update every ~120 bytes during the reception of long messages:
+  // https://gitter.im/espressif/arduino-esp32?at=5e25d6370a1cf54144909c85
+  // Be aware that if a long message is being received, the code below will timeout after _rxWindowMillis = 2 millis.
+  // At 115200 baud, hwAvailable takes ~120 * 10 / 115200 = 10.4 millis before it indicates that data is being received.
+
   unsigned long timeIn = millis();
   if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
