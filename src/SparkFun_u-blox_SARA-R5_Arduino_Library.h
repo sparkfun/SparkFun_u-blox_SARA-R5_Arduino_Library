@@ -681,7 +681,7 @@ public:
     PDP_TYPE_IPV6 = 3
   } SARA_R5_pdp_type;
   SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
-  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip);                                 // Return the apn and IP address for the chosen context identifier
+  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp_type* pdpType = NULL);                                 // Return the apn and IP address for the chosen context identifier
 
   SARA_R5_error_t getSimStatus(String* code);
   SARA_R5_error_t setSimPin(String pin);
@@ -859,7 +859,7 @@ public:
   SARA_R5_error_t disconnectMQTT(void);
   SARA_R5_error_t subscribeMQTTtopic(int max_Qos, String topic);
   SARA_R5_error_t unsubscribeMQTTtopic(String topic);
-  SARA_R5_error_t readMQTT(int* pQos, char* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
+  SARA_R5_error_t readMQTT(int* pQos, String* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
   SARA_R5_error_t getMQTTprotocolError(int *error_code, int *error_code2);
   
   // Configure security profiles
