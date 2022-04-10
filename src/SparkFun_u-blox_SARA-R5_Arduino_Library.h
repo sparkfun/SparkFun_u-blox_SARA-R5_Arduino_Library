@@ -88,7 +88,6 @@
 #define SARA_R5_POWER_OFF_TIMEOUT 40000 // Datasheet says 40 seconds...
 #define SARA_R5_IP_CONNECT_TIMEOUT 130000
 #define SARA_R5_POLL_DELAY 1
-#define SARA_R5_READ_NODATA_DELAY 1 // in case the hw has do data in the interface delay to give a chance to ther tasks. 
 #define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
 
 // ## Suported AT Commands

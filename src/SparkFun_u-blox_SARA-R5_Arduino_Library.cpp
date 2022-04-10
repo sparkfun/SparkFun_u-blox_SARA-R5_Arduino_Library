@@ -247,7 +247,7 @@ bool SARA_R5::bufferedPoll(void)
         _saraRXBuffer[avail++] = c;
         timeIn = millis();
       } else {
-        delay(SARA_R5_READ_NODATA_DELAY);
+        yield();
       }
     }
 
@@ -681,7 +681,7 @@ bool SARA_R5::poll(void)
         c = readChar();
         _saraRXBuffer[avail++] = c;
       } else {
-        delay(SARA_R5_READ_NODATA_DELAY);
+        yield();
       }
     }
 
@@ -5483,7 +5483,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
     } else {
-      delay(SARA_R5_READ_NODATA_DELAY);
+      yield();
     }
   }
 
@@ -5606,7 +5606,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
     } else {
-      delay(SARA_R5_READ_NODATA_DELAY);
+      yield();
     }
   }
   
@@ -5673,7 +5673,7 @@ void SARA_R5::sendCommand(const char *command, bool at)
         _saraResponseBacklog[_saraResponseBacklogLength++] = c;
         timeIn = millis();
       } else {
-        delay(SARA_R5_READ_NODATA_DELAY);
+        yield();
       }
     }
   }
