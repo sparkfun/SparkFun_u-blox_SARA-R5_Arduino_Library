@@ -601,9 +601,9 @@ public:
 
   // This function was originally written by Matthew Menze for the LTE Shield (SARA-R4) library
   // See: https://github.com/sparkfun/SparkFun_LTE_Shield_Arduino_Library/pull/8
-  // It does the same job as ::poll but also processed any 'old' data stored in the backlog first
+  // It does the same job as ::poll but also processes any 'old' data stored in the backlog first
   // It also has a built-in timeout - which ::poll does not
-  // Use this - it is way better than ::poll. Thank you Natthew!
+  // Use this - it is way better than ::poll. Thank you Matthew!
   bool bufferedPoll(void);
   
   // This is the original poll function.
@@ -964,7 +964,7 @@ private:
   bool _pollReentrant = false; // Prevent reentry of poll - just in case it gets called from a callback
 
   #define _RXBuffSize 2056
-  const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros.
+  const unsigned long _rxWindowMillis = 2; // 1ms is not quite long enough for a single char at 9600 baud. millis roll over much less often than micros. See notes in .cpp re. ESP32!
   char *_saraRXBuffer; // Allocated in SARA_R5::begin
   char *_pruneBuffer;
   char *_saraResponseBacklog;
