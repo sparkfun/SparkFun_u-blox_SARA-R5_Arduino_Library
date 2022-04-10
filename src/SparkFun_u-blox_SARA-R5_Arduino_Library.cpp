@@ -161,7 +161,7 @@ bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 
 //Calling this function with nothing sets the debug port to Serial
 //You can also call it with other streams like Serial1, SerialUSB, etc.
-void SARA_R5::enableDebugging(Stream &debugPort)
+void SARA_R5::enableDebugging(Print &debugPort)
 {
   _debugPort = &debugPort;
   _printDebug = true;
@@ -169,7 +169,7 @@ void SARA_R5::enableDebugging(Stream &debugPort)
 
 //Calling this function with nothing sets the debug port to Serial
 //You can also call it with other streams like Serial1, SerialUSB, etc.
-void SARA_R5::enableAtDebugging(Stream &debugPort)
+void SARA_R5::enableAtDebugging(Print &debugPort)
 {
   _debugAtPort = &debugPort;
   _printAtDebug = true;
@@ -226,6 +226,8 @@ bool SARA_R5::bufferedPoll(void)
           c = '0'; // Convert any NULLs to ASCII Zeros
         _saraRXBuffer[avail++] = c;
         timeIn = millis();
+      } else {
+        delay(SARA_R5_READ_NODATA_DELAY);
       }
     }
 
@@ -658,6 +660,8 @@ bool SARA_R5::poll(void)
       {
         c = readChar();
         _saraRXBuffer[avail++] = c;
+      } else {
+        delay(SARA_R5_READ_NODATA_DELAY);
       }
     }
 
@@ -5458,6 +5462,8 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
         else
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
+    } else {
+      delay(SARA_R5_READ_NODATA_DELAY);
     }
   }
 
@@ -5579,6 +5585,8 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
         else
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
+    } else {
+      delay(SARA_R5_READ_NODATA_DELAY);
     }
   }
   
@@ -5637,6 +5645,8 @@ void SARA_R5::sendCommand(const char *command, bool at)
           c = '0';
         _saraResponseBacklog[_saraResponseBacklogLength++] = c;
         timeIn = millis();
+      } else {
+        delay(SARA_R5_READ_NODATA_DELAY);
       }
     }
   }

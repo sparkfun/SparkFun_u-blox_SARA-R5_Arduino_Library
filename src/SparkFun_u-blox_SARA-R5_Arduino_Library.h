@@ -88,6 +88,7 @@
 #define SARA_R5_POWER_OFF_TIMEOUT 40000 // Datasheet says 40 seconds...
 #define SARA_R5_IP_CONNECT_TIMEOUT 130000
 #define SARA_R5_POLL_DELAY 1
+#define SARA_R5_READ_NODATA_DELAY 10 // in case the hw has do data in the interface delay to give a chance to ther tasks. 
 #define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
 
 // ## Suported AT Commands
@@ -585,8 +586,8 @@ public:
   bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
 
   // Debug prints
-  void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
-  void enableAtDebugging(Stream &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
+  void enableDebugging(Print &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
+  void enableAtDebugging(Print &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
   
   // Invert the polarity of the power pin - if required
   // Normally the SARA's power pin is pulled low and released to toggle the power
@@ -945,9 +946,9 @@ private:
   SoftwareSerial *_softSerial;
 #endif
 
-  Stream *_debugPort;       //The stream to send debug messages to if enabled. Usually Serial.
+  Print *_debugPort;       //The stream to send debug messages to if enabled. Usually Serial.
   bool _printDebug = false; //Flag to print debugging variables
-  Stream *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
+  Print *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
   bool _printAtDebug = false; //Flag to print debugging variables
   
   int _powerPin;
