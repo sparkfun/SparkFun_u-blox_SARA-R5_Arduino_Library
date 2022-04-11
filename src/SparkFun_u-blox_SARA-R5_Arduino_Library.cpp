@@ -6061,6 +6061,9 @@ void SARA_R5::pruneBacklog()
         || (strstr(event, "+UUSIMSTAT:") != NULL)
         || (strstr(event, "+UUPSDA:") != NULL)
         || (strstr(event, "+UUPING:") != NULL)
+        || (strstr(event, "+UUMQTTC:") != NULL)
+        || (strstr(event, "+UUCREG:") != NULL)
+        || (strstr(event, "+UUCEREG:") != NULL)
         || (strstr(event, "+UUHTTPCR:") != NULL))
     {
       strcat(_pruneBuffer, event); // The URCs are all readable text so using strcat is OK
