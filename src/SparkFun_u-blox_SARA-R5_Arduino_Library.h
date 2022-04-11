@@ -585,8 +585,8 @@ public:
   bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
 
   // Debug prints
-  void enableDebugging(Stream &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
-  void enableAtDebugging(Stream &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
+  void enableDebugging(Print &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
+  void enableAtDebugging(Print &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
   
   // Invert the polarity of the power pin - if required
   // Normally the SARA's power pin is pulled low and released to toggle the power
@@ -681,7 +681,7 @@ public:
     PDP_TYPE_IPV6 = 3
   } SARA_R5_pdp_type;
   SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
-  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip);                                 // Return the apn and IP address for the chosen context identifier
+  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp_type* pdpType = NULL);                                 // Return the apn and IP address for the chosen context identifier
 
   SARA_R5_error_t getSimStatus(String* code);
   SARA_R5_error_t setSimPin(String pin);
@@ -859,7 +859,7 @@ public:
   SARA_R5_error_t disconnectMQTT(void);
   SARA_R5_error_t subscribeMQTTtopic(int max_Qos, String topic);
   SARA_R5_error_t unsubscribeMQTTtopic(String topic);
-  SARA_R5_error_t readMQTT(int* pQos, char* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
+  SARA_R5_error_t readMQTT(int* pQos, String* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
   SARA_R5_error_t getMQTTprotocolError(int *error_code, int *error_code2);
   
   // Configure security profiles
@@ -945,9 +945,9 @@ private:
   SoftwareSerial *_softSerial;
 #endif
 
-  Stream *_debugPort;       //The stream to send debug messages to if enabled. Usually Serial.
+  Print *_debugPort;       //The stream to send debug messages to if enabled. Usually Serial.
   bool _printDebug = false; //Flag to print debugging variables
-  Stream *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
+  Print *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
   bool _printAtDebug = false; //Flag to print debugging variables
   
   int _powerPin;
