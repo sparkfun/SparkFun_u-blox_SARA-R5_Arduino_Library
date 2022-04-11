@@ -174,7 +174,7 @@ bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 
 //Calling this function with nothing sets the debug port to Serial
 //You can also call it with other streams like Serial1, SerialUSB, etc.
-void SARA_R5::enableDebugging(Stream &debugPort)
+void SARA_R5::enableDebugging(Print &debugPort)
 {
   _debugPort = &debugPort;
   _printDebug = true;
@@ -182,7 +182,7 @@ void SARA_R5::enableDebugging(Stream &debugPort)
 
 //Calling this function with nothing sets the debug port to Serial
 //You can also call it with other streams like Serial1, SerialUSB, etc.
-void SARA_R5::enableAtDebugging(Stream &debugPort)
+void SARA_R5::enableAtDebugging(Print &debugPort)
 {
   _debugAtPort = &debugPort;
   _printAtDebug = true;
@@ -246,6 +246,8 @@ bool SARA_R5::bufferedPoll(void)
           c = '0'; // Convert any NULLs to ASCII Zeros
         _saraRXBuffer[avail++] = c;
         timeIn = millis();
+      } else {
+        yield();
       }
     }
 
@@ -546,10 +548,15 @@ bool SARA_R5::processURCEvent(const char *event)
   { // URC: +UUMQTTC (HTTP Command Result)
       int command, result;
       int scanNum;
-
+      int qos = -1;
+      String topic;
       scanNum = sscanf(event, "+UUMQTTC: %d,%d", &command, &result);
-
-      if (scanNum == 2)
+      if ((scanNum == 2) && (command == SARA_R5_MQTT_COMMAND_SUBSCRIBE)) {
+        char topicC[100] = "";
+        scanNum = sscanf(event, "+UUMQTTC: %*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
+        topic = topicC;
+      }
+      if ((scanNum == 2) || (scanNum == 4))
       {
         if (_printDebug == true)
           _debugPort->println(F("processReadEvent: MQTT command result"));
@@ -673,6 +680,8 @@ bool SARA_R5::poll(void)
       {
         c = readChar();
         _saraRXBuffer[avail++] = c;
+      } else {
+        yield();
       }
     }
 
@@ -1615,14 +1624,12 @@ SARA_R5_error_t SARA_R5::setAPN(String apn, uint8_t cid, SARA_R5_pdp_type pdpTyp
 }
 
 // Return the Access Point Name and IP address for the chosen context identifier
-SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
+SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp_type* pdpType)
 {
   SARA_R5_error_t err;
   char *command;
   char *response;
-  int ipOctets[4];
-  int rcid = -1;
-
+  
   if (cid > SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
     return SARA_R5_ERROR_ERROR;
 
@@ -1646,72 +1653,47 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip)
     // Example:
     // +CGDCONT: 0,"IP","payandgo.o2.co.uk","0.0.0.0",0,0,0,0,0,0,0,0,0,0
     // +CGDCONT: 1,"IP","payandgo.o2.co.uk.mnc010.mcc234.gprs","10.160.182.234",0,0,0,2,0,0,0,0,0,0
-
+	int rcid = -1;
     char *searchPtr = response;
 
     bool keepGoing = true;
     while (keepGoing == true)
     {
-      int apnLen = 0;
       int scanned = 0;
       // Find the first/next occurrence of +CGDCONT:
       searchPtr = strstr(searchPtr, "+CGDCONT: ");
       if (searchPtr != NULL)
       {
+        char strPdpType[10];
+        char strApn[128];
+        int ipOct[4];
+		
         searchPtr += strlen("+CGDCONT: "); // Point to the cid
-        rcid = (*searchPtr) - '0';         // Get the first/only digit of cid
-        searchPtr++;
-        if (*searchPtr != ',') // Get the second digit of cid - if there is one
-        {
-          rcid *= 10;
-          rcid += (*searchPtr) - '0';
-        }
-        if (_printDebug == true)
-        {
-          _debugPort->print(F("getAPN: cid is "));
-          _debugPort->println(rcid);
-        }
-        if (rcid == cid) // If we have a match
-        {
-          // Search to the third double-quote
-          for (int i = 0; i < 3; i++)
+        scanned = sscanf(searchPtr, "%d,\"%[^\"]\",\"%[^\"]\",\"%d.%d.%d.%d",
+        &rcid, strPdpType, strApn,
+				&ipOct[0], &ipOct[1], &ipOct[2], &ipOct[3]);
+        if ((scanned == 7) && (rcid == cid)) {
+          if (apn) *apn = strApn;
+          for (int o = 0; ip && (o < 4); o++)
           {
-            searchPtr = strchr(++searchPtr, '\"');
+            (*ip)[o] = (uint8_t)ipOct[o];
           }
-          if (searchPtr != NULL)
-          {
-            // Fill in the APN:
-            //searchPtr = strchr(searchPtr, '\"'); // Move to first quote
-            while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
-            {
-              apn->concat(*(searchPtr));
-              apnLen++;
-            }
-            // Now get the IP:
-            if (searchPtr != NULL)
-            {
-              scanned = sscanf(searchPtr, "\",\"%d.%d.%d.%d\"",
-                               &ipOctets[0], &ipOctets[1], &ipOctets[2], &ipOctets[3]);
-              if (scanned == 4)
-              {
-                for (int octet = 0; octet < 4; octet++)
-                {
-                  (*ip)[octet] = (uint8_t)ipOctets[octet];
-                }
-              }
-            }
+          if (pdpType) {
+            *pdpType = (0 == strcmp(strPdpType, "IPV4V6"))  ? PDP_TYPE_IPV4V6 :
+                       (0 == strcmp(strPdpType, "IPV6"))    ? PDP_TYPE_IPV6 :
+                       (0 == strcmp(strPdpType, "IP"))	    ? PDP_TYPE_IP :
+                                                              PDP_TYPE_INVALID;
           }
-        }
-        else // We don't have a match so let's clear the APN and IP address
-        {
-          *apn = "";
-          *ip = {0, 0, 0, 0};
+          keepGoing = false;
         }
       }
-      if ((rcid == cid) || (searchPtr == NULL) || (*searchPtr == '\0')) // Stop searching
+	  else // We don't have a match so let's clear the APN and IP address
       {
-        keepGoing = false;
-      }
+	    if (apn) *apn = "";
+		if (pdpType) *pdpType = PDP_TYPE_INVALID;
+		if (ip) *ip = {0, 0, 0, 0};
+		keepGoing = false;
+	  }  
     }
   }
   else
@@ -1752,7 +1734,8 @@ SARA_R5_error_t SARA_R5::getSimStatus(String* code)
       scanned = sscanf(searchPtr, "+CPIN: %s\r\n", c);
     if (scanned == 1)
     {
-      *code = c;
+      if(code)
+        *code = c;
     }
     else
       err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
@@ -4076,7 +4059,7 @@ SARA_R5_error_t SARA_R5::subscribeMQTTtopic(int max_Qos, String topic)
 {
   SARA_R5_error_t err;
   char *command;
-  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + topic.length() + 16);
+  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 16 + topic.length());
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,%d,\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_SUBSCRIBE, max_Qos, topic.c_str());
@@ -4090,7 +4073,7 @@ SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(String topic)
 {
   SARA_R5_error_t err;
   char *command;
-  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + topic.length() + 16);
+  command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 16 + topic.length());
   if (command == NULL)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   sprintf(command, "%s=%d,\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_UNSUBSCRIBE, topic.c_str());
@@ -4099,8 +4082,8 @@ SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(String topic)
   free(command);
   return err;
 }
-
-SARA_R5_error_t SARA_R5::readMQTT(int* pQos, char* pTopic, uint8_t *readDest, int readLength, int *bytesRead)
+    
+SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, int readLength, int *bytesRead)
 {
   char *command;
   char *response;
@@ -4148,8 +4131,8 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, char* pTopic, uint8_t *readDest, in
   // Extract the data
   char *searchPtr = strstr(response, "+UMQTTC: 6");
   if (searchPtr != NULL)
-    scanNum = sscanf(searchPtr, "+UMQTTC: 6,%d,%d,%d,\"%[^\"]\",%d\"", pQos, &total_length, &topic_length, pTopic, &data_length);
-  if (scanNum != 5)
+    scanNum = sscanf(searchPtr, "+UMQTTC: 6,%d,%d,%d,\"%*[^\"]\",%d,\"", pQos, &total_length, &topic_length, &data_length);
+  if (scanNum != 4)
   {
     if (_printDebug == true)
     {
@@ -4160,13 +4143,17 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, char* pTopic, uint8_t *readDest, in
     free(response);
     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
-
   searchPtr = strstr(searchPtr, "\"");
-  searchPtr = strstr(searchPtr+1, "\"");
-  searchPtr = strstr(searchPtr+1, "\"");
-  *bytesRead = (data_length > readLength) ? readLength : data_length;
-  memcpy(readDest, searchPtr, *bytesRead);
-  
+  if (pTopic) {
+    searchPtr[topic_length+1] = '\0'; // zero terminate
+    *pTopic = searchPtr+1;
+    searchPtr[topic_length+1] = '\"'; // restore
+  }
+  searchPtr = strstr(searchPtr + topic_length + 2, "\"");
+  if (readDest) {
+    *bytesRead = (data_length > readLength) ? readLength : data_length;
+    memcpy(readDest, searchPtr+1, *bytesRead);
+  }
   free(command);
   free(response);
 
@@ -5495,6 +5482,8 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
         else
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
+    } else {
+      yield();
     }
   }
 
@@ -5616,6 +5605,8 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
         else
           _saraResponseBacklog[_saraResponseBacklogLength++] = c;
       }
+    } else {
+      yield();
     }
   }
   
@@ -5681,6 +5672,8 @@ void SARA_R5::sendCommand(const char *command, bool at)
           c = '0';
         _saraResponseBacklog[_saraResponseBacklogLength++] = c;
         timeIn = millis();
+      } else {
+        yield();
       }
     }
   }
