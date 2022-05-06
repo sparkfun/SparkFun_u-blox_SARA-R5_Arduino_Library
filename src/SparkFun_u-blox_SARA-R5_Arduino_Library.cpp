@@ -122,7 +122,7 @@ bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
 }
 #endif
 
-bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
+bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud, bool doBegin)
 {
   if (NULL == _saraRXBuffer)
   {
@@ -163,7 +163,9 @@ bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
   SARA_R5_error_t err;
 
   _hardSerial = &hardSerial;
-
+  if (doBegin) {
+    _hardSerial->begin(baud);
+  }
   err = init(baud);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
@@ -5958,7 +5960,7 @@ void SARA_R5::beginSerial(unsigned long baud)
   delay(100);
   if (_hardSerial != NULL)
   {
-    _hardSerial->begin(baud);
+    _hardSerial->updateBaudRate(baud);
   }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   else if (_softSerial != NULL)

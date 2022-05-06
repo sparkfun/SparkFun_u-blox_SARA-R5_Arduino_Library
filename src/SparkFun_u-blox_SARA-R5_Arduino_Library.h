@@ -207,7 +207,7 @@ const char ASCII_ESC = 0x1B;
 
 #define SARA_R5_NUM_SOCKETS 6
 
-#define NUM_SUPPORTED_BAUD 6
+#define NUM_SUPPORTED_BAUD 9
 const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
     {
         115200,
@@ -215,7 +215,10 @@ const unsigned long SARA_R5_SUPPORTED_BAUD[NUM_SUPPORTED_BAUD] =
         19200,
         38400,
         57600,
-        230400};
+        230400,
+        460800,
+        921600,
+        3000000};
 #define SARA_R5_DEFAULT_BAUD_RATE 115200
 
 // Flow control definitions for AT&K
@@ -582,7 +585,7 @@ public:
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
 #endif
-  bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
+  bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600, bool doBegin = true);
 
   // Debug prints
   void enableDebugging(Print &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
