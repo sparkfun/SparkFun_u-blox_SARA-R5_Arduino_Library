@@ -164,8 +164,6 @@ bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
 
   _hardSerial = &hardSerial;
 
-  _hardSerial->begin(baud)
-
   err = init(baud);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
