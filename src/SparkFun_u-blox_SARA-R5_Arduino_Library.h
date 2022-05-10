@@ -582,7 +582,7 @@ public:
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   bool begin(SoftwareSerial &softSerial, unsigned long baud = 9600);
 #endif
-  bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600, bool doBegin = true);
+  bool begin(HardwareSerial &hardSerial, unsigned long baud = 9600);
 
   // Debug prints
   void enableDebugging(Print &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
