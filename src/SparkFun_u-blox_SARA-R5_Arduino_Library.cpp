@@ -4850,7 +4850,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
   // A large file will completely fill the backlog buffer - but it will be pruned afterwards
   // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
   // To try and avoid this, look for \"\r\nOK\r\n
-  const char fileReadTerm[] = "\r\nOK\r\n"; //"\"\r\n\r\nOK\r\n";
+  const char fileReadTerm[] = "\r\nOK\r\n"; //LARA-R6 returns "\"\r\n\r\nOK\r\n" while SARA-R5 return "\"\r\nOK\r\n";
   err = sendCommandWithResponse(command, fileReadTerm,
                                 response, (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT),
                                 (fileSize + minimumResponseAllocation));
