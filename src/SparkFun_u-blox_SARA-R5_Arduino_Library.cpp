@@ -5974,6 +5974,7 @@ void SARA_R5::beginSerial(unsigned long baud)
   delay(100);
   if (_hardSerial != NULL)
   {
+    _hardSerial->end();
     _hardSerial->begin(baud);
   }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
