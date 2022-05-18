@@ -1026,7 +1026,7 @@ private:
   int readAvailable(char *inString);
   char readChar(void);
   int hwAvailable(void);
-  void beginSerial(unsigned long baud);
+  virtual void beginSerial(unsigned long baud);
   void setTimeout(unsigned long timeout);
   bool find(char *target);
 

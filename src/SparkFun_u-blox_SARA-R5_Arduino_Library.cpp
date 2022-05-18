@@ -4143,21 +4143,37 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
     free(response);
     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
+  
+  err = SARA_R5_ERROR_SUCCESS;
   searchPtr = strstr(searchPtr, "\"");
-  if (pTopic) {
-    searchPtr[topic_length+1] = '\0'; // zero terminate
-    *pTopic = searchPtr+1;
-    searchPtr[topic_length+1] = '\"'; // restore
-  }
-  searchPtr = strstr(searchPtr + topic_length + 2, "\"");
-  if (readDest) {
-    *bytesRead = (data_length > readLength) ? readLength : data_length;
-    memcpy(readDest, searchPtr+1, *bytesRead);
+  if (searchPtr!= NULL) {
+    if (pTopic) {
+      searchPtr[topic_length + 1] = '\0'; // zero terminate
+      *pTopic = searchPtr + 1;
+      searchPtr[topic_length + 1] = '\"'; // restore
+    }
+    searchPtr = strstr(searchPtr + topic_length + 2, "\"");
+    if (readDest && (searchPtr != NULL) && (response + responseLength >= searchPtr + data_length + 1) && (searchPtr[data_length + 1] == '"')) {
+      if (data_length > readLength) {
+        data_length = readLength;
+        if (_printDebug == true) {
+          _debugPort->print(F("readMQTT: error: trucate message"));
+        }
+        err = SARA_R5_ERROR_OUT_OF_MEMORY;
+      }
+      memcpy(readDest, searchPtr+1, data_length);
+      *bytesRead = data_length;
+    } else {
+      if (_printDebug == true) {
+        _debugPort->print(F("readMQTT: error: message end "));
+      }
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
   }
   free(command);
   free(response);
 
-  return (data_length > readLength) ? SARA_R5_ERROR_OUT_OF_MEMORY : SARA_R5_ERROR_SUCCESS;
+  return err;
 }
 
 SARA_R5_error_t SARA_R5::getMQTTprotocolError(int *error_code, int *error_code2)
@@ -4832,7 +4848,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
   // A large file will completely fill the backlog buffer - but it will be pruned afterwards
   // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
   // To try and avoid this, look for \"\r\nOK\r\n
-  const char fileReadTerm[] = "\"\r\nOK\r\n";
+  const char fileReadTerm[] = "\r\nOK\r\n"; //LARA-R6 returns "\"\r\n\r\nOK\r\n" while SARA-R5 return "\"\r\nOK\r\n";
   err = sendCommandWithResponse(command, fileReadTerm,
                                 response, (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT),
                                 (fileSize + minimumResponseAllocation));
@@ -5958,6 +5974,7 @@ void SARA_R5::beginSerial(unsigned long baud)
   delay(100);
   if (_hardSerial != NULL)
   {
+    _hardSerial->end();
     _hardSerial->begin(baud);
   }
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
