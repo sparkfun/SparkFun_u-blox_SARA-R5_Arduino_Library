@@ -550,10 +550,10 @@ bool SARA_R5::processURCEvent(const char *event)
       int scanNum;
       int qos = -1;
       String topic;
-      scanNum = sscanf(event, "+UUMQTTC: %d,%d", &command, &result);
+      scanNum = sscanf(event, "+UUMQTTC:%d,%d", &command, &result);
       if ((scanNum == 2) && (command == SARA_R5_MQTT_COMMAND_SUBSCRIBE)) {
         char topicC[100] = "";
-        scanNum = sscanf(event, "+UUMQTTC: %*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
+        scanNum = sscanf(event, "+UUMQTTC:%*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
         topic = topicC;
       }
       if ((scanNum == 2) || (scanNum == 4))
@@ -580,7 +580,7 @@ bool SARA_R5::processURCEvent(const char *event)
     const char *searchPtr = event;
 
     // Try to extract the UUPING retries and payload size
-    scanNum = sscanf(searchPtr, "+UUPING: %d,%d,", &retry, &p_size);
+    scanNum = sscanf(searchPtr, "+UUPING:%d,%d,", &retry, &p_size);
 
     if (scanNum == 2)
     {
@@ -3952,9 +3952,9 @@ SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     int scanned = 0;
-    char *searchPtr = strstr(response, "+UHTTPER: ");
+    char *searchPtr = strstr(response, "+UHTTPER:");
     if (searchPtr != NULL)
-      scanned = sscanf(searchPtr, "+UHTTPER: %d,%d,%d\r\n",
+      scanned = sscanf(searchPtr, "+UHTTPER:%d,%d,%d\r\n",
                         &rprofile, &eclass, &ecode);
     if (scanned == 3)
     {
@@ -4129,10 +4129,11 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
   }
 
   // Extract the data
-  char *searchPtr = strstr(response, "+UMQTTC: 6");
+  char *searchPtr = strstr(response, "+UMQTTC:");
+  int cmd = 0;
   if (searchPtr != NULL)
-    scanNum = sscanf(searchPtr, "+UMQTTC: 6,%d,%d,%d,\"%*[^\"]\",%d,\"", pQos, &total_length, &topic_length, &data_length);
-  if (scanNum != 4)
+    scanNum = sscanf(searchPtr, "+UMQTTC:%d,%d,%d,%d,\"%*[^\"]\",%d,\"", &cmd, pQos, &total_length, &topic_length, &data_length);
+  if ((scanNum != 5) || (cmd != SARA_R5_MQTT_COMMAND_READ))
   {
     if (_printDebug == true)
     {
@@ -4195,7 +4196,7 @@ SARA_R5_error_t SARA_R5::getMQTTprotocolError(int *error_code, int *error_code2)
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     int scanned = 0;
-    char *searchPtr = strstr(response, "+UMQTTER: ");
+    char *searchPtr = strstr(response, "+UMQTTER:");
     if (searchPtr != NULL)
       scanned = sscanf(searchPtr, "+UMQTTER:%d,%d\r\n",
                         &code, &code2);
