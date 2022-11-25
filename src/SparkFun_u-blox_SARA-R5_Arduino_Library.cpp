@@ -2507,7 +2507,10 @@ SARA_R5_error_t SARA_R5::socketClose(int socket, unsigned long timeout)
     free(command);
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
-  sprintf(command, "%s=%d", SARA_R5_CLOSE_SOCKET, socket);
+  // if timeout is short, close asynchronously and don't wait for socket closure (we will get the URC later)
+  // this will make sure the AT command parser is not confused during init()
+  const char* format = (SARA_R5_STANDARD_RESPONSE_TIMEOUT == timeout) ? "%s=%d,1" : "%s=%d";
+  sprintf(command, format, SARA_R5_CLOSE_SOCKET, socket);
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response, timeout);
 
