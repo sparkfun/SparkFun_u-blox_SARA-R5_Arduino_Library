@@ -5838,7 +5838,7 @@ SARA_R5_error_t SARA_R5::parseSocketCloseIndication(String *closeIndication)
 
   search = closeIndication->indexOf("UUSOCL:");
   search += 7;
-  if (closeIndication->charAt(search) == ' ') search ++;
+  while (closeIndication->charAt(search) == ' ') search ++; // skip spaces
 
   // Socket will be first integer, should be single-digit number between 0-6:
   socket = closeIndication->substring(search, search + 1).toInt();
