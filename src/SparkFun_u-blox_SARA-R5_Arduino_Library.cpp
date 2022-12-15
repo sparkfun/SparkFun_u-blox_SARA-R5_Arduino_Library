@@ -1123,9 +1123,12 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     char *searchPtr = strstr(response, "+CCLK:");
-    if (searchPtr != NULL)
-      scanNum = sscanf(searchPtr, "+CCLK:\"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
+    if (searchPtr != NULL) {
+      searchPtr += 6; //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "\"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
                &iy, &imo, &id, &ih, &imin, &is, &tzPlusMinus, &itz);
+    }
     if (scanNum == 8)
     {
       *y = iy;
@@ -1668,7 +1671,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
         char strApn[128];
         int ipOct[4];
 		
-        searchPtr += 6; // Point to the cid
+        searchPtr += 9; // Point to the cid
         scanned = sscanf(searchPtr, "%d,\"%[^\"]\",\"%[^\"]\",\"%d.%d.%d.%d",
         &rcid, strPdpType, strApn,
 				&ipOct[0], &ipOct[1], &ipOct[2], &ipOct[3]);
@@ -1730,8 +1733,11 @@ SARA_R5_error_t SARA_R5::getSimStatus(String* code)
     int scanned = 0;
     char c[16];
     char *searchPtr = strstr(response, "+CPIN:");
-    if (searchPtr != NULL)
-      scanned = sscanf(searchPtr, "+CPIN:%s\r\n", c);
+    if (searchPtr != NULL) {
+      searchPtr += 6; //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%s\r\n", c);
+    }
     if (scanned == 1)
     {
       if(code)
@@ -3378,7 +3384,7 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != NULL)
-      scanNum = sscanf(searchPtr, "+USOCTL:^%d,2,%lu",
+      scanNum = sscanf(searchPtr, "+USOCTL:%d,2,%lu",
                         &socketStore, &paramVal);
     if (scanNum != 2)
     {
