@@ -320,27 +320,33 @@ bool SARA_R5::processURCEvent(const char *event)
 {
   { // URC: +UUSORD (Read Socket Data)
     int socket, length;
-    int ret = sscanf(event, "+UUSORD:%d,%d", &socket, &length);
-    if (ret == 2)
+    char *searchPtr = strstr(event, "+UUSORD:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: read socket data"));
-      // From the SARA_R5 AT Commands Manual:
-      // "For the UDP socket type the URC +UUSORD: <socket>,<length> notifies that a UDP packet has been received,
-      //  either when buffer is empty or after a UDP packet has been read and one or more packets are stored in the
-      //  buffer."
-      // So we need to check if this is a TCP socket or a UDP socket:
-      //  If UDP, we call parseSocketReadIndicationUDP.
-      //  Otherwise, we call parseSocketReadIndication.
-      if (_lastSocketProtocol[socket] == SARA_R5_UDP)
+      searchPtr += strlen("+UUSORD:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int ret = sscanf(event, "%d,%d", &socket, &length);
+      if (ret == 2)
       {
         if (_printDebug == true)
-          _debugPort->println(F("processReadEvent: received +UUSORD but socket is UDP. Calling parseSocketReadIndicationUDP"));
-        parseSocketReadIndicationUDP(socket, length);
+          _debugPort->println(F("processReadEvent: read socket data"));
+        // From the SARA_R5 AT Commands Manual:
+        // "For the UDP socket type the URC +UUSORD: <socket>,<length> notifies that a UDP packet has been received,
+        //  either when buffer is empty or after a UDP packet has been read and one or more packets are stored in the
+        //  buffer."
+        // So we need to check if this is a TCP socket or a UDP socket:
+        //  If UDP, we call parseSocketReadIndicationUDP.
+        //  Otherwise, we call parseSocketReadIndication.
+        if (_lastSocketProtocol[socket] == SARA_R5_UDP)
+        {
+          if (_printDebug == true)
+            _debugPort->println(F("processReadEvent: received +UUSORD but socket is UDP. Calling parseSocketReadIndicationUDP"));
+          parseSocketReadIndicationUDP(socket, length);
+        }
+        else
+          parseSocketReadIndication(socket, length);
+        return true;
       }
-      else
-        parseSocketReadIndication(socket, length);
-      return true;
     }
   }
   { // URC: +UUSORF (Receive From command (UDP only))
