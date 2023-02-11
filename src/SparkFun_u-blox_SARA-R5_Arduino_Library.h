@@ -189,7 +189,7 @@ const char SARA_R5_SEC_MANAGER[] = "+USECMNG";
 const char SARA_R5_RESPONSE_OK[] = "\nOK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "\nERROR\r\n";
 const char SARA_R5_RESPONSE_CONNECT[] = "\r\nCONNECT\r\n";
-#define SARA_R5_RESPONSE_OK_OR_ERROR NULL
+#define SARA_R5_RESPONSE_OK_OR_ERROR nullptr
 
 // CTRL+Z and ESC ASCII codes for SMS message sends
 const char ASCII_CTRL_Z = 0x1A;
@@ -681,7 +681,7 @@ public:
     PDP_TYPE_IPV6 = 3
   } SARA_R5_pdp_type;
   SARA_R5_error_t setAPN(String apn, uint8_t cid = 1, SARA_R5_pdp_type pdpType = PDP_TYPE_IP); // Set the Access Point Name
-  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp_type* pdpType = NULL);                                 // Return the apn and IP address for the chosen context identifier
+  SARA_R5_error_t getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp_type* pdpType = nullptr);                                 // Return the apn and IP address for the chosen context identifier
 
   SARA_R5_error_t getSimStatus(String* code);
   SARA_R5_error_t setSimPin(String pin);
@@ -798,15 +798,15 @@ public:
   // Call socketReadAvailable first to determine how much data is available - or use the callbacks (triggered by URC's)
   // Works for both TCP and UDP - but socketReadUDP is preferred for UDP as it records the remote IP Address and port
   // bytesRead - if provided - will be updated with the number of bytes actually read. This could be less than length!
-  SARA_R5_error_t socketRead(int socket, int length, char *readDest, int *bytesRead = NULL);
+  SARA_R5_error_t socketRead(int socket, int length, char *readDest, int *bytesRead = nullptr);
   // Return the number of bytes available (waiting to be read) on the chosen socket
   // Uses +USORD. Valid for both TCP and UDP sockets - but socketReadAvailableUDP is preferred for UDP
   SARA_R5_error_t socketReadAvailable(int socket, int *length);
   // Read data from the specified UDP port
   // Call socketReadAvailableUDP first to determine how much data is available - or use the callbacks (triggered by URC's)
-  // The remote IP Address and port are returned via *remoteIPAddress and *remotePort (if not NULL)
+  // The remote IP Address and port are returned via *remoteIPAddress and *remotePort (if not nullptr)
   // bytesRead - if provided - will be updated with the number of bytes actually read. This could be less than length!
-  SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = NULL, int *remotePort = NULL, int *bytesRead = NULL);
+  SARA_R5_error_t socketReadUDP(int socket, int length, char *readDest, IPAddress *remoteIPAddress = nullptr, int *remotePort = nullptr, int *bytesRead = nullptr);
   // Return the number of bytes available (waiting to be read) on the chosen UDP socket
   SARA_R5_error_t socketReadAvailableUDP(int socket, int *length);
   // Start listening for a connection on the specified port. The connection is reported via the socket listen callback
