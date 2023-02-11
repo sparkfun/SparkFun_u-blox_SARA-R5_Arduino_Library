@@ -2127,7 +2127,7 @@ SARA_R5_error_t SARA_R5::getOperator(String *oper)
     searchPtr = strstr(response, "+COPS:");
     if (searchPtr != nullptr)
     {
-      searchPtr += 6; //  Move searchPtr to first char
+      searchPtr += strlen("+COPS:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       mode = *searchPtr;              // Read first char -- should be mode
       if (mode == '2')                // Check for de-register
@@ -2337,7 +2337,7 @@ SARA_R5_error_t SARA_R5::readSMSmessage(int location, String *unread, String *fr
     searchPtr = strstr(searchPtr, "+CMGR:");
     if (searchPtr != nullptr)
     {
-      searchPtr += 6; //  Move searchPtr to first char
+      searchPtr += strlen("+CMGR:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int pointer = 0;
       while ((*(++searchPtr) != '\"') && (*searchPtr != '\0') && (pointer < 12))
@@ -6026,8 +6026,8 @@ SARA_R5_error_t SARA_R5::parseSocketCloseIndication(String *closeIndication)
   int search;
   int socket;
 
-  search = closeIndication->indexOf("UUSOCL:");
-  search += 7;
+  search = closeIndication->indexOf("+UUSOCL:");
+  search += strlen("+UUSOCL:");
   while (closeIndication->charAt(search) == ' ') search ++; // skip spaces
 
   // Socket will be first integer, should be single-digit number between 0-6:
