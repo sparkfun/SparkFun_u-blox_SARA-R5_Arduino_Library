@@ -325,7 +325,7 @@ bool SARA_R5::processURCEvent(const char *event)
     {
       searchPtr += strlen("+UUSORD:"); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-      int ret = sscanf(event, "%d,%d", &socket, &length);
+      int ret = sscanf(searchPtr, "%d,%d", &socket, &length);
       if (ret == 2)
       {
         if (_printDebug == true)
@@ -351,13 +351,19 @@ bool SARA_R5::processURCEvent(const char *event)
   }
   { // URC: +UUSORF (Receive From command (UDP only))
     int socket, length;
-    int ret = sscanf(event, "+UUSORF:%d,%d", &socket, &length);
-    if (ret == 2)
+    char *searchPtr = strstr(event, "+UUSORF:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: UDP receive"));
-      parseSocketReadIndicationUDP(socket, length);
-      return true;
+      searchPtr += strlen("+UUSORF:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int ret = sscanf(searchPtr, "%d,%d", &socket, &length);
+      if (ret == 2)
+      {
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: UDP receive"));
+        parseSocketReadIndicationUDP(socket, length);
+        return true;
+      }
     }
   }
   { // URC: +UUSOLI (Set Listening Socket)
