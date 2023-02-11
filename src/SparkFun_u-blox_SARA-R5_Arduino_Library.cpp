@@ -911,7 +911,7 @@ String SARA_R5::getManufacturerID(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+    if (sscanf(response, "\r\n%15s\r\n", idResponse) != 1)
     {
       memset(idResponse, 0, 16);
     }
@@ -923,7 +923,7 @@ String SARA_R5::getManufacturerID(void)
 String SARA_R5::getModelID(void)
 {
   char *response;
-  char idResponse[16] = {0x00}; // E.g. SARA-R510M8Q
+  char idResponse[32] = {0x00}; // E.g. SARA-R510M8Q
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -932,7 +932,7 @@ String SARA_R5::getModelID(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+    if (sscanf(response, "\r\n%31s\r\n", idResponse) != 1)
     {
       memset(idResponse, 0, 16);
     }
@@ -953,7 +953,7 @@ String SARA_R5::getFirmwareVersion(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+    if (sscanf(response, "\r\n%15s\r\n", idResponse) != 1)
     {
       memset(idResponse, 0, 16);
     }
@@ -965,7 +965,7 @@ String SARA_R5::getFirmwareVersion(void)
 String SARA_R5::getSerialNo(void)
 {
   char *response;
-  char idResponse[16] = {0x00}; // E.g. 357520070120767
+  char idResponse[32] = {0x00}; // E.g. 357520070120767
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -974,7 +974,7 @@ String SARA_R5::getSerialNo(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", idResponse) != 1)
+    if (sscanf(response, "\r\n%31s\r\n", idResponse) != 1)
     {
       memset(idResponse, 0, 16);
     }
@@ -986,7 +986,7 @@ String SARA_R5::getSerialNo(void)
 String SARA_R5::getIMEI(void)
 {
   char *response;
-  char imeiResponse[16] = {0x00}; // E.g. 004999010640000
+  char imeiResponse[32] = {0x00}; // E.g. 004999010640000
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -995,7 +995,7 @@ String SARA_R5::getIMEI(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", imeiResponse) != 1)
+    if (sscanf(response, "\r\n%31s\r\n", imeiResponse) != 1)
     {
       memset(imeiResponse, 0, 16);
     }
@@ -1007,7 +1007,7 @@ String SARA_R5::getIMEI(void)
 String SARA_R5::getIMSI(void)
 {
   char *response;
-  char imsiResponse[16] = {0x00}; // E.g. 222107701772423
+  char imsiResponse[32] = {0x00}; // E.g. 222107701772423
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -1016,7 +1016,7 @@ String SARA_R5::getIMSI(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n%s\r\n", imsiResponse) != 1)
+    if (sscanf(response, "\r\n%31s\r\n", imsiResponse) != 1)
     {
       memset(imsiResponse, 0, 16);
     }
@@ -1028,7 +1028,7 @@ String SARA_R5::getIMSI(void)
 String SARA_R5::getCCID(void)
 {
   char *response;
-  char ccidResponse[21] = {0x00}; // E.g. +CCID: 8939107900010087330
+  char ccidResponse[32] = {0x00}; // E.g. +CCID: 8939107900010087330
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -1042,7 +1042,7 @@ String SARA_R5::getCCID(void)
     {
       searchPtr += strlen("\r\n+CCID:"); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-      if (sscanf(searchPtr, "%20s", ccidResponse) != 1)
+      if (sscanf(searchPtr, "%31s", ccidResponse) != 1)
       {
         ccidResponse[0] = 0;
       }
@@ -1091,9 +1091,15 @@ String SARA_R5::getCapabilities(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n+GCAP: %s", idResponse) != 1)
+    char *searchPtr = strstr(response, "\r\n+GCAP:");
+    if (searchPtr != nullptr)
     {
-      memset(idResponse, 0, 128);
+      searchPtr += strlen("\r\n+GCAP:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      if (sscanf(searchPtr, "%127s", idResponse) != 1)
+      {
+        idResponse[0] = 0;
+      }
     }
   }
   free(response);
@@ -1207,8 +1213,9 @@ SARA_R5_error_t SARA_R5::clock(uint8_t *y, uint8_t *mo, uint8_t *d,
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     char *searchPtr = strstr(response, "+CCLK:");
-    if (searchPtr != nullptr) {
-      searchPtr += 6; //  Move searchPtr to first char
+    if (searchPtr != nullptr)
+    {
+      searchPtr += strlen("+CCLK:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr, "\"%d/%d/%d,%d:%d:%d%c%d\"\r\n",
                &iy, &imo, &id, &ih, &imin, &is, &tzPlusMinus, &itz);
@@ -1346,7 +1353,11 @@ SARA_R5_error_t SARA_R5::getUtimeMode(SARA_R5_utime_mode_t *mode, SARA_R5_utime_
     int mStore, sStore, scanned = 0;
     char *searchPtr = strstr(response, "+UTIME:");
     if (searchPtr != nullptr)
-      scanned = sscanf(searchPtr, "+UTIME:%d,%d\r\n", &mStore, &sStore);
+    {
+      searchPtr += strlen("+UTIME:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%d,%d\r\n", &mStore, &sStore);
+    }
     m = (SARA_R5_utime_mode_t)mStore;
     s = (SARA_R5_utime_sensor_t)sStore;
     if (scanned == 2)
@@ -1413,7 +1424,11 @@ SARA_R5_error_t SARA_R5::getUtimeIndication(SARA_R5_utime_urc_configuration_t *c
     int cStore, scanned = 0;
     char *searchPtr = strstr(response, "+UTIMEIND:");
     if (searchPtr != nullptr)
-      scanned = sscanf(searchPtr, "+UTIMEIND:%d\r\n", &cStore);
+    {
+      searchPtr += strlen("+UTIMEIND:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%d\r\n", &cStore);
+    }
     c = (SARA_R5_utime_urc_configuration_t)cStore;
     if (scanned == 1)
     {
@@ -1478,11 +1493,15 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
     int scanned = 0;
     char *searchPtr = strstr(response, "+UTIMECFG:");
     if (searchPtr != nullptr)
+    {
+      searchPtr += strlen("+UTIMECFG:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-      scanned = sscanf(searchPtr, "+UTIMECFG:%d,%d\r\n", &ons, &os);
+      scanned = sscanf(searchPtr, "%d,%d\r\n", &ons, &os);
 #else
-      scanned = sscanf(searchPtr, "+UTIMECFG:%ld,%ld\r\n", &ons, &os);
+      scanned = sscanf(searchPtr, "%ld,%ld\r\n", &ons, &os);
 #endif
+    }
     if (scanned == 2)
     {
       *offsetNanoseconds = ons;
@@ -1545,7 +1564,11 @@ int8_t SARA_R5::rssi(void)
   int scanned = 0;
   char *searchPtr = strstr(response, "+CSQ:");
   if (searchPtr != nullptr)
-    scanned = sscanf(searchPtr, "+CSQ:%d,%*d", &rssi);
+  {
+    searchPtr += strlen("+CSQ:"); //  Move searchPtr to first char
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+    scanned = sscanf(searchPtr, "%d,%*d", &rssi);
+  }
   if (scanned != 1)
   {
     rssi = -1;
@@ -1588,9 +1611,11 @@ SARA_R5_registration_status_t SARA_R5::registration(bool eps)
   int scanned = 0;
   const char *startTag = eps ? "+CEREG:" : "+CREG:";
   char *searchPtr = strstr(response, startTag);
-  if (searchPtr != nullptr) {
-	  const char *format = eps ? "+CEREG:%*d,%d" : "+CREG:%*d,%d";
-	  scanned = sscanf(searchPtr, format, &status);
+  if (searchPtr != nullptr)
+  {
+    searchPtr += eps ? strlen("+CEREG:") : strlen("+CREG:"); //  Move searchPtr to first char
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+	  scanned = sscanf(searchPtr, "%*d,%d", &status);
   }
   if (scanned != 1)
     status = SARA_R5_REGISTRATION_INVALID;
@@ -1755,7 +1780,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
         char strApn[128];
         int ipOct[4];
 		
-        searchPtr += 9; // Point to the cid
+        searchPtr += strlen("+CGDCONT:"); // Point to the cid
         scanned = sscanf(searchPtr, "%d,\"%[^\"]\",\"%[^\"]\",\"%d.%d.%d.%d",
         &rcid, strPdpType, strApn,
 				&ipOct[0], &ipOct[1], &ipOct[2], &ipOct[3]);
@@ -1818,9 +1843,9 @@ SARA_R5_error_t SARA_R5::getSimStatus(String* code)
     char c[16];
     char *searchPtr = strstr(response, "+CPIN:");
     if (searchPtr != nullptr) {
-      searchPtr += 6; //  Move searchPtr to first char
+      searchPtr += strlen("+CPIN:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-      scanned = sscanf(searchPtr, "%s\r\n", c);
+      scanned = sscanf(searchPtr, "%15s\r\n", c);
     }
     if (scanned == 1)
     {
@@ -1895,7 +1920,11 @@ SARA_R5_error_t SARA_R5::getSIMstateReportingMode(int *mode)
     int scanned = 0;
     char *searchPtr = strstr(response, "+USIMSTAT:");
     if (searchPtr != nullptr)
-      scanned = sscanf(searchPtr, "+USIMSTAT:%d\r\n", &m);
+    {      
+      searchPtr += strlen("+USIMSTAT:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%d\r\n", &m);
+    }
     if (scanned == 1)
     {
       *mode = m;
@@ -2250,7 +2279,11 @@ SARA_R5_error_t SARA_R5::getPreferredMessageStorage(int *used, int *total, Strin
   int scanned = 0;
   char *searchPtr = strstr(response, "+CPMS:");
   if (searchPtr != nullptr)
-    scanned = sscanf(searchPtr, "+CPMS:%d,%d", &u, &t);
+  {
+    searchPtr += strlen("+CPMS:"); //  Move searchPtr to first char
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+    scanned = sscanf(searchPtr, "%d,%d", &u, &t);
+  }
   if (scanned == 2)
   {
     if (_printDebug == true)
@@ -2561,7 +2594,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
     return -1;
   }
 
-  responseStart = strstr(response, "+USOCR");
+  responseStart = strstr(response, "+USOCR:");
   if (responseStart == nullptr)
   {
     if (_printDebug == true)
@@ -2575,7 +2608,9 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
     return -1;
   }
 
-  sscanf(responseStart, "+USOCR:%d", &sockId);
+  responseStart += strlen("+USOCR:"); //  Move searchPtr to first char
+  while (*responseStart == ' ') responseStart++; // skip spaces
+  sscanf(responseStart, "%d", &sockId);
   _lastSocketProtocol[sockId] = (int)protocol;
 
   free(command);
@@ -2853,8 +2888,12 @@ SARA_R5_error_t SARA_R5::socketRead(int socket, int length, char *readDest, int 
     // Extract the data
     char *searchPtr = strstr(response, "+USORD:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USORD:%d,%d",
+    {
+      searchPtr += strlen("+USORD:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d",
                         &socketStore, &readLength);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -2966,8 +3005,12 @@ SARA_R5_error_t SARA_R5::socketReadAvailable(int socket, int *length)
   {
     char *searchPtr = strstr(response, "+USORD:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USORD:%d,%d",
+    {
+      searchPtr += strlen("+USORD:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d",
                         &socketStore, &readLength);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3063,9 +3106,13 @@ SARA_R5_error_t SARA_R5::socketReadUDP(int socket, int length, char *readDest,
     // Extract the data
     char *searchPtr = strstr(response, "+USORF:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USORF:%d,\"%d.%d.%d.%d\",%d,%d",
+    {
+      searchPtr += strlen("+USORF:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,\"%d.%d.%d.%d\",%d,%d",
                         &socketStore, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
                         &portStore, &readLength);
+    }
     if (scanNum != 7)
     {
       if (_printDebug == true)
@@ -3196,8 +3243,12 @@ SARA_R5_error_t SARA_R5::socketReadAvailableUDP(int socket, int *length)
   {
     char *searchPtr = strstr(response, "+USORF:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USORF:%d,%d",
+    {
+      searchPtr += strlen("+USORF:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d",
                         &socketStore, &readLength);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3365,8 +3416,12 @@ SARA_R5_error_t SARA_R5::querySocketType(int socket, SARA_R5_socket_protocol_t *
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,0,%d",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,0,%d",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3417,8 +3472,12 @@ SARA_R5_error_t SARA_R5::querySocketLastError(int socket, int *error)
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,1,%d",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,1,%d",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3468,8 +3527,12 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesSent(int socket, uint32_t *total)
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,2,%lu",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,2,%lu",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3519,8 +3582,12 @@ SARA_R5_error_t SARA_R5::querySocketTotalBytesReceived(int socket, uint32_t *tot
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,3,%lu",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,3,%lu",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3570,10 +3637,14 @@ SARA_R5_error_t SARA_R5::querySocketRemoteIPAddress(int socket, IPAddress *addre
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,4,\"%d.%d.%d.%d\",%d",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,4,\"%d.%d.%d.%d\",%d",
                         &socketStore,
                         &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3],
                         &paramVals[4]);
+    }
     if (scanNum != 6)
     {
       if (_printDebug == true)
@@ -3626,8 +3697,12 @@ SARA_R5_error_t SARA_R5::querySocketStatusTCP(int socket, SARA_R5_tcp_socket_sta
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,10,%d",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,10,%d",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3677,8 +3752,12 @@ SARA_R5_error_t SARA_R5::querySocketOutUnackData(int socket, uint32_t *total)
   {
     char *searchPtr = strstr(response, "+USOCTL:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+USOCTL:%d,11,%lu",
+    {
+      searchPtr += strlen("+USOCTL:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,11,%lu",
                         &socketStore, &paramVal);
+    }
     if (scanNum != 2)
     {
       if (_printDebug == true)
@@ -3728,7 +3807,11 @@ int SARA_R5::socketGetLastError()
   {
     char *searchPtr = strstr(response, "+USOER:");
     if (searchPtr != nullptr)
-      sscanf(searchPtr, "+USOER:%d", &errorCode);
+    {
+      searchPtr += strlen("+USOER:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      sscanf(searchPtr, "%d", &errorCode);
+    }
   }
 
   free(command);
@@ -4049,8 +4132,12 @@ SARA_R5_error_t SARA_R5::getHTTPprotocolError(int profile, int *error_class, int
     int scanned = 0;
     char *searchPtr = strstr(response, "+UHTTPER:");
     if (searchPtr != nullptr)
-      scanned = sscanf(searchPtr, "+UHTTPER:%d,%d,%d\r\n",
+    {
+      searchPtr += strlen("+UHTTPER:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%d,%d,%d\r\n",
                         &rprofile, &eclass, &ecode);
+    }
     if (scanned == 3)
     {
       *error_class = eclass;
@@ -4227,7 +4314,11 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
   char *searchPtr = strstr(response, "+UMQTTC:");
   int cmd = 0;
   if (searchPtr != nullptr)
-    scanNum = sscanf(searchPtr, "+UMQTTC:%d,%d,%d,%d,\"%*[^\"]\",%d,\"", &cmd, pQos, &total_length, &topic_length, &data_length);
+  {
+    searchPtr += strlen("+UMQTTC:"); //  Move searchPtr to first char
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+    scanNum = sscanf(searchPtr, "%d,%d,%d,%d,\"%*[^\"]\",%d,\"", &cmd, pQos, &total_length, &topic_length, &data_length);
+  }
   if ((scanNum != 5) || (cmd != SARA_R5_MQTT_COMMAND_READ))
   {
     if (_printDebug == true)
@@ -4293,8 +4384,12 @@ SARA_R5_error_t SARA_R5::getMQTTprotocolError(int *error_code, int *error_code2)
     int scanned = 0;
     char *searchPtr = strstr(response, "+UMQTTER:");
     if (searchPtr != nullptr)
-      scanned = sscanf(searchPtr, "+UMQTTER:%d,%d\r\n",
+    {
+      searchPtr += strlen("+UMQTTER:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanned = sscanf(searchPtr, "%d,%d\r\n",
                         &code, &code2);
+    }
     if (scanned == 2)
     {
       *error_code = code;
@@ -4544,9 +4639,13 @@ SARA_R5_error_t SARA_R5::getNetworkAssignedIPAddress(int profile, IPAddress *add
   {
     char *searchPtr = strstr(response, "+UPSND:");
     if (searchPtr != nullptr)
-      scanNum = sscanf(searchPtr, "+UPSND:%d,%d,\"%d.%d.%d.%d\"",
+    {
+      searchPtr += strlen("+UPSND:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d,\"%d.%d.%d.%d\"",
                         &profileStore, &paramTag,
                         &paramVals[0], &paramVals[1], &paramVals[2], &paramVals[3]);
+    }
     if (scanNum != 6)
     {
       if (_printDebug == true)
@@ -5194,7 +5293,9 @@ SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
   }
 
   int fileSize;
-  sscanf(responseStart, "+ULSTFILE:%d", &fileSize);
+  responseStart += strlen("+ULSTFILE:"); //  Move searchPtr to first char
+  while (*responseStart == ' ') responseStart++; // skip spaces
+  sscanf(responseStart, "%d", &fileSize);
   *size = fileSize;
 
   free(command);
@@ -5510,7 +5611,11 @@ SARA_R5_error_t SARA_R5::getMNOprofile(mobile_network_operator_t *mno)
   int scanned = 0;
   char *searchPtr = strstr(response, "+UMNOPROF:");
   if (searchPtr != nullptr)
-    scanned = sscanf(searchPtr, "+UMNOPROF:%d,%d,%d,%d", &oStore, &d, &r, &u);
+  {
+    searchPtr += strlen("+UMNOPROF:"); //  Move searchPtr to first char
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+    scanned = sscanf(searchPtr, "%d,%d,%d,%d", &oStore, &d, &r, &u);
+  }
   o = (mobile_network_operator_t)oStore;
 
   if (scanned >= 1)
