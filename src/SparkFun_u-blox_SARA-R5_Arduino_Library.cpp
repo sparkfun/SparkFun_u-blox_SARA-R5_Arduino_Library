@@ -376,43 +376,55 @@ bool SARA_R5::processURCEvent(const char *event)
     int remoteIPstore[4]  = {0,0,0,0};
     int localIPstore[4] = {0,0,0,0};
 
-    int ret = sscanf(event,
-                     "+UUSOLI:%d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
-                     &socket,
-                     &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
-                     &port, &listenSocket,
-                     &localIPstore[0], &localIPstore[1], &localIPstore[2], &localIPstore[3],
-                     &listenPort);
-    for (int i = 0; i <= 3; i++)
+    char *searchPtr = strstr(event, "+UUSOLI:");
+    if (searchPtr != nullptr)
     {
+      searchPtr += strlen("+UUSOLI:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int ret = sscanf(searchPtr,
+                      "%d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
+                      &socket,
+                      &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3],
+                      &port, &listenSocket,
+                      &localIPstore[0], &localIPstore[1], &localIPstore[2], &localIPstore[3],
+                      &listenPort);
+      for (int i = 0; i <= 3; i++)
+      {
+        if (ret >= 5)
+          remoteIP[i] = (uint8_t)remoteIPstore[i];
+        if (ret >= 11)
+          localIP[i] = (uint8_t)localIPstore[i];
+      }
       if (ret >= 5)
-        remoteIP[i] = (uint8_t)remoteIPstore[i];
-      if (ret >= 11)
-        localIP[i] = (uint8_t)localIPstore[i];
-    }
-    if (ret >= 5)
-    {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: socket listen"));
-      parseSocketListenIndication(listenSocket, localIP, listenPort, socket, remoteIP, port);
-      return true;
+      {
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: socket listen"));
+        parseSocketListenIndication(listenSocket, localIP, listenPort, socket, remoteIP, port);
+        return true;
+      }
     }
   }
   { // URC: +UUSOCL (Close Socket)
     int socket;
-    int ret = sscanf(event, "+UUSOCL:%d", &socket);
-    if (ret == 1)
+    char *searchPtr = strstr(event, "+UUSOCL:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: socket close"));
-      if ((socket >= 0) && (socket <= 6))
+      searchPtr += strlen("+UUSOCL:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int ret = sscanf(searchPtr, "%d", &socket);
+      if (ret == 1)
       {
-        if (_socketCloseCallback != nullptr)
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: socket close"));
+        if ((socket >= 0) && (socket <= 6))
         {
-          _socketCloseCallback(socket);
+          if (_socketCloseCallback != nullptr)
+          {
+            _socketCloseCallback(socket);
+          }
         }
+        return true;
       }
-      return true;
     }
   }
   { // URC: +UULOC (Localization information - CellLocate and hybrid positioning)
@@ -429,61 +441,67 @@ bool SARA_R5::processURCEvent(const char *event)
     // Maybe we should also scan for +UUGIND and extract the activated gnss system?
 
     // This assumes the ULOC response type is "0" or "1" - as selected by gpsRequest detailed
-    scanNum = sscanf(event,
-                      "+UULOC:%d/%d/%d,%d:%d:%d.%d,%d.%[^,],%d.%[^,],%d,%lu,%u,%u,%*s",
-                      &dateStore[0], &dateStore[1], &clck.date.year,
-                      &dateStore[2], &dateStore[3], &dateStore[4], &clck.time.ms,
-                      &latH, latL, &lonH, lonL, &alt, &uncertainty,
-                      &speedU, &cogU);
-    clck.date.day = dateStore[0];
-    clck.date.month = dateStore[1];
-    clck.time.hour = dateStore[2];
-    clck.time.minute = dateStore[3];
-    clck.time.second = dateStore[4];
-
-    if (scanNum >= 13)
+    char *searchPtr = strstr(event, "+UULOC:");
+    if (searchPtr != nullptr)
     {
-      // Found a Location string!
-      if (_printDebug == true)
+      searchPtr += strlen("+UULOC:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr,
+                        "%d/%d/%d,%d:%d:%d.%d,%d.%[^,],%d.%[^,],%d,%lu,%u,%u,%*s",
+                        &dateStore[0], &dateStore[1], &clck.date.year,
+                        &dateStore[2], &dateStore[3], &dateStore[4], &clck.time.ms,
+                        &latH, latL, &lonH, lonL, &alt, &uncertainty,
+                        &speedU, &cogU);
+      clck.date.day = dateStore[0];
+      clck.date.month = dateStore[1];
+      clck.time.hour = dateStore[2];
+      clck.time.minute = dateStore[3];
+      clck.time.second = dateStore[4];
+
+      if (scanNum >= 13)
       {
-        _debugPort->println(F("processReadEvent: location"));
+        // Found a Location string!
+        if (_printDebug == true)
+        {
+          _debugPort->println(F("processReadEvent: location"));
+        }
+
+        if (latH >= 0)
+          gps.lat = (float)latH + ((float)atol(latL) / pow(10, strlen(latL)));
+        else
+          gps.lat = (float)latH - ((float)atol(latL) / pow(10, strlen(latL)));
+        if (lonH >= 0)
+          gps.lon = (float)lonH + ((float)atol(lonL) / pow(10, strlen(lonL)));
+        else
+          gps.lon = (float)lonH - ((float)atol(lonL) / pow(10, strlen(lonL)));
+        gps.alt = (float)alt;
+        if (scanNum >= 15) // If detailed response, get speed data
+        {
+          spd.speed = (float)speedU;
+          spd.cog = (float)cogU;
+        }
+
+        // if (_printDebug == true)
+        // {
+        //   _debugPort->print(F("processReadEvent: location:  lat: "));
+        //   _debugPort->print(gps.lat, 7);
+        //   _debugPort->print(F(" lon: "));
+        //   _debugPort->print(gps.lon, 7);
+        //   _debugPort->print(F(" alt: "));
+        //   _debugPort->print(gps.alt, 2);
+        //   _debugPort->print(F(" speed: "));
+        //   _debugPort->print(spd.speed, 2);
+        //   _debugPort->print(F(" cog: "));
+        //   _debugPort->println(spd.cog, 2);
+        // }
+
+        if (_gpsRequestCallback != nullptr)
+        {
+          _gpsRequestCallback(clck, gps, spd, uncertainty);
+        }
+
+        return true;
       }
-
-      if (latH >= 0)
-        gps.lat = (float)latH + ((float)atol(latL) / pow(10, strlen(latL)));
-      else
-        gps.lat = (float)latH - ((float)atol(latL) / pow(10, strlen(latL)));
-      if (lonH >= 0)
-        gps.lon = (float)lonH + ((float)atol(lonL) / pow(10, strlen(lonL)));
-      else
-        gps.lon = (float)lonH - ((float)atol(lonL) / pow(10, strlen(lonL)));
-      gps.alt = (float)alt;
-      if (scanNum >= 15) // If detailed response, get speed data
-      {
-        spd.speed = (float)speedU;
-        spd.cog = (float)cogU;
-      }
-
-      // if (_printDebug == true)
-      // {
-      //   _debugPort->print(F("processReadEvent: location:  lat: "));
-      //   _debugPort->print(gps.lat, 7);
-      //   _debugPort->print(F(" lon: "));
-      //   _debugPort->print(gps.lon, 7);
-      //   _debugPort->print(F(" alt: "));
-      //   _debugPort->print(gps.alt, 2);
-      //   _debugPort->print(F(" speed: "));
-      //   _debugPort->print(spd.speed, 2);
-      //   _debugPort->print(F(" cog: "));
-      //   _debugPort->println(spd.cog, 2);
-      // }
-
-      if (_gpsRequestCallback != nullptr)
-      {
-        _gpsRequestCallback(clck, gps, spd, uncertainty);
-      }
-
-      return true;
     }
   }
   { // URC: +UUSIMSTAT (SIM Status)
@@ -491,21 +509,27 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
     int stateStore;
 
-    scanNum = sscanf(event, "+UUSIMSTAT:%d", &stateStore); // Note: no space after the colon!
-
-    if (scanNum == 1)
+    char *searchPtr = strstr(event, "+UUSIMSTAT:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: SIM status"));
+      searchPtr += strlen("+UUSIMSTAT:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d", &stateStore);
 
-      state = (SARA_R5_sim_states_t)stateStore;
-
-      if (_simStateReportCallback != nullptr)
+      if (scanNum == 1)
       {
-        _simStateReportCallback(state);
-      }
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: SIM status"));
 
-      return true;
+        state = (SARA_R5_sim_states_t)stateStore;
+
+        if (_simStateReportCallback != nullptr)
+        {
+          _simStateReportCallback(state);
+        }
+
+        return true;
+      }
     }
   }
   { // URC: +UUPSDA (Packet Switched Data Action)
@@ -514,58 +538,76 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
     int remoteIPstore[4];
 
-    scanNum = sscanf(event, "+UUPSDA:%d,\"%d.%d.%d.%d\"",
-                      &result, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3]);
-
-    if (scanNum == 5)
+    char *searchPtr = strstr(event, "+UUPSDA:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: packet switched data action"));
+      searchPtr += strlen("+UUPSDA:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,\"%d.%d.%d.%d\"",
+                        &result, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3]);
 
-      for (int i = 0; i <= 3; i++)
+      if (scanNum == 5)
       {
-        remoteIP[i] = (uint8_t)remoteIPstore[i];
-      }
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: packet switched data action"));
 
-      if (_psdActionRequestCallback != nullptr)
-      {
-        _psdActionRequestCallback(result, remoteIP);
-      }
+        for (int i = 0; i <= 3; i++)
+        {
+          remoteIP[i] = (uint8_t)remoteIPstore[i];
+        }
 
-      return true;
+        if (_psdActionRequestCallback != nullptr)
+        {
+          _psdActionRequestCallback(result, remoteIP);
+        }
+
+        return true;
+      }
     }
   }
   { // URC: +UUHTTPCR (HTTP Command Result)
     int profile, command, result;
     int scanNum;
 
-    scanNum = sscanf(event, "+UUHTTPCR:%d,%d,%d", &profile, &command, &result);
-
-    if (scanNum == 3)
+    char *searchPtr = strstr(event, "+UUHTTPCR:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: HTTP command result"));
+      searchPtr += strlen("+UUHTTPCR:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d,%d", &profile, &command, &result);
 
-      if ((profile >= 0) && (profile < SARA_R5_NUM_HTTP_PROFILES))
+      if (scanNum == 3)
       {
-        if (_httpCommandRequestCallback != nullptr)
-        {
-          _httpCommandRequestCallback(profile, command, result);
-        }
-      }
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: HTTP command result"));
 
-      return true;
+        if ((profile >= 0) && (profile < SARA_R5_NUM_HTTP_PROFILES))
+        {
+          if (_httpCommandRequestCallback != nullptr)
+          {
+            _httpCommandRequestCallback(profile, command, result);
+          }
+        }
+
+        return true;
+      }
     }
   }
   { // URC: +UUMQTTC (HTTP Command Result)
-      int command, result;
-      int scanNum;
-      int qos = -1;
-      String topic;
-      scanNum = sscanf(event, "+UUMQTTC:%d,%d", &command, &result);
+    int command, result;
+    int scanNum;
+    int qos = -1;
+    String topic;
+
+    char *searchPtr = strstr(event, "+UUMQTTC:");
+    if (searchPtr != nullptr)
+    {
+      searchPtr += strlen("+UUMQTTC:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d", &command, &result);
       if ((scanNum == 2) && (command == SARA_R5_MQTT_COMMAND_SUBSCRIBE)) {
         char topicC[100] = "";
-        scanNum = sscanf(event, "+UUMQTTC:%*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
+        scanNum = sscanf(searchPtr, "%*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
         topic = topicC;
       }
       if ((scanNum == 2) || (scanNum == 4))
@@ -580,6 +622,7 @@ bool SARA_R5::processURCEvent(const char *event)
         
         return true;
       }
+    }
   }
   { // URC: +UUPING (Ping Result)
     int retry = 0;
@@ -589,79 +632,96 @@ bool SARA_R5::processURCEvent(const char *event)
     IPAddress remoteIP = {0, 0, 0, 0};
     long rtt = 0;
     int scanNum;
-    const char *searchPtr = event;
 
     // Try to extract the UUPING retries and payload size
-    scanNum = sscanf(searchPtr, "+UUPING:%d,%d,", &retry, &p_size);
-
-    if (scanNum == 2)
+    char *searchPtr = strstr(event, "+UUPING:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-      {
-        _debugPort->println(F("processReadEvent: ping"));
-      }
+      searchPtr += strlen("+UUPING:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      scanNum = sscanf(searchPtr, "%d,%d,", &retry, &p_size);
 
-      searchPtr = strchr(++searchPtr, '\"'); // Search to the first quote
-
-      // Extract the remote host name, stop at the next quote
-      while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
+      if (scanNum == 2)
       {
-        remote_host.concat(*(searchPtr));
-      }
-
-      if (*searchPtr != '\0') // Make sure we found a quote
-      {
-        int remoteIPstore[4];
-        scanNum = sscanf(searchPtr, "\",\"%d.%d.%d.%d\",%d,%ld",
-                          &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3], &ttl, &rtt);
-        for (int i = 0; i <= 3; i++)
+        if (_printDebug == true)
         {
-          remoteIP[i] = (uint8_t)remoteIPstore[i];
+          _debugPort->println(F("processReadEvent: ping"));
         }
 
-        if (scanNum == 6) // Make sure we extracted enough data
+        searchPtr = strchr(++searchPtr, '\"'); // Search to the first quote
+
+        // Extract the remote host name, stop at the next quote
+        while ((*(++searchPtr) != '\"') && (*searchPtr != '\0'))
         {
-          if (_pingRequestCallback != nullptr)
+          remote_host.concat(*(searchPtr));
+        }
+
+        if (*searchPtr != '\0') // Make sure we found a quote
+        {
+          int remoteIPstore[4];
+          scanNum = sscanf(searchPtr, "\",\"%d.%d.%d.%d\",%d,%ld",
+                            &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3], &ttl, &rtt);
+          for (int i = 0; i <= 3; i++)
           {
-            _pingRequestCallback(retry, p_size, remote_host, remoteIP, ttl, rtt);
+            remoteIP[i] = (uint8_t)remoteIPstore[i];
+          }
+
+          if (scanNum == 6) // Make sure we extracted enough data
+          {
+            if (_pingRequestCallback != nullptr)
+            {
+              _pingRequestCallback(retry, p_size, remote_host, remoteIP, ttl, rtt);
+            }
           }
         }
+        return true;
       }
-      return true;
     }
   }
   { // URC: +A
     int status = 0;
     unsigned int lac = 0, ci = 0, Act = 0;
-    int scanNum = sscanf(event, "+CREG:%d,\"%4x\",\"%4x\",%d", &status, &lac, &ci, &Act);
-    if (scanNum == 4)
+    char *searchPtr = strstr(event, "+CREG:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: CREG"));
-
-      if (_registrationCallback != nullptr)
+      searchPtr += strlen("+CREG:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int scanNum = sscanf(searchPtr, "%d,\"%4x\",\"%4x\",%d", &status, &lac, &ci, &Act);
+      if (scanNum == 4)
       {
-        _registrationCallback((SARA_R5_registration_status_t)status, lac, ci, Act);
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: CREG"));
+
+        if (_registrationCallback != nullptr)
+        {
+          _registrationCallback((SARA_R5_registration_status_t)status, lac, ci, Act);
+        }
+        
+        return true;
       }
-      
-      return true;
     }
   }
   { // URC: +CEREG
     int status = 0;
     unsigned int tac = 0, ci = 0, Act = 0;
-    int scanNum = sscanf(event, "+CEREG:%d,\"%4x\",\"%4x\",%d", &status, &tac, &ci, &Act);
-    if (scanNum == 4)
+    char *searchPtr = strstr(event, "+CEREG:");
+    if (searchPtr != nullptr)
     {
-      if (_printDebug == true)
-        _debugPort->println(F("processReadEvent: CEREG"));
-
-      if (_epsRegistrationCallback != nullptr)
+      searchPtr += strlen("+CEREG:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      int scanNum = sscanf(searchPtr, "%d,\"%4x\",\"%4x\",%d", &status, &tac, &ci, &Act);
+      if (scanNum == 4)
       {
-        _epsRegistrationCallback((SARA_R5_registration_status_t)status, tac, ci, Act);
+        if (_printDebug == true)
+          _debugPort->println(F("processReadEvent: CEREG"));
+
+        if (_epsRegistrationCallback != nullptr)
+        {
+          _epsRegistrationCallback((SARA_R5_registration_status_t)status, tac, ci, Act);
+        }
+        
+        return true;
       }
-      
-      return true;
     }
   }
   
