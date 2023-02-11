@@ -1037,9 +1037,15 @@ String SARA_R5::getCCID(void)
                                 SARA_R5_RESPONSE_OK_OR_ERROR, response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
   if (err == SARA_R5_ERROR_SUCCESS)
   {
-    if (sscanf(response, "\r\n+CCID: %s", ccidResponse) != 1)
+    char *searchPtr = strstr(response, "\r\n+CCID:");
+    if (searchPtr != nullptr)
     {
-      memset(ccidResponse, 0, 21);
+      searchPtr += strlen("\r\n+CCID:"); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      if (sscanf(searchPtr, "%s", ccidResponse) != 1)
+      {
+        memset(ccidResponse, 0, 21);
+      }
     }
   }
   free(response);
