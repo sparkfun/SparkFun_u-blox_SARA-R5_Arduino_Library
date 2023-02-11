@@ -1028,8 +1028,7 @@ String SARA_R5::getIMSI(void)
 String SARA_R5::getCCID(void)
 {
   char *response;
-  const int maxTextLen = 21;
-  char ccidResponse[maxTextLen] = {0x00}; // E.g. +CCID: 8939107900010087330
+  char ccidResponse[21] = {0x00}; // E.g. +CCID: 8939107900010087330
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -1043,12 +1042,9 @@ String SARA_R5::getCCID(void)
     {
       searchPtr += strlen("\r\n+CCID:"); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-      if (strlen(searchPtr) < maxTextLen) // Check we have enough space to hold the text
+      if (sscanf(searchPtr, "%20s", ccidResponse) != 1)
       {
-        if (sscanf(searchPtr, "%s", ccidResponse) != 1)
-        {
-          ccidResponse[0] = 0;
-        }
+        ccidResponse[0] = 0;
       }
     }
   }
@@ -1059,8 +1055,7 @@ String SARA_R5::getCCID(void)
 String SARA_R5::getSubscriberNo(void)
 {
   char *response;
-  const int maxTextLen = 128;
-  char idResponse[maxTextLen] = {0x00}; // E.g. +CNUM: "ABCD . AAA","123456789012",129
+  char idResponse[128] = {0x00}; // E.g. +CNUM: "ABCD . AAA","123456789012",129
   SARA_R5_error_t err;
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
@@ -1074,12 +1069,9 @@ String SARA_R5::getSubscriberNo(void)
     {
       searchPtr += strlen("\r\n+CNUM:"); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-      if (strlen(searchPtr) < maxTextLen) // Check we have enough space to hold the text
+      if (sscanf(searchPtr, "%127s", idResponse) != 1)
       {
-        if (sscanf(searchPtr, "%s", idResponse) != 1)
-        {
-          idResponse[0] = 0;
-        }
+        idResponse[0] = 0;
       }
     }
   }
