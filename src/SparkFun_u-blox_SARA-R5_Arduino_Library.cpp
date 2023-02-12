@@ -219,7 +219,7 @@ bool SARA_R5::bufferedPoll(void)
     }
     memcpy(_saraRXBuffer + avail, _saraResponseBacklog, _saraResponseBacklogLength);
     avail += _saraResponseBacklogLength;
-    memset(_saraResponseBacklog, 0, _RXBuffSize); // Clear the backlog making sure it is nullptr-terminated
+    memset(_saraResponseBacklog, 0, _RXBuffSize); // Clear the backlog making sure it is NULL-terminated
     _saraResponseBacklogLength = 0;
   }
 
@@ -235,13 +235,13 @@ bool SARA_R5::bufferedPoll(void)
 
     while (((millis() - timeIn) < _rxWindowMillis) && (avail < _RXBuffSize))
     {
-      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
+      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
         c = readChar();
         // bufferedPoll is only interested in the URCs.
         // The URCs are all readable.
-        // strtok does not like nullptr characters.
-        // So we need to make sure no nullptr characters are added to _saraRXBuffer
+        // strtok does not like NULL characters.
+        // So we need to make sure no NULL characters are added to _saraRXBuffer
         if (c == '\0')
           c = '0'; // Convert any NULLs to ASCII Zeros
         _saraRXBuffer[avail++] = c;
@@ -254,9 +254,9 @@ bool SARA_R5::bufferedPoll(void)
     // _saraRXBuffer now contains the backlog (if any) and the new serial data (if any)
 
     // A health warning about strtok:
-    // strtok will convert any delimiters it finds ("\r\n" in our case) into nullptr characters.
+    // strtok will convert any delimiters it finds ("\r\n" in our case) into NULL characters.
     // Also, be very careful that you do not use strtok within an strtok while loop.
-    // The next call of strtok(nullptr, ...) in the outer loop will use the pointer saved from the inner loop!
+    // The next call of strtok(NULL, ...) in the outer loop will use the pointer saved from the inner loop!
     // In our case, strtok is also used in pruneBacklog, which is called by waitForRespone or sendCommandWithResponse,
     // which is called by the parse functions called by processURCEvent...
     // The solution is to use strtok_r - the reentrant version of strtok
@@ -678,7 +678,7 @@ bool SARA_R5::processURCEvent(const char *event)
       }
     }
   }
-  { // URC: +A
+  { // URC: +CREG
     int status = 0;
     unsigned int lac = 0, ci = 0, Act = 0;
     char *searchPtr = strstr(event, "+CREG:");
@@ -724,6 +724,7 @@ bool SARA_R5::processURCEvent(const char *event)
       }
     }
   }
+  // NOTE: When adding new URC messages, remember to update pruneBacklog too!
   
   return false;
 }
@@ -744,11 +745,11 @@ bool SARA_R5::poll(void)
 
   memset(_saraRXBuffer, 0, _RXBuffSize); // Clear _saraRXBuffer
 
-  if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
+  if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
     while (c != '\n') // Copy characters into _saraRXBuffer. Stop at the first new line
     {
-      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
+      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
         c = readChar();
         _saraRXBuffer[avail++] = c;
@@ -1781,6 +1782,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
         int ipOct[4];
 		
         searchPtr += strlen("+CGDCONT:"); // Point to the cid
+        while (*searchPtr == ' ') searchPtr++; // skip spaces
         scanned = sscanf(searchPtr, "%d,\"%[^\"]\",\"%[^\"]\",\"%d.%d.%d.%d",
         &rcid, strPdpType, strApn,
 				&ipOct[0], &ipOct[1], &ipOct[2], &ipOct[3]);
@@ -5814,7 +5816,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       //that came in while waiting for response. To be processed later within bufferedPoll().
       //Note: the expectedResponse or expectedError will also be added to the backlog
       //The backlog is only used by bufferedPoll to process the URCs - which are all readable.
-      //bufferedPoll uses strtok - which does not like nullptr characters.
+      //bufferedPoll uses strtok - which does not like NULL characters.
       //So let's make sure no NULLs end up in the backlog!
       if (_saraResponseBacklogLength < _RXBuffSize) // Don't overflow the buffer
       {
@@ -5873,20 +5875,20 @@ void SARA_R5::sendCommand(const char *command, bool at)
   // At 115200 baud, hwAvailable takes ~120 * 10 / 115200 = 10.4 millis before it indicates that data is being received.
 
   unsigned long timeIn = millis();
-  if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
+  if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
   {
     while (((millis() - timeIn) < _rxWindowMillis) && (_saraResponseBacklogLength < _RXBuffSize)) //May need to escape on newline?
     {
-      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
+      if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is NULL
       {
         //_saraResponseBacklog is a global array that holds the backlog of any events
         //that came in while waiting for response. To be processed later within bufferedPoll().
         //Note: the expectedResponse or expectedError will also be added to the backlog
         //The backlog is only used by bufferedPoll to process the URCs - which are all readable.
-        //bufferedPoll uses strtok - which does not like nullptr characters.
+        //bufferedPoll uses strtok - which does not like NULL characters.
         //So let's make sure no NULLs end up in the backlog!
         char c = readChar();
-        if (c == '\0') // Make sure no nullptr characters end up in the backlog! Change them to ASCII Zeros
+        if (c == '\0') // Make sure no NULL characters end up in the backlog! Change them to ASCII Zeros
           c = '0';
         _saraResponseBacklog[_saraResponseBacklogLength++] = c;
         timeIn = millis();
@@ -6281,11 +6283,11 @@ void SARA_R5::pruneBacklog()
         || (strstr(event, "+UULOC:") != nullptr)
         || (strstr(event, "+UUSIMSTAT:") != nullptr)
         || (strstr(event, "+UUPSDA:") != nullptr)
-        || (strstr(event, "+UUPING:") != nullptr)
+        || (strstr(event, "+UUHTTPCR:") != nullptr)
         || (strstr(event, "+UUMQTTC:") != nullptr)
-        || (strstr(event, "+UUCREG:") != nullptr)
-        || (strstr(event, "+UUCEREG:") != nullptr)
-        || (strstr(event, "+UUHTTPCR:") != nullptr))
+        || (strstr(event, "+UUPING:") != nullptr)
+        || (strstr(event, "+CREG:") != nullptr)
+        || (strstr(event, "+CEREG:") != nullptr))
     {
       strcat(_pruneBuffer, event); // The URCs are all readable text so using strcat is OK
       strcat(_pruneBuffer, "\r\n"); // strtok blows away delimiter, but we want that for later.
