@@ -593,7 +593,7 @@ bool SARA_R5::processURCEvent(const char *event)
       }
     }
   }
-  { // URC: +UUMQTTC (HTTP Command Result)
+  { // URC: +UUMQTTC (MQTT Command Result)
     int command, result;
     int scanNum;
     int qos = -1;
