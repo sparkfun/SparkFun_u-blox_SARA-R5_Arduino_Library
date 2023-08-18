@@ -111,6 +111,7 @@ const char SARA_R5_COMMAND_TZ_REPORT[] = "+CTZR";    // Time zone reporting
 // ### Network service
 const char SARA_R5_COMMAND_CNUM[] = "+CNUM"; // Subscriber number
 const char SARA_R5_SIGNAL_QUALITY[] = "+CSQ";
+const char SARA_R5_EXT_SIGNAL_QUALITY[] = "+CESQ";
 const char SARA_R5_OPERATOR_SELECTION[] = "+COPS";
 const char SARA_R5_REGISTRATION_STATUS[] = "+CREG";
 const char SARA_R5_EPSREGISTRATION_STATUS[] = "+CEREG";
@@ -162,7 +163,10 @@ const char SARA_R5_MQTT_NVM[] = "+UMQTTNV";
 const char SARA_R5_MQTT_PROFILE[] = "+UMQTT";
 const char SARA_R5_MQTT_COMMAND[] = "+UMQTTC";
 const char SARA_R5_MQTT_PROTOCOL_ERROR[] = "+UMQTTER";
-
+// ### FTP
+const char SARA_R5_FTP_PROFILE[] = "+UFTP";
+const char SARA_R5_FTP_COMMAND[] = "+UFTPC";
+const char SARA_R5_FTP_PROTOCOL_ERROR[] = "+UFTPER";
 // ### GNSS
 const char SARA_R5_GNSS_POWER[] = "+UGPS";                   // GNSS power management configuration
 const char SARA_R5_GNSS_ASSISTED_IND[] = "+UGIND";           // Assisted GNSS unsolicited indication
@@ -177,6 +181,7 @@ const char SARA_R5_AIDING_SERVER_CONFIGURATION[] = "+UGSRV"; // Configure aiding
 // ### File System
 // TO DO: Add support for file tags. Default tag to USER
 const char SARA_R5_FILE_SYSTEM_READ_FILE[] = "+URDFILE";      // Read a file
+const char SARA_R5_FILE_SYSTEM_READ_BLOCK[] = "+URDBLOCK";      // Read a block from a file
 const char SARA_R5_FILE_SYSTEM_DOWNLOAD_FILE[] = "+UDWNFILE";    // Download a file into the module
 const char SARA_R5_FILE_SYSTEM_LIST_FILES[] = "+ULSTFILE";    // List of files, size of file, etc.
 const char SARA_R5_FILE_SYSTEM_DELETE_FILE[] = "+UDELFILE";   // Delete a file
@@ -185,7 +190,24 @@ const char SARA_R5_FILE_SYSTEM_DELETE_FILE[] = "+UDELFILE";   // Delete a file
 const char SARA_R5_SEC_PROFILE[] = "+USECPRF";
 const char SARA_R5_SEC_MANAGER[] = "+USECMNG";
 
+
+// ### URC strings
+const char SARA_R5_READ_SOCKET_URC[] = "+UUSORD:";
+const char SARA_R5_READ_UDP_SOCKET_URC[] = "+UUSORF:";
+const char SARA_R5_LISTEN_SOCKET_URC[] = "+UUSOLI:";
+const char SARA_R5_CLOSE_SOCKET_URC[] = "+UUSOCL:";
+const char SARA_R5_GNSS_REQUEST_LOCATION_URC[] = "+UULOC:";
+const char SARA_R5_SIM_STATE_URC[] = "+UUSIMSTAT:";
+const char SARA_R5_MESSAGE_PDP_ACTION_URC[] = "+UUPSDA:";
+const char SARA_R5_HTTP_COMMAND_URC[] = "+UUHTTPCR:";
+const char SARA_R5_MQTT_COMMAND_URC[] = "+UUMQTTC:";
+const char SARA_R5_PING_COMMAND_URC[] = "+UUPING:";
+const char SARA_R5_REGISTRATION_STATUS_URC[] = "+CREG:";
+const char SARA_R5_EPSREGISTRATION_STATUS_URC[] = "+CEREG:";
+const char SARA_R5_FTP_COMMAND_URC[] = "+UUFTPCR:";
+
 // ### Response
+const char SARA_R5_RESPONSE_MORE[] = "\n>";
 const char SARA_R5_RESPONSE_OK[] = "\nOK\r\n";
 const char SARA_R5_RESPONSE_ERROR[] = "\nERROR\r\n";
 const char SARA_R5_RESPONSE_CONNECT[] = "\r\nCONNECT\r\n";
@@ -333,6 +355,15 @@ struct operator_stats
   uint8_t act;
 };
 
+typedef struct ext_signal_quality_ {
+    unsigned int rxlev;
+    unsigned int ber;
+    unsigned int rscp;
+    unsigned int enc0;
+    unsigned int rsrq;
+    unsigned int rsrp;
+} signal_quality;
+
 typedef enum
 {
   SARA_R5_TCP = 6,
@@ -444,7 +475,7 @@ typedef enum
     SARA_R5_MQTT_NV_SET,
     SARA_R5_MQTT_NV_STORE,
 } SARA_R5_mqtt_nv_parameter_t;
-    
+
 typedef enum
 {
     SARA_R5_MQTT_PROFILE_CLIENT_ID = 0,
@@ -461,16 +492,51 @@ typedef enum
 
 typedef enum
 {
-    SARA_R5_MQTT_COMMAND_LOGOUT = 0,
-    SARA_R5_MQTT_COMMAND_LOGIN,
-    SARA_R5_MQTT_COMMAND_PUBLISH,
-    SARA_R5_MQTT_COMMAND_PUBLISHFILE,
-    SARA_R5_MQTT_COMMAND_SUBSCRIBE,
-    SARA_R5_MQTT_COMMAND_UNSUBSCRIBE,
-    SARA_R5_MQTT_COMMAND_READ,
-    SARA_R5_MQTT_COMMAND_PING,
-    SARA_R5_MQTT_COMMAND_PUBLISHBINARY,
+  SARA_R5_MQTT_COMMAND_INVALID = -1,
+  SARA_R5_MQTT_COMMAND_LOGOUT = 0,
+  SARA_R5_MQTT_COMMAND_LOGIN,
+  SARA_R5_MQTT_COMMAND_PUBLISH,
+  SARA_R5_MQTT_COMMAND_PUBLISHFILE,
+  SARA_R5_MQTT_COMMAND_SUBSCRIBE,
+  SARA_R5_MQTT_COMMAND_UNSUBSCRIBE,
+  SARA_R5_MQTT_COMMAND_READ,
+  SARA_R5_MQTT_COMMAND_RCVMSGFORMAT,
+  SARA_R5_MQTT_COMMAND_PING,
+  SARA_R5_MQTT_COMMAND_PUBLISHBINARY,
 } SARA_R5_mqtt_command_opcode_t;
+
+constexpr uint16_t MAX_MQTT_HEX_MSG_LEN = 512;
+constexpr uint16_t MAX_MQTT_DIRECT_MSG_LEN = 1024;
+
+typedef enum
+{
+    SARA_R5_FTP_PROFILE_IPADDRESS = 0,
+    SARA_R5_FTP_PROFILE_SERVERNAME,
+    SARA_R5_FTP_PROFILE_USERNAME,
+    SARA_R5_FTP_PROFILE_PWD,
+    SARA_R5_FTP_PROFILE_ACCOUNT,
+    SARA_R5_FTP_PROFILE_TIMEOUT,
+    SARA_R5_FTP_PROFILE_MODE
+} SARA_R5_ftp_profile_opcode_t;
+
+typedef enum
+{
+  SARA_R5_FTP_COMMAND_INVALID = -1,
+  SARA_R5_FTP_COMMAND_LOGOUT = 0,
+  SARA_R5_FTP_COMMAND_LOGIN,
+  SARA_R5_FTP_COMMAND_DELETE_FILE,
+  SARA_R5_FTP_COMMAND_RENAME_FILE,
+  SARA_R5_FTP_COMMAND_GET_FILE,
+  SARA_R5_FTP_COMMAND_PUT_FILE,
+  SARA_R5_FTP_COMMAND_GET_FILE_DIRECT,
+  SARA_R5_FTP_COMMAND_PUT_FILE_DIRECT,
+  SARA_R5_FTP_COMMAND_CHANGE_DIR,
+  SARA_R5_FTP_COMMAND_MKDIR = 10,
+  SARA_R5_FTP_COMMAND_RMDIR,
+  SARA_R5_FTP_COMMAND_DIR_INFO = 13,
+  SARA_R5_FTP_COMMAND_LS,
+  SARA_R5_FTP_COMMAND_GET_FOTA_FILE
+} SARA_R5_ftp_command_opcode_t;
 
 typedef enum
 {
@@ -587,7 +653,7 @@ public:
   // Debug prints
   void enableDebugging(Print &debugPort = Serial); //Turn on debug printing. If user doesn't specify then Serial will be used.
   void enableAtDebugging(Print &debugPort = Serial); //Turn on AT debug printing. If user doesn't specify then Serial will be used.
-  
+
   // Invert the polarity of the power pin - if required
   // Normally the SARA's power pin is pulled low and released to toggle the power
   // But the Asset Tracker needs this to be pulled high and released instead
@@ -604,7 +670,7 @@ public:
   // It also has a built-in timeout - which ::poll does not
   // Use this - it is way better than ::poll. Thank you Matthew!
   bool bufferedPoll(void);
-  
+
   // This is the original poll function.
   // It is 'blocking' - it does not return when serial data is available until it receives a `\n`.
   // ::bufferedPoll is the new improved version. It processes any data in the backlog and includes a timeout.
@@ -625,12 +691,14 @@ public:
   void setPSDActionCallback(void (*psdActionRequestCallback)(int result, IPAddress ip));
   void setPingCallback(void (*pingRequestCallback)(int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt));
   void setHTTPCommandCallback(void (*httpCommandRequestCallback)(int profile, int command, int result));
-  void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result));
+  void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t command, int result));
+  void setFTPCommandCallback(void (*ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t command, int result));
+
   SARA_R5_error_t setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status,
                                                                        unsigned int lac, unsigned int ci, int Act));
   SARA_R5_error_t setEpsRegistrationCallback(void (*epsRegistrationCallback)(SARA_R5_registration_status_t status,
                                                                             unsigned int tac, unsigned int ci, int Act));
-    
+
   // Direct write/print to cell serial port
   virtual size_t write(uint8_t c);
   virtual size_t write(const char *str);
@@ -666,9 +734,11 @@ public:
   SARA_R5_error_t getUtimeIndication(SARA_R5_utime_urc_configuration_t *config);
   SARA_R5_error_t setUtimeConfiguration(int32_t offsetNanoseconds = 0, int32_t offsetSeconds = 0); // +UTIMECFG
   SARA_R5_error_t getUtimeConfiguration(int32_t *offsetNanoseconds, int32_t *offsetSeconds);
-  
+
   // Network service AT commands
   int8_t rssi(void); // Receive signal strength
+  SARA_R5_error_t getExtSignalQuality(signal_quality& signal_quality);
+
   SARA_R5_registration_status_t registration(bool eps = true);
   bool setNetworkProfile(mobile_network_operator_t mno, bool autoReset = false, bool urcNotification = false);
   mobile_network_operator_t getNetworkProfile(void);
@@ -685,7 +755,7 @@ public:
 
   SARA_R5_error_t getSimStatus(String* code);
   SARA_R5_error_t setSimPin(String pin);
-  
+
   // SIM
   // Status report Mode:
   // Bit   States reported
@@ -852,22 +922,35 @@ public:
   SARA_R5_error_t sendHTTPPOSTfile(int profile, String path, String responseFilename, String requestFile, SARA_R5_http_content_types_t httpContentType);
 
   SARA_R5_error_t nvMQTT(SARA_R5_mqtt_nv_parameter_t parameter);
-  SARA_R5_error_t setMQTTclientId(String clientId);
-  SARA_R5_error_t setMQTTserver(String serverName, int port);
+  SARA_R5_error_t setMQTTclientId(const String& clientId);
+  SARA_R5_error_t setMQTTserver(const String& serverName, int port);
+  SARA_R5_error_t setMQTTcredentials(const String& userName, const String& pwd);
   SARA_R5_error_t setMQTTsecure(bool secure, int secprofile = -1);
   SARA_R5_error_t connectMQTT(void);
   SARA_R5_error_t disconnectMQTT(void);
-  SARA_R5_error_t subscribeMQTTtopic(int max_Qos, String topic);
-  SARA_R5_error_t unsubscribeMQTTtopic(String topic);
+  SARA_R5_error_t subscribeMQTTtopic(int max_Qos, const String& topic);
+  SARA_R5_error_t unsubscribeMQTTtopic(const String& topic);
   SARA_R5_error_t readMQTT(int* pQos, String* pTopic, uint8_t *readDest, int readLength, int *bytesRead);
+  SARA_R5_error_t mqttPublishTextMsg(const String& topic, const char * const msg, uint8_t qos = 0, bool retain = false);
+  SARA_R5_error_t mqttPublishBinaryMsg(const String& topic, const char * const msg, size_t msg_len, uint8_t qos = 0, bool retain = false);
+  SARA_R5_error_t mqttPublishFromFile(const String& topic, const String& filename, uint8_t qos = 0, bool retain = false);
   SARA_R5_error_t getMQTTprotocolError(int *error_code, int *error_code2);
-  
+
+  // FTP
+  SARA_R5_error_t setFTPserver(const String& serverName);
+  SARA_R5_error_t setFTPtimeouts(const unsigned int timeout, const unsigned int cmd_linger, const unsigned int data_linger);
+  SARA_R5_error_t setFTPcredentials(const String& userName, const String& pwd);
+  SARA_R5_error_t connectFTP(void);
+  SARA_R5_error_t disconnectFTP(void);
+  SARA_R5_error_t ftpGetFile(const String& filename);
+  SARA_R5_error_t getFTPprotocolError(int *error_code, int *error_code2);
+
   // Configure security profiles
   SARA_R5_error_t resetSecurityProfile(int secprofile);
   SARA_R5_error_t configSecurityProfileString(int secprofile, SARA_R5_sec_profile_parameter_t parameter, String value);
   SARA_R5_error_t configSecurityProfile(int secprofile, SARA_R5_sec_profile_parameter_t parameter, int value);
   SARA_R5_error_t setSecurityManager(SARA_R5_sec_manager_opcode_t opcode, SARA_R5_sec_manager_parameter_t parameter, String name, String data);
-    
+
   // Packet Switched Data
   // Configure the PDP using +UPSD. See SARA_R5_pdp_configuration_parameter_t for the list of parameters: protocol, APN, username, DNS, etc.
   SARA_R5_error_t setPDPconfiguration(int profile, SARA_R5_pdp_configuration_parameter_t parameter, int value);                         // Set parameters in the chosen PSD profile
@@ -926,12 +1009,14 @@ public:
   // TO DO: add full support for file tags. Default tag to USER
   SARA_R5_error_t getFileContents(String filename, String *contents); // OK for text files. But will fail with binary files (containing \0) on some platforms.
   SARA_R5_error_t getFileContents(String filename, char *contents); // OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
+  SARA_R5_error_t getFileBlock(const String& filename, char* buffer, size_t offset, size_t length, size_t& bytes_read); // OK for binary files. Make sure buffer can hold the requested block size.
+
   // Append data to a file, delete file first to not appends the data.
   SARA_R5_error_t appendFileContents(String filename, String str);
   SARA_R5_error_t appendFileContents(String filename, const char *str, int len);
   SARA_R5_error_t getFileSize(String filename, int *size);
   SARA_R5_error_t deleteFile(String filename);
-    
+
   // Functionality
   SARA_R5_error_t functionality(SARA_R5_functionality_t function = FULL_FUNCTIONALITY);
 
@@ -949,7 +1034,7 @@ private:
   bool _printDebug = false; //Flag to print debugging variables
   Print *_debugAtPort;      //The stream to send debug messages to if enabled. Usually Serial.
   bool _printAtDebug = false; //Flag to print debugging variables
-  
+
   int _powerPin;
   int _resetPin;
   bool _invertPowerPin = false;
@@ -978,7 +1063,8 @@ private:
   void (*_psdActionRequestCallback)(int, IPAddress);
   void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
   void (*_httpCommandRequestCallback)(int, int, int);
-  void (*_mqttCommandRequestCallback)(int, int);
+  void (*_mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t, int);
+  void (*_ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t, int);
   void (*_registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act);
   void (*_epsRegistrationCallback)(SARA_R5_registration_status_t status, unsigned int tac, unsigned int ci, int Act);
 

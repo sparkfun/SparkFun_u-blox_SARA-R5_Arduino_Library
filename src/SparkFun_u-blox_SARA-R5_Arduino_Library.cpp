@@ -96,7 +96,7 @@ bool SARA_R5::begin(SoftwareSerial &softSerial, unsigned long baud)
     }
   }
   memset(_pruneBuffer, 0, _RXBuffSize);
- 
+
   if (nullptr == _saraResponseBacklog)
   {
     _saraResponseBacklog = new char[_RXBuffSize];
@@ -147,7 +147,7 @@ bool SARA_R5::begin(HardwareSerial &hardSerial, unsigned long baud)
     }
   }
   memset(_pruneBuffer, 0, _RXBuffSize);
- 
+
   if (nullptr == _saraResponseBacklog)
   {
     _saraResponseBacklog = new char[_RXBuffSize];
@@ -308,8 +308,10 @@ bool SARA_R5::bufferedPoll(void)
     }
   }
 
-  free(event);
-
+  // This is a bug. event could be nullptr, and even if it is not it is pointing into
+  // _saraRXBuffer meaning it is calling free on a random pointer whose memory
+  // may be referenced later.
+  //free(event);
   _bufferedPollReentrant = false;
 
   return handled;
@@ -320,11 +322,11 @@ bool SARA_R5::processURCEvent(const char *event)
 {
   { // URC: +UUSORD (Read Socket Data)
     int socket, length;
-    char *searchPtr = strstr(event, "+UUSORD:");
+    char *searchPtr = strstr(event, SARA_R5_READ_SOCKET_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUSORD:"); // Move searchPtr to first character - probably a space
-      while (*searchPtr == ' ') searchPtr++; // skip spaces
+      searchPtr += strlen(SARA_R5_READ_SOCKET_URC); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ') searchPtr++; // Skip spaces
       int ret = sscanf(searchPtr, "%d,%d", &socket, &length);
       if (ret == 2)
       {
@@ -351,10 +353,10 @@ bool SARA_R5::processURCEvent(const char *event)
   }
   { // URC: +UUSORF (Receive From command (UDP only))
     int socket, length;
-    char *searchPtr = strstr(event, "+UUSORF:");
+    char *searchPtr = strstr(event, SARA_R5_READ_UDP_SOCKET_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUSORF:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_READ_UDP_SOCKET_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int ret = sscanf(searchPtr, "%d,%d", &socket, &length);
       if (ret == 2)
@@ -376,10 +378,10 @@ bool SARA_R5::processURCEvent(const char *event)
     int remoteIPstore[4]  = {0,0,0,0};
     int localIPstore[4] = {0,0,0,0};
 
-    char *searchPtr = strstr(event, "+UUSOLI:");
+    char *searchPtr = strstr(event, SARA_R5_LISTEN_SOCKET_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUSOLI:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_LISTEN_SOCKET_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int ret = sscanf(searchPtr,
                       "%d,\"%d.%d.%d.%d\",%u,%d,\"%d.%d.%d.%d\",%u",
@@ -406,10 +408,10 @@ bool SARA_R5::processURCEvent(const char *event)
   }
   { // URC: +UUSOCL (Close Socket)
     int socket;
-    char *searchPtr = strstr(event, "+UUSOCL:");
+    char *searchPtr = strstr(event, SARA_R5_CLOSE_SOCKET_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUSOCL:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_CLOSE_SOCKET_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int ret = sscanf(searchPtr, "%d", &socket);
       if (ret == 1)
@@ -441,10 +443,10 @@ bool SARA_R5::processURCEvent(const char *event)
     // Maybe we should also scan for +UUGIND and extract the activated gnss system?
 
     // This assumes the ULOC response type is "0" or "1" - as selected by gpsRequest detailed
-    char *searchPtr = strstr(event, "+UULOC:");
+    char *searchPtr = strstr(event, SARA_R5_GNSS_REQUEST_LOCATION_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UULOC:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_GNSS_REQUEST_LOCATION_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr,
                         "%d/%d/%d,%d:%d:%d.%d,%d.%[^,],%d.%[^,],%d,%lu,%u,%u,%*s",
@@ -509,10 +511,10 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
     int stateStore;
 
-    char *searchPtr = strstr(event, "+UUSIMSTAT:");
+    char *searchPtr = strstr(event, SARA_R5_SIM_STATE_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUSIMSTAT:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_SIM_STATE_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr, "%d", &stateStore);
 
@@ -538,10 +540,10 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
     int remoteIPstore[4];
 
-    char *searchPtr = strstr(event, "+UUPSDA:");
+    char *searchPtr = strstr(event, SARA_R5_MESSAGE_PDP_ACTION_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUPSDA:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_MESSAGE_PDP_ACTION_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr, "%d,\"%d.%d.%d.%d\"",
                         &result, &remoteIPstore[0], &remoteIPstore[1], &remoteIPstore[2], &remoteIPstore[3]);
@@ -569,10 +571,10 @@ bool SARA_R5::processURCEvent(const char *event)
     int profile, command, result;
     int scanNum;
 
-    char *searchPtr = strstr(event, "+UUHTTPCR:");
+    char *searchPtr = strstr(event, SARA_R5_HTTP_COMMAND_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUHTTPCR:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_HTTP_COMMAND_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr, "%d,%d,%d", &profile, &command, &result);
 
@@ -594,18 +596,24 @@ bool SARA_R5::processURCEvent(const char *event)
     }
   }
   { // URC: +UUMQTTC (MQTT Command Result)
-    int command, result;
+    SARA_R5_mqtt_command_opcode_t mqttCmd;
+    int mqttResult;
     int scanNum;
     int qos = -1;
     String topic;
 
-    char *searchPtr = strstr(event, "+UUMQTTC:");
+    char *searchPtr = strstr(event, SARA_R5_MQTT_COMMAND_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUMQTTC:"); // Move searchPtr to first character - probably a space
-      while (*searchPtr == ' ') searchPtr++; // skip spaces
-      scanNum = sscanf(searchPtr, "%d,%d", &command, &result);
-      if ((scanNum == 2) && (command == SARA_R5_MQTT_COMMAND_SUBSCRIBE)) {
+      searchPtr += strlen(SARA_R5_MQTT_COMMAND_URC); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ')
+      {
+        searchPtr++; // skip spaces
+      }
+
+      scanNum = sscanf(searchPtr, "%d,%d", &mqttCmd, &mqttResult);
+      if ((scanNum == 2) && (mqttCmd == SARA_R5_MQTT_COMMAND_SUBSCRIBE))
+      {
         char topicC[100] = "";
         scanNum = sscanf(searchPtr, "%*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
         topic = topicC;
@@ -613,13 +621,36 @@ bool SARA_R5::processURCEvent(const char *event)
       if ((scanNum == 2) || (scanNum == 4))
       {
         if (_printDebug == true)
+        {
           _debugPort->println(F("processReadEvent: MQTT command result"));
+        }
 
         if (_mqttCommandRequestCallback != nullptr)
         {
-          _mqttCommandRequestCallback(command, result);
+          _mqttCommandRequestCallback(mqttCmd, mqttResult);
         }
-        
+
+        return true;
+      }
+    }
+  }
+  { // URC: +UUFTPCR (FTP Command Result)
+    SARA_R5_ftp_command_opcode_t ftpCmd;
+    int ftpResult;
+    int scanNum;
+    char *searchPtr = strstr(event, SARA_R5_FTP_COMMAND_URC);
+    if (searchPtr != nullptr)
+    {
+      searchPtr += strlen(SARA_R5_FTP_COMMAND_URC); // Move searchPtr to first character - probably a space
+      while (*searchPtr == ' ')
+      {
+        searchPtr++; // skip spaces
+      }
+
+      scanNum = sscanf(searchPtr, "%d,%d", &ftpCmd, &ftpResult);
+      if (scanNum == 2 && _ftpCommandRequestCallback != nullptr)
+      {
+        _ftpCommandRequestCallback(ftpCmd, ftpResult);
         return true;
       }
     }
@@ -634,10 +665,10 @@ bool SARA_R5::processURCEvent(const char *event)
     int scanNum;
 
     // Try to extract the UUPING retries and payload size
-    char *searchPtr = strstr(event, "+UUPING:");
+    char *searchPtr = strstr(event, SARA_R5_PING_COMMAND_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+UUPING:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_PING_COMMAND_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanNum = sscanf(searchPtr, "%d,%d,", &retry, &p_size);
 
@@ -681,10 +712,10 @@ bool SARA_R5::processURCEvent(const char *event)
   { // URC: +CREG
     int status = 0;
     unsigned int lac = 0, ci = 0, Act = 0;
-    char *searchPtr = strstr(event, "+CREG:");
+    char *searchPtr = strstr(event, SARA_R5_REGISTRATION_STATUS_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+CREG:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_REGISTRATION_STATUS_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int scanNum = sscanf(searchPtr, "%d,\"%4x\",\"%4x\",%d", &status, &lac, &ci, &Act);
       if (scanNum == 4)
@@ -696,7 +727,7 @@ bool SARA_R5::processURCEvent(const char *event)
         {
           _registrationCallback((SARA_R5_registration_status_t)status, lac, ci, Act);
         }
-        
+
         return true;
       }
     }
@@ -704,10 +735,10 @@ bool SARA_R5::processURCEvent(const char *event)
   { // URC: +CEREG
     int status = 0;
     unsigned int tac = 0, ci = 0, Act = 0;
-    char *searchPtr = strstr(event, "+CEREG:");
+    char *searchPtr = strstr(event, SARA_R5_EPSREGISTRATION_STATUS_URC);
     if (searchPtr != nullptr)
     {
-      searchPtr += strlen("+CEREG:"); // Move searchPtr to first character - probably a space
+      searchPtr += strlen(SARA_R5_EPSREGISTRATION_STATUS_URC); // Move searchPtr to first character - probably a space
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       int scanNum = sscanf(searchPtr, "%d,\"%4x\",\"%4x\",%d", &status, &tac, &ci, &Act);
       if (scanNum == 4)
@@ -719,13 +750,13 @@ bool SARA_R5::processURCEvent(const char *event)
         {
           _epsRegistrationCallback((SARA_R5_registration_status_t)status, tac, ci, Act);
         }
-        
+
         return true;
       }
     }
   }
   // NOTE: When adding new URC messages, remember to update pruneBacklog too!
-  
+
   return false;
 }
 
@@ -827,15 +858,20 @@ void SARA_R5::setHTTPCommandCallback(void (*httpCommandRequestCallback)(int prof
   _httpCommandRequestCallback = httpCommandRequestCallback;
 }
 
-void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result))
+void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t command, int result))
 {
   _mqttCommandRequestCallback = mqttCommandRequestCallback;
+}
+
+void SARA_R5::setFTPCommandCallback(void (*ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t command, int result))
+{
+    _ftpCommandRequestCallback = ftpCommandRequestCallback;
 }
 
 SARA_R5_error_t SARA_R5::setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act))
 {
   _registrationCallback = registrationCallback;
-  
+
   char *command = sara_r5_calloc_char(strlen(SARA_R5_REGISTRATION_STATUS) + 3);
   if (command == nullptr)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
@@ -878,7 +914,7 @@ size_t SARA_R5::write(const char *buffer, size_t size)
 SARA_R5_error_t SARA_R5::at(void)
 {
   SARA_R5_error_t err;
-  
+
   err = sendCommandWithResponse(nullptr, SARA_R5_RESPONSE_OK, nullptr,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
 
@@ -1580,6 +1616,55 @@ int8_t SARA_R5::rssi(void)
   return rssi;
 }
 
+SARA_R5_error_t SARA_R5::getExtSignalQuality(signal_quality& signal_quality)
+{
+    char *command;
+    char *response;
+    SARA_R5_error_t err;
+
+    command = sara_r5_calloc_char(strlen(SARA_R5_EXT_SIGNAL_QUALITY) + 1);
+    if (command == nullptr)
+    {
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
+
+    sprintf(command, "%s", SARA_R5_EXT_SIGNAL_QUALITY);
+
+    response = sara_r5_calloc_char(minimumResponseAllocation);
+    if (response == nullptr)
+    {
+        free(command);
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
+
+    err = sendCommandWithResponse(command,
+                                  SARA_R5_RESPONSE_OK_OR_ERROR, response, 10000,
+                                  minimumResponseAllocation, AT_COMMAND);
+    if (err != SARA_R5_ERROR_SUCCESS)
+    {
+        free(command);
+        free(response);
+        return SARA_R5_ERROR_ERROR;
+    }
+
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+CESQ: ");
+    if (searchPtr != nullptr) {
+        scanned = sscanf(searchPtr, "+CESQ: %u,%u,%u,%u,%u,%u", &signal_quality.rxlev, &signal_quality.ber,
+                         &signal_quality.rscp, &signal_quality.enc0, &signal_quality.rsrq, &signal_quality.rsrp);
+    }
+
+    err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    if (scanned == 6)
+    {
+        err = SARA_R5_ERROR_SUCCESS;
+    }
+
+    free(command);
+    free(response);
+    return err;
+}
+
 SARA_R5_registration_status_t SARA_R5::registration(bool eps)
 {
   char *command;
@@ -1608,13 +1693,13 @@ SARA_R5_registration_status_t SARA_R5::registration(bool eps)
     free(response);
     return SARA_R5_REGISTRATION_INVALID;
   }
-  
+
   int scanned = 0;
-  const char *startTag = eps ? "+CEREG:" : "+CREG:";
+  const char *startTag = eps ? SARA_R5_EPSREGISTRATION_STATUS_URC : SARA_R5_REGISTRATION_STATUS_URC;
   char *searchPtr = strstr(response, startTag);
   if (searchPtr != nullptr)
   {
-    searchPtr += eps ? strlen("+CEREG:") : strlen("+CREG:"); //  Move searchPtr to first char
+    searchPtr += eps ? strlen(SARA_R5_EPSREGISTRATION_STATUS_URC) : strlen(SARA_R5_REGISTRATION_STATUS_URC); //  Move searchPtr to first char
     while (*searchPtr == ' ') searchPtr++; // skip spaces
 	  scanned = sscanf(searchPtr, "%*d,%d", &status);
   }
@@ -1742,7 +1827,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
   SARA_R5_error_t err;
   char *command;
   char *response;
-  
+
   if (cid > SARA_R5_NUM_PDP_CONTEXT_IDENTIFIERS)
     return SARA_R5_ERROR_ERROR;
 
@@ -1780,7 +1865,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
         char strPdpType[10];
         char strApn[128];
         int ipOct[4];
-		
+
         searchPtr += strlen("+CGDCONT:"); // Point to the cid
         while (*searchPtr == ' ') searchPtr++; // skip spaces
         scanned = sscanf(searchPtr, "%d,\"%[^\"]\",\"%[^\"]\",\"%d.%d.%d.%d",
@@ -1807,7 +1892,7 @@ SARA_R5_error_t SARA_R5::getAPN(int cid, String *apn, IPAddress *ip, SARA_R5_pdp
         if (pdpType) *pdpType = PDP_TYPE_INVALID;
         if (ip) *ip = {0, 0, 0, 0};
         keepGoing = false;
-      }  
+      }
     }
   }
   else
@@ -1838,7 +1923,7 @@ SARA_R5_error_t SARA_R5::getSimStatus(String* code)
   }
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
-  
+
   if (err == SARA_R5_ERROR_SUCCESS)
   {
     int scanned = 0;
@@ -1857,13 +1942,13 @@ SARA_R5_error_t SARA_R5::getSimStatus(String* code)
     else
       err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
-  
+
   free(command);
   free(response);
-  
+
   return err;
 }
-                                
+
 SARA_R5_error_t SARA_R5::setSimPin(String pin)
 {
   SARA_R5_error_t err;
@@ -1922,7 +2007,7 @@ SARA_R5_error_t SARA_R5::getSIMstateReportingMode(int *mode)
     int scanned = 0;
     char *searchPtr = strstr(response, "+USIMSTAT:");
     if (searchPtr != nullptr)
-    {      
+    {
       searchPtr += strlen("+USIMSTAT:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
       scanned = sscanf(searchPtr, "%d\r\n", &m);
@@ -4168,7 +4253,7 @@ SARA_R5_error_t SARA_R5::nvMQTT(SARA_R5_mqtt_nv_parameter_t parameter)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMQTTclientId(String clientId)
+SARA_R5_error_t SARA_R5::setMQTTclientId(const String& clientId)
 {
     SARA_R5_error_t err;
     char *command;
@@ -4182,7 +4267,7 @@ SARA_R5_error_t SARA_R5::setMQTTclientId(String clientId)
     return err;
 }
 
-SARA_R5_error_t SARA_R5::setMQTTserver(String serverName, int port)
+SARA_R5_error_t SARA_R5::setMQTTserver(const String& serverName, int port)
 {
     SARA_R5_error_t err;
     char *command;
@@ -4190,6 +4275,21 @@ SARA_R5_error_t SARA_R5::setMQTTserver(String serverName, int port)
     if (command == nullptr)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
     sprintf(command, "%s=%d,\"%s\",%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SERVERNAME, serverName.c_str(), port);
+    err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+    free(command);
+    return err;
+}
+
+SARA_R5_error_t SARA_R5::setMQTTcredentials(const String& userName, const String& pwd)
+{
+    SARA_R5_error_t err;
+    char *command;
+    command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_PROFILE) + userName.length() + pwd.length() + 16);
+    if (command == nullptr) {
+        return SARA_R5_ERROR_OUT_OF_MEMORY;
+    }
+    sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_USERNAMEPWD, userName.c_str(), pwd.c_str());
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
     free(command);
@@ -4224,7 +4324,7 @@ SARA_R5_error_t SARA_R5::connectMQTT(void)
     free(command);
     return err;
 }
-  
+
 SARA_R5_error_t SARA_R5::disconnectMQTT(void)
 {
     SARA_R5_error_t err;
@@ -4238,8 +4338,8 @@ SARA_R5_error_t SARA_R5::disconnectMQTT(void)
     free(command);
     return err;
 }
-  
-SARA_R5_error_t SARA_R5::subscribeMQTTtopic(int max_Qos, String topic)
+
+SARA_R5_error_t SARA_R5::subscribeMQTTtopic(int max_Qos, const String& topic)
 {
   SARA_R5_error_t err;
   char *command;
@@ -4252,8 +4352,8 @@ SARA_R5_error_t SARA_R5::subscribeMQTTtopic(int max_Qos, String topic)
   free(command);
   return err;
 }
- 
-SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(String topic)
+
+SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(const String& topic)
 {
   SARA_R5_error_t err;
   char *command;
@@ -4266,7 +4366,7 @@ SARA_R5_error_t SARA_R5::unsubscribeMQTTtopic(String topic)
   free(command);
   return err;
 }
-    
+
 SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, int readLength, int *bytesRead)
 {
   char *command;
@@ -4274,7 +4374,7 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
   SARA_R5_error_t err;
   int scanNum = 0;
   int total_length, topic_length, data_length;
-  
+
   // Set *bytesRead to zero
   if (bytesRead != nullptr)
     *bytesRead = 0;
@@ -4292,14 +4392,14 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
     free(command);
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
-  
+
   // Note to self: if the file contents contain "OK\r\n" sendCommandWithResponse will return true too early...
   // To try and avoid this, look for \"\r\n\r\nOK\r\n there is a extra \r\n beetween " and the the standard \r\nOK\r\n
   const char mqttReadTerm[] = "\"\r\n\r\nOK\r\n";
   sprintf(command, "%s=%d,%d", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_READ, 1);
   err = sendCommandWithResponse(command, mqttReadTerm, response,
                                 (5 * SARA_R5_STANDARD_RESPONSE_TIMEOUT), responseLength);
-  
+
   if (err != SARA_R5_ERROR_SUCCESS)
   {
     if (_printDebug == true)
@@ -4332,7 +4432,7 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
     free(response);
     return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
   }
-  
+
   err = SARA_R5_ERROR_SUCCESS;
   searchPtr = strstr(searchPtr, "\"");
   if (searchPtr!= nullptr) {
@@ -4362,6 +4462,104 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
   free(command);
   free(response);
 
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::mqttPublishTextMsg(const String& topic, const char * const msg, uint8_t qos, bool retain)
+{
+  if (topic.isEmpty() || msg == nullptr)
+  {
+    return SARA_R5_ERROR_INVALID;
+  }
+
+  SARA_R5_error_t err;
+
+  // Check the message length and truncate if necessary.
+  size_t msg_len = strnlen(msg, MAX_MQTT_DIRECT_MSG_LEN);
+  if (msg_len > MAX_MQTT_DIRECT_MSG_LEN)
+  {
+    msg_len = MAX_MQTT_DIRECT_MSG_LEN;
+  }
+
+  String str_msg(msg, msg_len);
+
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 20 + topic.length() + msg_len);
+  if (command == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,%u,%u,0,\"%s\",\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_PUBLISH, qos, (retain ? 1:0), topic.c_str(), str_msg.c_str());
+
+  sendCommand(command, true);
+  err = waitForResponse(SARA_R5_RESPONSE_MORE, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    sendCommand(msg, false);
+    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  }
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::mqttPublishBinaryMsg(const String& topic, const char * const msg, size_t msg_len, uint8_t qos, bool retain)
+{
+  /*
+   * The modem prints the '>' as the signal to send the binary message content.
+   * at+umqttc=9,0,0,"topic",4
+   *
+   * >"xY"
+   * OK
+   *
+   * +UUMQTTC: 9,1
+   */
+  if (topic.isEmpty() || msg == nullptr || msg_len > MAX_MQTT_DIRECT_MSG_LEN)
+  {
+    return SARA_R5_ERROR_INVALID;
+  }
+
+  SARA_R5_error_t err;
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 20 + topic.length());
+  if (command == nullptr)
+  {
+     return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,%u,%u,\"%s\",%u", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_PUBLISHBINARY, qos, (retain ? 1:0), topic.c_str(), msg_len);
+
+  sendCommand(command, true);
+  err = waitForResponse(SARA_R5_RESPONSE_MORE, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    sendCommand(msg, false);
+    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  }
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::mqttPublishFromFile(const String& topic, const String& filename, uint8_t qos, bool retain)
+{
+  if (topic.isEmpty() || filename.isEmpty())
+  {
+    return SARA_R5_ERROR_INVALID;
+  }
+
+  SARA_R5_error_t err;
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 20 + topic.length() + filename.length());
+  if (command == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,%u,%u,\"%s\",\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_PUBLISHFILE, qos, (retain ? 1:0), topic.c_str(), filename.c_str());
+
+  sendCommand(command, true);
+  err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
   return err;
 }
 
@@ -4399,6 +4597,125 @@ SARA_R5_error_t SARA_R5::getMQTTprotocolError(int *error_code, int *error_code2)
     }
     else
       err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  free(response);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::setFTPserver(const String& serverName)
+{
+  constexpr size_t cmd_len = 145;
+  char command[cmd_len]; // long enough for AT+UFTP=1,<128 bytes>
+
+  snprintf(command, cmd_len - 1, "%s=%d,\"%s\"", SARA_R5_FTP_PROFILE, SARA_R5_FTP_PROFILE_SERVERNAME, serverName.c_str());
+  return sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+}
+
+SARA_R5_error_t SARA_R5::setFTPtimeouts(const unsigned int timeout, const unsigned int cmd_linger, const unsigned int data_linger)
+{
+  constexpr size_t cmd_len = 64;
+  char command[cmd_len]; // long enough for AT+UFTP=1,<128 bytes>
+
+  snprintf(command, cmd_len - 1, "%s=%d,%u,%u,%u", SARA_R5_FTP_PROFILE, SARA_R5_FTP_PROFILE_TIMEOUT, timeout, cmd_linger, data_linger);
+  return sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+}
+
+SARA_R5_error_t SARA_R5::setFTPcredentials(const String& userName, const String& pwd)
+{
+  SARA_R5_error_t err;
+  constexpr size_t cmd_len = 48;
+  char command[cmd_len]; // long enough for AT+UFTP=n,<30 bytes>
+
+  snprintf(command, cmd_len - 1, "%s=%d,\"%s\"", SARA_R5_FTP_PROFILE, SARA_R5_FTP_PROFILE_USERNAME, userName.c_str());
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    return err;
+  }
+
+  snprintf(command, cmd_len - 1, "%s=%d,\"%s\"", SARA_R5_FTP_PROFILE, SARA_R5_FTP_PROFILE_PWD, pwd.c_str());
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::connectFTP(void)
+{
+  constexpr size_t cmd_len = 16;
+  char command[cmd_len]; // long enough for AT+UFTPC=n
+
+  snprintf(command, cmd_len - 1, "%s=%d", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_LOGIN);
+  return sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+}
+
+SARA_R5_error_t SARA_R5::disconnectFTP(void)
+{
+  constexpr size_t cmd_len = 16;
+  char command[cmd_len]; // long enough for AT+UFTPC=n
+
+  snprintf(command, cmd_len - 1, "%s=%d", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_LOGOUT);
+  return sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+}
+
+SARA_R5_error_t SARA_R5::ftpGetFile(const String& filename)
+{
+  char * command = sara_r5_calloc_char(strlen(SARA_R5_FTP_COMMAND) + (2 * filename.length()) + 16);
+  if (command == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_GET_FILE, filename.c_str(), filename.c_str());
+  //memset(response, 0, sizeof(response));
+  //sendCommandWithResponse(command, SARA_R5_RESPONSE_CONNECT, response, 8000 /* ms */, response_len);
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::getFTPprotocolError(int *error_code, int *error_code2)
+{
+  SARA_R5_error_t err;
+  char *response;
+
+  int code, code2;
+
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  err = sendCommandWithResponse(SARA_R5_FTP_PROTOCOL_ERROR, SARA_R5_RESPONSE_OK_OR_ERROR,
+                                response, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  if (err == SARA_R5_ERROR_SUCCESS)
+  {
+    int scanned = 0;
+    char *searchPtr = strstr(response, "+UFTPER:");
+    if (searchPtr != nullptr)
+    {
+      scanned = sscanf(searchPtr, "+UFTPER:%d,%d\r\n", &code, &code2);
+    }
+
+    if (scanned == 2)
+    {
+      *error_code = code;
+      *error_code2 = code2;
+    }
+    else
+    {
+      err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+    }
   }
 
   free(response);
@@ -4482,7 +4799,7 @@ SARA_R5_error_t SARA_R5::setSecurityManager(SARA_R5_sec_manager_opcode_t opcode,
     hwWriteData(data.c_str(), dataLen);
     err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT*3);
   }
-    
+
 
   if (err != SARA_R5_ERROR_SUCCESS)
   {
@@ -4965,7 +5282,7 @@ SARA_R5_error_t SARA_R5::appendFileContents(String filename, const char *str, in
 
   err = sendCommandWithResponse(command, ">", response,
                                 SARA_R5_STANDARD_RESPONSE_TIMEOUT*2);
-  
+
   unsigned long writeDelay = millis();
   while (millis() < (writeDelay + 50))
     delay(1); //uBlox specification says to wait 50ms after receiving "@" to write data.
@@ -4979,7 +5296,7 @@ SARA_R5_error_t SARA_R5::appendFileContents(String filename, const char *str, in
       _debugPort->println(F(" bytes"));
     }
     hwWriteData(str, dataLen);
-    
+
     err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT*5);
   }
   if (err != SARA_R5_ERROR_SUCCESS)
@@ -5024,7 +5341,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, String *contents)
     }
     return err;
   }
-  
+
   command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_FILE) + filename.length() + 8);
   if (command == nullptr)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
@@ -5246,6 +5563,92 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, char *contents)
   return err;
 }
 
+SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size_t offset, size_t requested_length, size_t& bytes_read)
+{
+  bytes_read = 0;
+  if (filename.isEmpty() || buffer == nullptr || requested_length < 1)
+  {
+      return SARA_R5_ERROR_UNEXPECTED_PARAM;
+  }
+
+  // trying to get a byte at a time does not seem to be reliable so this method must use
+  // a real UART.
+  if (_hardSerial == nullptr)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->println(F("getFileBlock: only works with a hardware UART"));
+    }
+    return SARA_R5_ERROR_INVALID;
+  }
+
+  size_t cmd_len = filename.length() + 32;
+  char* cmd = sara_r5_calloc_char(cmd_len);
+  sprintf(cmd, "at+urdblock=\"%s\",%zu,%zu\r\n", filename.c_str(), offset, requested_length);
+  if (_printDebug == true)
+  {
+    _debugPort->printf(F("getFileBlock: sending command: %s\r\n"), cmd);
+  }
+  sendCommand(cmd, false);
+
+  int ich;
+  char ch;
+  int quote_count = 0;
+  size_t comma_idx = 0;
+
+  while (quote_count < 3)
+  {
+    ich = _hardSerial->read();
+    if (ich < 0)
+    {
+      continue;
+    }
+    ch = (char)(ich & 0xFF);
+    cmd[bytes_read++] = ch;
+    if (ch == '"')
+    {
+      quote_count++;
+    }
+    else if (ch == ',' && comma_idx == 0)
+    {
+      comma_idx = bytes_read;
+    }
+  }
+
+  cmd[bytes_read] = 0;
+  if (_printDebug == true)
+  {
+    _debugPort->printf(F("getFileBlock: header: [%s]\r\n"), cmd);
+  }
+  cmd[bytes_read - 2] = 0;
+
+  // Example response:
+  // +URDBLOCK: "wombat.bin",64000,"<data starts here>... "<cr><lf>
+  size_t data_length = strtoul(&cmd[comma_idx], nullptr, 10);
+  free(cmd);
+  if (_printDebug == true)
+  {
+    _debugPort->printf(F("getFileBlock: reading %zu bytes\r\n"), data_length);
+  }
+
+  bytes_read = 0;
+  size_t bytes_remaining = data_length;
+  while (bytes_read < data_length)
+  {
+    // This method seems more reliable than reading a byte at a time.
+    size_t rc = _hardSerial->readBytes(&buffer[bytes_read], bytes_remaining);
+    bytes_read += rc;
+    bytes_remaining -= rc;
+  }
+
+  if (_printDebug == true)
+  {
+    _debugPort->printf(F("getFileBlock: read %zu bytes\r\n"), bytes_read);
+  }
+
+  return SARA_R5_ERROR_SUCCESS;
+}
+
 SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
 {
   SARA_R5_error_t err;
@@ -5370,9 +5773,9 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
 {
   int retries = _maxInitTries;
   SARA_R5_error_t err = SARA_R5_ERROR_SUCCESS;
-  
+
   beginSerial(baud);
-  
+
   do
   {
     if (_printDebug == true)
@@ -5382,9 +5785,9 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     {
       if (_printDebug == true)
         _debugPort->println(F("init: Attempting autobaud connection to module."));
-      
+
       err = autobaud(baud);
-      
+
       if (err != SARA_R5_ERROR_SUCCESS) {
         initType = SARA_R5_INIT_RESET;
       }
@@ -5393,13 +5796,13 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     {
       if (_printDebug == true)
         _debugPort->println(F("init: Power cycling module."));
-      
+
       powerOff();
       delay(SARA_R5_POWER_OFF_PULSE_PERIOD);
       powerOn();
       beginSerial(baud);
       delay(2000);
-      
+
       err = at();
       if (err != SARA_R5_ERROR_SUCCESS)
       {
@@ -5418,7 +5821,7 @@ SARA_R5_error_t SARA_R5::init(unsigned long baud,
     }
   }
   while ((retries --) && (err != SARA_R5_ERROR_SUCCESS));
-  
+
   // we tried but seems failed
   if (err != SARA_R5_ERROR_SUCCESS) {
     if (_printDebug == true)
@@ -5652,7 +6055,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
 
   int responseLen = (int)strlen(expectedResponse);
   int errorLen = (int)strlen(expectedError);
-  
+
   while ((!found) && ((timeIn + timeout) > millis()))
   {
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
@@ -5717,7 +6120,7 @@ SARA_R5_error_t SARA_R5::waitForResponse(const char *expectedResponse, const cha
     if (true == _printAtDebug) {
       _debugAtPort->print((error == true) ? expectedError : expectedResponse);
     }
-    
+
     return (error == true) ? SARA_R5_ERROR_ERROR : SARA_R5_ERROR_SUCCESS;
   }
 
@@ -5745,7 +6148,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
     _debugPort->print(F("sendCommandWithResponse: Command: "));
     _debugPort->println(String(command));
   }
-  
+
   sendCommand(command, at); //Sending command needs to dump data to backlog buffer as well.
   unsigned long timeIn = millis();
   if (SARA_R5_RESPONSE_OK_OR_ERROR == expectedResponse) {
@@ -5756,7 +6159,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
   } else {
     responseLen = (int)strlen(expectedResponse);
   }
-  
+
   while ((!found) && ((timeIn + commandTimeout) > millis()))
   {
     if (hwAvailable() > 0) //hwAvailable can return -1 if the serial port is nullptr
@@ -5829,7 +6232,7 @@ SARA_R5_error_t SARA_R5::sendCommandWithResponse(
       yield();
     }
   }
-  
+
   if (_printDebug == true)
     if ((printResponse = true) && (printedSomething))
       _debugPort->println();
@@ -5867,7 +6270,7 @@ SARA_R5_error_t SARA_R5::sendCustomCommandWithResponse(const char *command, cons
 void SARA_R5::sendCommand(const char *command, bool at)
 {
   //Check for incoming serial data. Copy it into the backlog
-  
+
   // Important note:
   // On ESP32, Serial.available only provides an update every ~120 bytes during the reception of long messages:
   // https://gitter.im/espressif/arduino-esp32?at=5e25d6370a1cf54144909c85
@@ -6028,8 +6431,8 @@ SARA_R5_error_t SARA_R5::parseSocketCloseIndication(String *closeIndication)
   int search;
   int socket;
 
-  search = closeIndication->indexOf("+UUSOCL:");
-  search += strlen("+UUSOCL:");
+  search = closeIndication->indexOf(SARA_R5_CLOSE_SOCKET_URC);
+  search += strlen(SARA_R5_CLOSE_SOCKET_URC);
   while (closeIndication->charAt(search) == ' ') search ++; // skip spaces
 
   // Socket will be first integer, should be single-digit number between 0-6:
@@ -6276,18 +6679,19 @@ void SARA_R5::pruneBacklog()
   while (event != nullptr) //If event is actionable, add it to pruneBuffer.
   {
     // These are the events we want to keep so they can be processed by poll / bufferedPoll
-    if ((strstr(event, "+UUSORD:") != nullptr)
-        || (strstr(event, "+UUSORF:") != nullptr)
-        || (strstr(event, "+UUSOLI:") != nullptr)
-        || (strstr(event, "+UUSOCL:") != nullptr)
-        || (strstr(event, "+UULOC:") != nullptr)
-        || (strstr(event, "+UUSIMSTAT:") != nullptr)
-        || (strstr(event, "+UUPSDA:") != nullptr)
-        || (strstr(event, "+UUHTTPCR:") != nullptr)
-        || (strstr(event, "+UUMQTTC:") != nullptr)
-        || (strstr(event, "+UUPING:") != nullptr)
-        || (strstr(event, "+CREG:") != nullptr)
-        || (strstr(event, "+CEREG:") != nullptr))
+    if ((strstr(event, SARA_R5_READ_SOCKET_URC) != nullptr)
+        || (strstr(event, SARA_R5_READ_UDP_SOCKET_URC) != nullptr)
+        || (strstr(event, SARA_R5_LISTEN_SOCKET_URC) != nullptr)
+        || (strstr(event, SARA_R5_CLOSE_SOCKET_URC) != nullptr)
+        || (strstr(event, SARA_R5_GNSS_REQUEST_LOCATION_URC) != nullptr)
+        || (strstr(event, SARA_R5_SIM_STATE_URC) != nullptr)
+        || (strstr(event, SARA_R5_MESSAGE_PDP_ACTION_URC) != nullptr)
+        || (strstr(event, SARA_R5_HTTP_COMMAND_URC) != nullptr)
+        || (strstr(event, SARA_R5_MQTT_COMMAND_URC) != nullptr)
+        || (strstr(event, SARA_R5_PING_COMMAND_URC) != nullptr)
+        || (strstr(event, SARA_R5_REGISTRATION_STATUS_URC) != nullptr)
+        || (strstr(event, SARA_R5_EPSREGISTRATION_STATUS_URC) != nullptr)
+        || (strstr(event, SARA_R5_FTP_COMMAND_URC) != nullptr))
     {
       strcat(_pruneBuffer, event); // The URCs are all readable text so using strcat is OK
       strcat(_pruneBuffer, "\r\n"); // strtok blows away delimiter, but we want that for later.
@@ -6314,7 +6718,10 @@ void SARA_R5::pruneBacklog()
   //   }
   // }
 
-  free(event);
+  // This is a bug. event could be nullptr, and even if it is not it is pointing into
+  // _saraResponseBacklog meaning it is calling free on a random pointer whose memory
+  // may be referenced later.
+  //free(event);
 }
 
 // GPS Helper Functions:
