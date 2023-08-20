@@ -308,10 +308,6 @@ bool SARA_R5::bufferedPoll(void)
     }
   }
 
-  // This is a bug. event could be nullptr, and even if it is not it is pointing into
-  // _saraRXBuffer meaning it is calling free on a random pointer whose memory
-  // may be referenced later.
-  //free(event);
   _bufferedPollReentrant = false;
 
   return handled;
@@ -858,12 +854,12 @@ void SARA_R5::setHTTPCommandCallback(void (*httpCommandRequestCallback)(int prof
   _httpCommandRequestCallback = httpCommandRequestCallback;
 }
 
-void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t command, int result))
+void SARA_R5::setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result))
 {
   _mqttCommandRequestCallback = mqttCommandRequestCallback;
 }
 
-void SARA_R5::setFTPCommandCallback(void (*ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t command, int result))
+void SARA_R5::setFTPCommandCallback(void (*ftpCommandRequestCallback)(int command, int result))
 {
     _ftpCommandRequestCallback = ftpCommandRequestCallback;
 }
@@ -1618,51 +1614,53 @@ int8_t SARA_R5::rssi(void)
 
 SARA_R5_error_t SARA_R5::getExtSignalQuality(signal_quality& signal_quality)
 {
-    char *command;
-    char *response;
-    SARA_R5_error_t err;
+  char *command;
+  char *response;
+  SARA_R5_error_t err;
 
-    command = sara_r5_calloc_char(strlen(SARA_R5_EXT_SIGNAL_QUALITY) + 1);
-    if (command == nullptr)
-    {
-        return SARA_R5_ERROR_OUT_OF_MEMORY;
-    }
+  command = sara_r5_calloc_char(strlen(SARA_R5_EXT_SIGNAL_QUALITY) + 1);
+  if (command == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
 
-    sprintf(command, "%s", SARA_R5_EXT_SIGNAL_QUALITY);
+  sprintf(command, "%s", SARA_R5_EXT_SIGNAL_QUALITY);
 
-    response = sara_r5_calloc_char(minimumResponseAllocation);
-    if (response == nullptr)
-    {
-        free(command);
-        return SARA_R5_ERROR_OUT_OF_MEMORY;
-    }
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == nullptr)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
 
-    err = sendCommandWithResponse(command,
-                                  SARA_R5_RESPONSE_OK_OR_ERROR, response, 10000,
-                                  minimumResponseAllocation, AT_COMMAND);
-    if (err != SARA_R5_ERROR_SUCCESS)
-    {
-        free(command);
-        free(response);
-        return SARA_R5_ERROR_ERROR;
-    }
-
-    int scanned = 0;
-    char *searchPtr = strstr(response, "+CESQ: ");
-    if (searchPtr != nullptr) {
-        scanned = sscanf(searchPtr, "+CESQ: %u,%u,%u,%u,%u,%u", &signal_quality.rxlev, &signal_quality.ber,
-                         &signal_quality.rscp, &signal_quality.enc0, &signal_quality.rsrq, &signal_quality.rsrp);
-    }
-
-    err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
-    if (scanned == 6)
-    {
-        err = SARA_R5_ERROR_SUCCESS;
-    }
-
+  err = sendCommandWithResponse(command,
+                                SARA_R5_RESPONSE_OK_OR_ERROR, response, 10000,
+                                minimumResponseAllocation, AT_COMMAND);
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
     free(command);
     free(response);
-    return err;
+    return SARA_R5_ERROR_ERROR;
+  }
+
+  int scanned = 0;
+  char *searchPtr = strstr(response, "+CESQ: ");
+  if (searchPtr != nullptr)
+  {
+    while (*searchPtr == ' ') searchPtr++; // skip spaces
+    scanned = sscanf(searchPtr, "%u,%u,%u,%u,%u,%u", &signal_quality.rxlev, &signal_quality.ber,
+                       &signal_quality.rscp, &signal_quality.enc0, &signal_quality.rsrq, &signal_quality.rsrp);
+  }
+
+  err = SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  if (scanned == 6)
+  {
+    err = SARA_R5_ERROR_SUCCESS;
+  }
+
+  free(command);
+  free(response);
+  return err;
 }
 
 SARA_R5_registration_status_t SARA_R5::registration(bool eps)
@@ -5587,7 +5585,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   sprintf(cmd, "at+urdblock=\"%s\",%zu,%zu\r\n", filename.c_str(), offset, requested_length);
   if (_printDebug == true)
   {
-    _debugPort->printf(F("getFileBlock: sending command: %s\r\n"), cmd);
+    _debugPort->printf("getFileBlock: sending command: %s\r\n", cmd);
   }
   sendCommand(cmd, false);
 
@@ -5618,7 +5616,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   cmd[bytes_read] = 0;
   if (_printDebug == true)
   {
-    _debugPort->printf(F("getFileBlock: header: [%s]\r\n"), cmd);
+    _debugPort->printf("getFileBlock: header: [%s]\r\n", cmd);
   }
   cmd[bytes_read - 2] = 0;
 
@@ -5628,7 +5626,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   free(cmd);
   if (_printDebug == true)
   {
-    _debugPort->printf(F("getFileBlock: reading %zu bytes\r\n"), data_length);
+    _debugPort->printf("getFileBlock: reading %zu bytes\r\n", data_length);
   }
 
   bytes_read = 0;
@@ -5643,7 +5641,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
 
   if (_printDebug == true)
   {
-    _debugPort->printf(F("getFileBlock: read %zu bytes\r\n"), bytes_read);
+    _debugPort->printf("getFileBlock: read %zu bytes\r\n", bytes_read);
   }
 
   return SARA_R5_ERROR_SUCCESS;
@@ -6717,11 +6715,6 @@ void SARA_R5::pruneBacklog()
   //     _debugPort->println(F("pruneBacklog: backlog is now empty"));
   //   }
   // }
-
-  // This is a bug. event could be nullptr, and even if it is not it is pointing into
-  // _saraResponseBacklog meaning it is calling free on a random pointer whose memory
-  // may be referenced later.
-  //free(event);
 }
 
 // GPS Helper Functions:

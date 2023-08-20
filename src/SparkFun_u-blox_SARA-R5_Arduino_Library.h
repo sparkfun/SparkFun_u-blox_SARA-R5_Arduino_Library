@@ -535,7 +535,7 @@ typedef enum
   SARA_R5_FTP_COMMAND_RMDIR,
   SARA_R5_FTP_COMMAND_DIR_INFO = 13,
   SARA_R5_FTP_COMMAND_LS,
-  SARA_R5_FTP_COMMAND_GET_FOTA_FILE
+  SARA_R5_FTP_COMMAND_GET_FOTA_FILE = 100
 } SARA_R5_ftp_command_opcode_t;
 
 typedef enum
@@ -691,8 +691,8 @@ public:
   void setPSDActionCallback(void (*psdActionRequestCallback)(int result, IPAddress ip));
   void setPingCallback(void (*pingRequestCallback)(int retry, int p_size, String remote_hostname, IPAddress ip, int ttl, long rtt));
   void setHTTPCommandCallback(void (*httpCommandRequestCallback)(int profile, int command, int result));
-  void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t command, int result));
-  void setFTPCommandCallback(void (*ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t command, int result));
+  void setMQTTCommandCallback(void (*mqttCommandRequestCallback)(int command, int result));
+  void setFTPCommandCallback(void (*ftpCommandRequestCallback)(int command, int result));
 
   SARA_R5_error_t setRegistrationCallback(void (*registrationCallback)(SARA_R5_registration_status_t status,
                                                                        unsigned int lac, unsigned int ci, int Act));
@@ -1063,8 +1063,8 @@ private:
   void (*_psdActionRequestCallback)(int, IPAddress);
   void (*_pingRequestCallback)(int, int, String, IPAddress, int, long);
   void (*_httpCommandRequestCallback)(int, int, int);
-  void (*_mqttCommandRequestCallback)(SARA_R5_mqtt_command_opcode_t, int);
-  void (*_ftpCommandRequestCallback)(SARA_R5_ftp_command_opcode_t, int);
+  void (*_mqttCommandRequestCallback)(int, int);
+  void (*_ftpCommandRequestCallback)(int, int);
   void (*_registrationCallback)(SARA_R5_registration_status_t status, unsigned int lac, unsigned int ci, int Act);
   void (*_epsRegistrationCallback)(SARA_R5_registration_status_t status, unsigned int tac, unsigned int ci, int Act);
 
