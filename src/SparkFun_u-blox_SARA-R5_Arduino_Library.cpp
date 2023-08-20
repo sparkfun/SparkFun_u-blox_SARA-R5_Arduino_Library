@@ -592,8 +592,7 @@ bool SARA_R5::processURCEvent(const char *event)
     }
   }
   { // URC: +UUMQTTC (MQTT Command Result)
-    SARA_R5_mqtt_command_opcode_t mqttCmd;
-    int mqttResult;
+    int command, result;
     int scanNum;
     int qos = -1;
     String topic;
@@ -607,8 +606,8 @@ bool SARA_R5::processURCEvent(const char *event)
         searchPtr++; // skip spaces
       }
 
-      scanNum = sscanf(searchPtr, "%d,%d", &mqttCmd, &mqttResult);
-      if ((scanNum == 2) && (mqttCmd == SARA_R5_MQTT_COMMAND_SUBSCRIBE))
+      scanNum = sscanf(searchPtr, "%d,%d", &command, &result);
+      if ((scanNum == 2) && (command == SARA_R5_MQTT_COMMAND_SUBSCRIBE))
       {
         char topicC[100] = "";
         scanNum = sscanf(searchPtr, "%*d,%*d,%d,\"%[^\"]\"", &qos, topicC);
@@ -623,7 +622,7 @@ bool SARA_R5::processURCEvent(const char *event)
 
         if (_mqttCommandRequestCallback != nullptr)
         {
-          _mqttCommandRequestCallback(mqttCmd, mqttResult);
+          _mqttCommandRequestCallback(command, result);
         }
 
         return true;
@@ -1644,9 +1643,11 @@ SARA_R5_error_t SARA_R5::getExtSignalQuality(signal_quality& signal_quality)
   }
 
   int scanned = 0;
-  char *searchPtr = strstr(response, "+CESQ: ");
+  const char * responseStr = "+CESQ:";
+  char *searchPtr = strstr(response, responseStr);
   if (searchPtr != nullptr)
   {
+    searchPtr += strlen(responseStr); //  Move searchPtr to first char
     while (*searchPtr == ' ') searchPtr++; // skip spaces
     scanned = sscanf(searchPtr, "%u,%u,%u,%u,%u,%u", &signal_quality.rxlev, &signal_quality.ber,
                        &signal_quality.rscp, &signal_quality.enc0, &signal_quality.rsrq, &signal_quality.rsrp);
@@ -4702,7 +4703,12 @@ SARA_R5_error_t SARA_R5::getFTPprotocolError(int *error_code, int *error_code2)
     char *searchPtr = strstr(response, "+UFTPER:");
     if (searchPtr != nullptr)
     {
-      scanned = sscanf(searchPtr, "+UFTPER:%d,%d\r\n", &code, &code2);
+      searchPtr += strlen("+UFTPER:"); //  Move searchPtr to first char
+      while (*searchPtr == ' ')
+      {
+        searchPtr++; // skip spaces
+      }
+      scanned = sscanf(searchPtr, "%d,%d\r\n", &code, &code2);
     }
 
     if (scanned == 2)
