@@ -630,7 +630,7 @@ bool SARA_R5::processURCEvent(const char *event)
     }
   }
   { // URC: +UUFTPCR (FTP Command Result)
-    SARA_R5_ftp_command_opcode_t ftpCmd;
+    int ftpCmd;
     int ftpResult;
     int scanNum;
     char *searchPtr = strstr(event, SARA_R5_FTP_COMMAND_URC);
@@ -4466,12 +4466,15 @@ SARA_R5_error_t SARA_R5::readMQTT(int* pQos, String* pTopic, uint8_t *readDest, 
 
 SARA_R5_error_t SARA_R5::mqttPublishTextMsg(const String& topic, const char * const msg, uint8_t qos, bool retain)
 {
-  if (topic.isEmpty() || msg == nullptr)
+  if (topic.length() < 1 || msg == nullptr)
   {
     return SARA_R5_ERROR_INVALID;
   }
 
   SARA_R5_error_t err;
+
+  char sanitized_msg[MAX_MQTT_DIRECT_MSG_LEN + 1];
+  memset(sanitized_msg, 0, sizeof(sanitized_msg));
 
   // Check the message length and truncate if necessary.
   size_t msg_len = strnlen(msg, MAX_MQTT_DIRECT_MSG_LEN);
@@ -4480,7 +4483,17 @@ SARA_R5_error_t SARA_R5::mqttPublishTextMsg(const String& topic, const char * co
     msg_len = MAX_MQTT_DIRECT_MSG_LEN;
   }
 
-  String str_msg(msg, msg_len);
+  strncpy(sanitized_msg, msg, msg_len);
+  char * msg_ptr = sanitized_msg;
+  while (*msg_ptr != 0)
+  {
+    if (*msg_ptr == '"')
+    {
+      *msg_ptr = ' ';
+    }
+
+    msg_ptr++;
+  }
 
   char *command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_COMMAND) + 20 + topic.length() + msg_len);
   if (command == nullptr)
@@ -4488,7 +4501,7 @@ SARA_R5_error_t SARA_R5::mqttPublishTextMsg(const String& topic, const char * co
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
 
-  sprintf(command, "%s=%d,%u,%u,0,\"%s\",\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_PUBLISH, qos, (retain ? 1:0), topic.c_str(), str_msg.c_str());
+  sprintf(command, "%s=%d,%u,%u,0,\"%s\",\"%s\"", SARA_R5_MQTT_COMMAND, SARA_R5_MQTT_COMMAND_PUBLISH, qos, (retain ? 1:0), topic.c_str(), sanitized_msg);
 
   sendCommand(command, true);
   err = waitForResponse(SARA_R5_RESPONSE_MORE, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -4513,7 +4526,7 @@ SARA_R5_error_t SARA_R5::mqttPublishBinaryMsg(const String& topic, const char * 
    *
    * +UUMQTTC: 9,1
    */
-  if (topic.isEmpty() || msg == nullptr || msg_len > MAX_MQTT_DIRECT_MSG_LEN)
+  if (topic.length() < 1|| msg == nullptr || msg_len > MAX_MQTT_DIRECT_MSG_LEN)
   {
     return SARA_R5_ERROR_INVALID;
   }
@@ -4541,7 +4554,7 @@ SARA_R5_error_t SARA_R5::mqttPublishBinaryMsg(const String& topic, const char * 
 
 SARA_R5_error_t SARA_R5::mqttPublishFromFile(const String& topic, const String& filename, uint8_t qos, bool retain)
 {
-  if (topic.isEmpty() || filename.isEmpty())
+  if (topic.length() < 1|| filename.length() < 1)
   {
     return SARA_R5_ERROR_INVALID;
   }
@@ -5570,7 +5583,7 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, char *contents)
 SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size_t offset, size_t requested_length, size_t& bytes_read)
 {
   bytes_read = 0;
-  if (filename.isEmpty() || buffer == nullptr || requested_length < 1)
+  if (filename.length() < 1 || buffer == nullptr || requested_length < 1)
   {
       return SARA_R5_ERROR_UNEXPECTED_PARAM;
   }
@@ -5589,10 +5602,6 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   size_t cmd_len = filename.length() + 32;
   char* cmd = sara_r5_calloc_char(cmd_len);
   sprintf(cmd, "at+urdblock=\"%s\",%zu,%zu\r\n", filename.c_str(), offset, requested_length);
-  if (_printDebug == true)
-  {
-    _debugPort->printf("getFileBlock: sending command: %s\r\n", cmd);
-  }
   sendCommand(cmd, false);
 
   int ich;
@@ -5620,20 +5629,12 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   }
 
   cmd[bytes_read] = 0;
-  if (_printDebug == true)
-  {
-    _debugPort->printf("getFileBlock: header: [%s]\r\n", cmd);
-  }
   cmd[bytes_read - 2] = 0;
 
   // Example response:
   // +URDBLOCK: "wombat.bin",64000,"<data starts here>... "<cr><lf>
   size_t data_length = strtoul(&cmd[comma_idx], nullptr, 10);
   free(cmd);
-  if (_printDebug == true)
-  {
-    _debugPort->printf("getFileBlock: reading %zu bytes\r\n", data_length);
-  }
 
   bytes_read = 0;
   size_t bytes_remaining = data_length;
@@ -5643,11 +5644,6 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
     size_t rc = _hardSerial->readBytes(&buffer[bytes_read], bytes_remaining);
     bytes_read += rc;
     bytes_remaining -= rc;
-  }
-
-  if (_printDebug == true)
-  {
-    _debugPort->printf("getFileBlock: read %zu bytes\r\n", bytes_read);
   }
 
   return SARA_R5_ERROR_SUCCESS;
