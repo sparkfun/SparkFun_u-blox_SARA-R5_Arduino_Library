@@ -943,6 +943,10 @@ public:
   SARA_R5_error_t connectFTP(void);
   SARA_R5_error_t disconnectFTP(void);
   SARA_R5_error_t ftpGetFile(const String& filename);
+  SARA_R5_error_t ftpChangeWorkingDirectory(const String& dirName);
+  SARA_R5_error_t ftpCreateDirectory(const String& dirName);
+  SARA_R5_error_t ftpList(const String& dirName, char * response);
+  SARA_R5_error_t ftpPutFile(const String& localFilename, const String& remoteFileName);
   SARA_R5_error_t getFTPprotocolError(int *error_code, int *error_code2);
 
   // Configure security profiles
@@ -1010,6 +1014,8 @@ public:
   SARA_R5_error_t getFileContents(String filename, String *contents); // OK for text files. But will fail with binary files (containing \0) on some platforms.
   SARA_R5_error_t getFileContents(String filename, char *contents); // OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
   SARA_R5_error_t getFileBlock(const String& filename, char* buffer, size_t offset, size_t length, size_t& bytes_read); // OK for binary files. Make sure buffer can hold the requested block size.
+
+  SARA_R5_error_t getAvailableSize(size_t * size); // Get available FS space
 
   // Append data to a file, delete file first to not appends the data.
   SARA_R5_error_t appendFileContents(String filename, String str);

@@ -4693,6 +4693,76 @@ SARA_R5_error_t SARA_R5::ftpGetFile(const String& filename)
   free(command);
   return err;
 }
+SARA_R5_error_t SARA_R5::ftpChangeWorkingDirectory(const String& dirName)
+{
+  char *command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FTP_COMMAND) + dirName.length() + 16);
+  if (command==NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,\"%s\"", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_CHANGE_DIR, dirName.c_str());
+
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::ftpCreateDirectory(const String &dirName) {
+
+  char * command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FTP_COMMAND) + dirName.length() + 16);
+  if (command==NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,\"%s\"", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_MKDIR, dirName.c_str());
+
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, NULL,
+                                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::ftpList(const String &dirName,  char * response) {
+
+  char * command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FTP_COMMAND) + dirName.length() + 16);
+  if (command==NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,\"%s\"", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_LS, dirName.c_str());
+
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, response,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
+SARA_R5_error_t SARA_R5::ftpPutFile(const String &localFilename, const String &remoteFileName) {
+  char * command;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FTP_COMMAND) + localFilename.length() + remoteFileName.length() + 16);
+  if (command==NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=%d,\"%s\",\"%s\"", SARA_R5_FTP_COMMAND, SARA_R5_FTP_COMMAND_PUT_FILE, localFilename.c_str(), remoteFileName.c_str());
+
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,NULL,
+                                  SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
 
 SARA_R5_error_t SARA_R5::getFTPprotocolError(int *error_code, int *error_code2)
 {
@@ -5647,6 +5717,69 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   }
 
   return SARA_R5_ERROR_SUCCESS;
+}
+SARA_R5_error_t SARA_R5::getAvailableSize(size_t * size)
+{
+
+  // Get the remaining space available on the modem in bytes
+  char * command;
+  char * response;
+
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_LIST_FILES) + 3);
+  if (command==NULL)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=1", SARA_R5_FILE_SYSTEM_LIST_FILES);
+
+  response = sara_r5_calloc_char(minimumResponseAllocation);
+  if (response == nullptr)
+  {
+    free(command);
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+  SARA_R5_error_t err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,response,
+                                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+
+  // Process result
+  if (err != SARA_R5_ERROR_SUCCESS)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getAvailableSize: Fail: Error: "));
+      _debugPort->print(err);
+      _debugPort->print(F("  Response: {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
+    free(command);
+    free(response);
+    return err;
+  }
+  char *responseStart = strstr(response, "+ULSTFILE:");
+  if (responseStart == nullptr)
+  {
+    if (_printDebug == true)
+    {
+      _debugPort->print(F("getAvailableSize: Failure: {"));
+      _debugPort->print(response);
+      _debugPort->println(F("}"));
+    }
+    free(command);
+    free(response);
+    return SARA_R5_ERROR_UNEXPECTED_RESPONSE;
+  }
+
+  size_t availableSpace;
+  responseStart += strlen("+ULSTFILE:"); //  Move searchPtr to first char
+  while (*responseStart == ' ') responseStart++; // skip spaces
+  sscanf(responseStart, "%d", &availableSpace);
+  *size = availableSpace;
+
+  free(command);
+  free(response);
+  return err;
 }
 
 SARA_R5_error_t SARA_R5::getFileSize(String filename, int *size)
