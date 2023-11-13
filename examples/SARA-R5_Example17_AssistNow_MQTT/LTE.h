@@ -33,7 +33,7 @@ String CONFIG_VALUE_SIMPIN = ""; // Set the SIM PIN here if needed
 String CONFIG_VALUE_LTEAPN = ""; // Define the APN here if needed
 
 // Set this to (e.g.) SARA_R5_PSD_PROTOCOL_IPV4V6_V4_PREF if needed. O2 (UK) returns strPdpType "IP" but expects "IPV4V6_V4_PREF"
-SARA_R5_pdp_protocol_type_t preferredPdpProtocol = SARA_R5_PSD_PROTOCOL_IPV4;
+SARA_R5_pdp_protocol_type_t preferredPdpProtocol = SARA_R5_PSD_PROTOCOL_IPV4; // SARA_R5_PSD_PROTOCOL_IPV4V6_V4_PREF;
   
 const int LTE_1S_RETRY            =        1000;  //!< standard 1s retry
 const int LTE_DETECT_RETRY        =        5000;  //!< delay between detect attempts
@@ -63,7 +63,7 @@ const uint16_t HTTPS_PORT         =         443;  //!< The HTTPS default port
 const int LTE_BAUDRATE            =      115200;  //!< baudrates 230400, 460800 or 921600 cause issues even when CTS/RTS is enabled
 
 const char* LTE_TASK_NAME         =       "Lte";  //!< Lte task name
-const int LTE_STACK_SIZE          =      4*1024;  //!< Lte task stack size
+const int LTE_STACK_SIZE          =      8*1024;  //!< Lte task stack size
 const int LTE_TASK_PRIO           =           1;  //!< Lte task priority
 const int LTE_TASK_CORE           =           1;  //!< Lte task MCU code
 
@@ -202,21 +202,17 @@ protected:
    *  \param id  the client ID for this device
    */
   void mqttConnect(String id) {
-    String rootCa = AWS_CERT_CA;
-    String broker = AWS_IOT_ENDPOINT;
-    String cert = AWS_CERT_CRT;
-    String key = AWS_CERT_PRIVATE;
     // disconncect must fail here, so that we can connect 
     setMQTTCommandCallback(mqttCallbackStatic); // callback will advance state
     // make sure the client is disconnected here
     if (SARA_R5_SUCCESS == disconnectMQTT()) {
       log_i("forced disconnect"); // if this sucessful it means were were still connected. 
     } else {
-      log_i("connect to \"%s:%d\" as client \"%s\"", broker.c_str(), MQTT_BROKER_PORT, id.c_str());
+      log_i("connect to \"%s:%d\" as client \"%s\"", AWS_IOT_ENDPOINT, MQTT_BROKER_PORT, id.c_str());
       LTE_CHECK_INIT;
-      LTE_CHECK(1)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_ROOTCA,         SEC_ROOT_CA,     rootCa);
-      LTE_CHECK(2)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_CLIENT_CERT,    SEC_CLIENT_CERT, cert);
-      LTE_CHECK(3)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_CLIENT_KEY,     SEC_CLIENT_KEY,  key);
+      LTE_CHECK(1)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_ROOTCA,         SEC_ROOT_CA,     AWS_CERT_CA);
+      LTE_CHECK(2)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_CLIENT_CERT,    SEC_CLIENT_CERT, AWS_CERT_CRT);
+      LTE_CHECK(3)  = setSecurityManager(SARA_R5_SEC_MANAGER_OPCODE_IMPORT, SARA_R5_SEC_MANAGER_CLIENT_KEY,     SEC_CLIENT_KEY,  AWS_CERT_PRIVATE);
       LTE_CHECK(4)  = LTE_IGNORE_LENA( resetSecurityProfile(LTE_SEC_PROFILE_MQTT) );
       LTE_CHECK(5)  = configSecurityProfile(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_CERT_VAL_LEVEL,     SARA_R5_SEC_PROFILE_CERTVAL_OPCODE_YESNOURL);
       LTE_CHECK(6)  = configSecurityProfile(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_TLS_VER,            SARA_R5_SEC_PROFILE_TLS_OPCODE_VER1_2);
@@ -224,10 +220,10 @@ protected:
       LTE_CHECK(8)  = configSecurityProfileString(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_ROOT_CA,      SEC_ROOT_CA);
       LTE_CHECK(9)  = configSecurityProfileString(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_CLIENT_CERT,  SEC_CLIENT_CERT);
       LTE_CHECK(10) = configSecurityProfileString(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_CLIENT_KEY,   SEC_CLIENT_KEY);
-      LTE_CHECK(11) = configSecurityProfileString(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_SNI,          broker);
+      LTE_CHECK(11) = configSecurityProfileString(LTE_SEC_PROFILE_MQTT, SARA_R5_SEC_PROFILE_PARAM_SNI,          AWS_IOT_ENDPOINT);
       LTE_CHECK(12) = nvMQTT(SARA_R5_MQTT_NV_RESTORE);
       LTE_CHECK(13) = setMQTTclientId(id);
-      LTE_CHECK(14) = setMQTTserver(broker, MQTT_BROKER_PORT);
+      LTE_CHECK(14) = setMQTTserver(AWS_IOT_ENDPOINT, MQTT_BROKER_PORT);
       LTE_CHECK(15) = setMQTTsecure(true, LTE_SEC_PROFILE_MQTT);
       LTE_CHECK(16) = connectMQTT();
       LTE_CHECK_EVAL("setup and connect");
