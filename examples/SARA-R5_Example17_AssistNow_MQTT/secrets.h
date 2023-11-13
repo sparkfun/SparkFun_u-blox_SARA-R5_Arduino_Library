@@ -3,33 +3,21 @@
 // https://portal.thingstream.io/app/location-services/things
 // in the new PointPerfect Thing you go to the credentials page and copy paste the values and certificate into this.  
 
-// <Your PointPerfect Thing> -> Credentials -> Hostname
-const char AWS_IOT_ENDPOINT[]       = "pp.services.u-blox.com";
-const unsigned short AWS_IOT_PORT   = 8883;
-// <Your PointPerfect Thing> -> Credentials -> AssistNow (MGA) topic
-const char MQTT_TOPIC_ASSISTNOW[]     = "/pp/ubx/mga";
-
 // <Your PointPerfect Thing> -> Credentials -> Client Id
 static const char MQTT_CLIENT_ID[] = "<ADD YOUR CLIENT ID HERE>";
 
 // <Your PointPerfect Thing> -> Credentials -> Amazon Root Certificate
-static const char AWS_CERT_CA[] PROGMEM = R"EOF(
------BEGIN CERTIFICATE-----
-<ADD YOUR CERTICICATE HERE>
------END CERTIFICATE-----
-)EOF";
+static const char AWS_CERT_CA[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
+<ADD THE ROOT CERTIFICATE HERE>
+-----END CERTIFICATE-----)";
 
 // <Your PointPerfect Thing> -> Credentials -> Client Certificate
-static const char AWS_CERT_CRT[] PROGMEM = R"KEY(
------BEGIN CERTIFICATE-----
-<ADD YOUR CERTICICATE HERE>
------END CERTIFICATE-----
-)KEY";
+static const char AWS_CERT_CRT[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
+<ADD YOUR CLIENT CERTIFICATE HERE>
+-----END CERTIFICATE-----)";
 
 // Get this from Thingstream Portal 
 // <Your PointPerfect Thing> -> Credentials -> Client Key
-static const char AWS_CERT_PRIVATE[] PROGMEM = R"KEY(
------BEGIN RSA PRIVATE KEY-----
-<ADD YOUR KEY HERE>
------END RSA PRIVATE KEY-----
-)KEY";
+static const char AWS_CERT_PRIVATE[] PROGMEM = R"(-----BEGIN RSA PRIVATE KEY-----
+<ADD YOUR CLIENT KEY HERE>
+-----END RSA PRIVATE KEY-----)";
