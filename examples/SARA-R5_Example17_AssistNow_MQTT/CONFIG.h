@@ -44,14 +44,6 @@ const char MQTT_TOPIC_MGA_BDS[]       = MQTT_TOPIC_MGA "/bds";  //!< Beidou (CN)
 #define    CONFIG_DEVICE_TITLE                 "HPG solution"   //!< a used friendly name
 #define    CONFIG_DEVICE_NAMEPREFIX                     "hpg"   //!< a hostname compatible prefix, only a-z, 0-9 and -
 
-// PointPerfect configuration 
-const char CONFIG_VALUE_BROKERHOST[]      =      "brokerHost";  //!< config key for brocker host
-const char CONFIG_VALUE_STREAM[]          =          "stream";  //!< config key for stream
-const char CONFIG_VALUE_ROOTCA[]          =          "rootCa";  //!< config key for root certificate
-const char CONFIG_VALUE_CLIENTCERT[]      =      "clientCert";  //!< config key for client certificate
-const char CONFIG_VALUE_CLIENTKEY[]       =       "clientKey";  //!< config key for client keys
-const char CONFIG_VALUE_CLIENTID[]        =        "clientId";  //!< config key for client id
-
 /** This class encapsulates all WLAN functions. 
 */
 class CONFIG {
