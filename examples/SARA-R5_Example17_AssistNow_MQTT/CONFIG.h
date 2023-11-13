@@ -27,6 +27,7 @@
 // MQTT / PointPerfect settings 
 // -----------------------------------------------------------------------
 
+const char AWS_IOT_ENDPOINT[]             = "pp.services.u-blox.com";
 const unsigned short MQTT_BROKER_PORT     =              8883;  //!< MQTTS port
 const int MQTT_MAX_MSG_SIZE               =            9*1024;  //!< the max size of a MQTT pointperfect topic
 
