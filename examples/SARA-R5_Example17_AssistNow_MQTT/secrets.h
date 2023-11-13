@@ -16,7 +16,6 @@ static const char AWS_CERT_CRT[] PROGMEM = R"(-----BEGIN CERTIFICATE-----
 <ADD YOUR CLIENT CERTIFICATE HERE>
 -----END CERTIFICATE-----)";
 
-// Get this from Thingstream Portal 
 // <Your PointPerfect Thing> -> Credentials -> Client Key
 static const char AWS_CERT_PRIVATE[] PROGMEM = R"(-----BEGIN RSA PRIVATE KEY-----
 <ADD YOUR CLIENT KEY HERE>
