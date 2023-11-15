@@ -8,10 +8,12 @@
   Written by: Paul Clark
   Date: November 14th 2023
 
-  This example uses the SARA's mobile data connection to publish random temperatures on ThingSpeak using MQTT.
-  https://thingspeak.com/
+  This example uses the SARA's mobile data connection and MQTT to publish random temperatures on ThingSpeak.
+  It also subscribes to the same topic (channel) so you can read the data back again!
+  
+  See: https://thingspeak.com/
 
-  See: https://uk.mathworks.com/help/thingspeak/mqtt-basics.html#responsive_offcanvas
+  And: https://uk.mathworks.com/help/thingspeak/mqtt-basics.html#responsive_offcanvas
 
   You will need to:
     Create a ThingSpeak User Account – https://thingspeak.com/login
@@ -45,7 +47,7 @@ String myClientID = "OAAxOjYHIwooJykfCiYoEx0";
 
 String myPassword = "RqY/6L246tULLVWUzCqJBX/V";
 
-String myChannelID = "1225363";
+String myChannelID = "1225363"; // Public View: https://thingspeak.com/channels/1225363
 
 // SARA-R5
 
@@ -115,7 +117,7 @@ void setup()
   while (Serial.available()) // Empty the serial RX buffer
     Serial.read();
 
-  mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
+  //mySARA.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
 
   // For the MicroMod Asset Tracker, we need to invert the power pin so it pulls high instead of low
   // Comment the next line if required
@@ -186,9 +188,33 @@ void setup()
 
   // Connect
   if (mySARA.connectMQTT() == SARA_R5_SUCCESS)
-    Serial.println(F("MQTT connected"));
+    Serial.println(F("MQTT connect: success"));
   else
-    Serial.println(F("MQTT failed to connect!"));
+    Serial.println(F("MQTT connect: failed!"));
+
+  // The LTE modem has difficulties subscribing/unsubscribing more than one topic at the same time.
+  // We can only start one operation at a time wait for the URC and add a extra delay before we can 
+  // do the next operation.
+  // Wait for ~2 seconds
+  for (int i = 0; i < 200; i++)
+  {
+    mySARA.bufferedPoll(); // Keep processing data from the SARA
+    delay(10);
+  }
+
+  // Subscribe to the channel topic, so we can read the data back again
+  String subscribeTopic = "channels/" + myChannelID + "/subscribe/fields/field1";
+  if (mySARA.subscribeMQTTtopic(0, subscribeTopic) == SARA_R5_SUCCESS) // QoS = 0
+    Serial.println(F("MQTT subscribe: success"));
+  else
+    Serial.println(F("MQTT subscribe: failed!"));
+
+  // Wait for ~2 seconds
+  for (int i = 0; i < 200; i++)
+  {
+    mySARA.bufferedPoll(); // Keep processing data from the SARA
+    delay(10);
+  }
 }
 
 void loop()
@@ -199,17 +225,44 @@ void loop()
   String Topic = "channels/" + myChannelID + "/publish";
   String DataField = "field1=" + String(temperature) + "&status=MQTTPUBLISH";
 
+  Serial.println();
   Serial.print(F("Publishing a temperature of "));
   Serial.print(String(temperature));
   Serial.println(F(" to ThingSpeak"));
         
   // Publish the text message
-  mySARA.mqttPublishTextMsg(Topic, DataField.c_str(), 0, true); // This defaults to QoS = 0, and retain = false 
+  mySARA.mqttPublishTextMsg(Topic, DataField.c_str(), 0, true); // QoS = 0, retain = true
 
-  // Wait for 20 seconds
-  for (int i = 0; i < 20000; i++)
+  // Wait for ~10 seconds
+  for (int i = 0; i < 1000; i++)
   {
-    mySARA.poll(); // Keep processing data from the SARA
-    delay(1);
+    mySARA.bufferedPoll(); // Keep processing data from the SARA
+    delay(10);
+  }
+
+  // Check for any received data
+  // The MQTT API does not allow getting the size before actually reading the data.
+  // So we have to allocate a big enough buffer.
+  const int MQTT_MAX_MSG_SIZE = 1024;
+  static uint8_t buf[MQTT_MAX_MSG_SIZE];
+  String topic;
+  int len = -1;
+  int qos = -1;
+  if (mySARA.readMQTT(&qos, &topic, buf, MQTT_MAX_MSG_SIZE, &len) == SARA_R5_SUCCESS)
+  {
+    if (len > 0)
+    {
+      Serial.println();
+      Serial.print(F("Subscribed MQTT data: "));
+      Serial.write((const char *)buf, len);
+      Serial.println();
+    }
+  }
+
+  // Wait for ~10 seconds
+  for (int i = 0; i < 1000; i++)
+  {
+    mySARA.bufferedPoll(); // Keep processing data from the SARA
+    delay(10);
   }
 }
