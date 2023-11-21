@@ -4884,7 +4884,7 @@ SARA_R5_error_t SARA_R5::setSecurityManager(SARA_R5_sec_manager_opcode_t opcode,
       _debugPort->println(F(" bytes"));
     }
     hwWriteData(data.c_str(), dataLen);
-    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_STANDARD_RESPONSE_TIMEOUT*3);
+    err = waitForResponse(SARA_R5_RESPONSE_OK, SARA_R5_RESPONSE_ERROR, SARA_R5_SECURITY_RESPONSE_TIMEOUT);
   }
 
 

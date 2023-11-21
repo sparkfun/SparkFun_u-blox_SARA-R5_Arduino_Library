@@ -164,12 +164,16 @@ sendHTTPPOSTfile	KEYWORD2
 nvMQTT	KEYWORD2
 setMQTTclientId	KEYWORD2
 setMQTTserver	KEYWORD2
+setMQTTcredentials	KEYWORD2
 setMQTTsecure	KEYWORD2
 connectMQTT	KEYWORD2
 disconnectMQTT	KEYWORD2
 subscribeMQTTtopic	KEYWORD2
 unsubscribeMQTTtopic	KEYWORD2
 readMQTT	KEYWORD2
+mqttPublishTextMsg	KEYWORD2
+mqttPublishBinaryMsg	KEYWORD2
+mqttPublishFromFile	KEYWORD2
 getMQTTprotocolError	KEYWORD2
 resetSecurityProfile	KEYWORD2
 configSecurityProfileString	KEYWORD2

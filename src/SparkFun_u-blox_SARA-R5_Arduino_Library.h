@@ -89,6 +89,7 @@
 #define SARA_R5_IP_CONNECT_TIMEOUT 130000
 #define SARA_R5_POLL_DELAY 1
 #define SARA_R5_SOCKET_WRITE_TIMEOUT 10000
+#define SARA_R5_SECURITY_RESPONSE_TIMEOUT 10000
 
 // ## Suported AT Commands
 // ### General
@@ -1030,7 +1031,7 @@ public:
   SARA_R5_error_t sendCustomCommandWithResponse(const char *command, const char *expectedResponse,
                                                 char *responseDest, unsigned long commandTimeout = SARA_R5_STANDARD_RESPONSE_TIMEOUT, bool at = true);
 
-private:
+protected:
   HardwareSerial *_hardSerial;
 #ifdef SARA_R5_SOFTWARE_SERIAL_ENABLED
   SoftwareSerial *_softSerial;

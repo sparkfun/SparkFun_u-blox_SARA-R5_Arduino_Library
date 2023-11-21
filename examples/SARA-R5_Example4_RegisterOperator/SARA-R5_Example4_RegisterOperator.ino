@@ -349,11 +349,20 @@ void printOperators(struct operator_stats * ops, int operatorsAvailable)
     }
     switch (ops[i].act)
     {
-    // SARA-R5 only supports LTE
+    case 0:
+      Serial.print(F(" - GSM"));
+      break;
+    case 2:
+      Serial.print(F(" - UTRAN"));
+      break;
+    case 3:
+      Serial.print(F(" - GSM/GPRS with EDGE"));
+      break;
     case 7:
-      Serial.print(F(" - LTE"));
+      Serial.print(F(" - LTE")); // SARA-R5 only supports LTE
       break;
     }
+    Serial.println();
   }
   Serial.println();
 }
