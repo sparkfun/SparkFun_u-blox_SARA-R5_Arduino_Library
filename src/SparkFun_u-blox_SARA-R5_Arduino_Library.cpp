@@ -5601,7 +5601,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
 
   size_t cmd_len = filename.length() + 32;
   char* cmd = sara_r5_calloc_char(cmd_len);
-  sprintf(cmd, "at+urdblock=\"%s\",%zu,%zu\r\n", filename.c_str(), offset, requested_length);
+  sprintf(cmd, "at+urdblock=\"%s\",%lu,%lu\r\n", filename.c_str(), offset, requested_length);
   sendCommand(cmd, false);
 
   int ich;
