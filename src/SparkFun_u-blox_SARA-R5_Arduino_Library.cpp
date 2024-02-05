@@ -5608,11 +5608,7 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
   {
     return SARA_R5_ERROR_OUT_OF_MEMORY;
   }
-#ifdef ULLONG_MAX
-  sprintf(command, "%s=\"%s\",%llu,%llu", SARA_R5_FILE_SYSTEM_READ_BLOCK, filename.c_str(), (unsigned long long) offset, (unsigned long long) requestedLength);
-#else
   sprintf(command, "%s=\"%s\",%lu,%lu", SARA_R5_FILE_SYSTEM_READ_BLOCK, filename.c_str(), (unsigned long) offset, (unsigned long) requestedLength);
-#endif
 
   response = sara_r5_calloc_char(minimumResponseAllocation);
   if (response == nullptr)
