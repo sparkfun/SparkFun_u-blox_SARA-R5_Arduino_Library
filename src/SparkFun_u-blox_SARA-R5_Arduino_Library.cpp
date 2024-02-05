@@ -5582,6 +5582,8 @@ SARA_R5_error_t SARA_R5::getFileContents(String filename, char *contents)
 
 SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size_t offset, size_t requested_length, size_t& bytes_read)
 {
+  SARA_R5_error_t err;
+  char *command;
   bytes_read = 0;
   if (filename.length() < 1 || buffer == nullptr || requested_length < 1)
   {
@@ -5599,10 +5601,15 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
     return SARA_R5_ERROR_INVALID;
   }
 
-  size_t cmd_len = filename.length() + 32;
-  char* cmd = sara_r5_calloc_char(cmd_len);
-  sprintf(cmd, "at+urdblock=\"%s\",%lu,%lu\r\n", filename.c_str(), offset, requested_length);
-  sendCommand(cmd, false);
+  command = sara_r5_calloc_char(strlen(SARA_R5_FILE_SYSTEM_READ_BLOCK) + filename.length() + 28);
+  if (command == nullptr)
+  {
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  }
+
+  sprintf(command, "%s=\"%s\",%lu,%lu", SARA_R5_FILE_SYSTEM_READ_BLOCK, filename.c_str(), offset, requested_length);
+
+  sendCommand(command, true);
 
   int ich;
   char ch;
@@ -5617,24 +5624,24 @@ SARA_R5_error_t SARA_R5::getFileBlock(const String& filename, char* buffer, size
       continue;
     }
     ch = (char)(ich & 0xFF);
-    cmd[bytes_read++] = ch;
+    command[bytes_read++] = ch;
     if (ch == '"')
     {
       quote_count++;
     }
-    else if (ch == ',' && comma_idx == 0)
+    else if (ch == ',' && quote_count == 2)
     {
       comma_idx = bytes_read;
     }
   }
 
-  cmd[bytes_read] = 0;
-  cmd[bytes_read - 2] = 0;
+  command[bytes_read] = 0;
+  command[bytes_read - 2] = 0;
 
   // Example response:
   // +URDBLOCK: "wombat.bin",64000,"<data starts here>... "<cr><lf>
-  size_t data_length = strtoul(&cmd[comma_idx], nullptr, 10);
-  free(cmd);
+  size_t data_length = strtoul(&command[comma_idx], nullptr, 10);
+  free(command);
 
   bytes_read = 0;
   size_t bytes_remaining = data_length;
