@@ -1010,7 +1010,7 @@ public:
   // TO DO: add full support for file tags. Default tag to USER
   SARA_R5_error_t getFileContents(String filename, String *contents); // OK for text files. But will fail with binary files (containing \0) on some platforms.
   SARA_R5_error_t getFileContents(String filename, char *contents); // OK for binary files. Make sure contents can hold the entire file. Get the size first with getFileSize.
-  SARA_R5_error_t getFileBlock(const String& filename, char* buffer, size_t offset, size_t length, size_t& bytes_read); // OK for binary files. Make sure buffer can hold the requested block size.
+  SARA_R5_error_t getFileBlock(const String& filename, char* buffer, size_t offset, size_t requestedLength, size_t& bytesRead); // OK for binary files. Make sure buffer can hold the requested block size.
 
   // Append data to a file, delete file first to not appends the data.
   SARA_R5_error_t appendFileContents(String filename, String str);
