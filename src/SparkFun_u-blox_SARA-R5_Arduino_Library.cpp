@@ -2705,6 +2705,20 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   return sockId;
 }
 
+$SARA_R5_error_t SARA_R5::socketSetSecure(int profile, bool secure, int secprofile)
+{
+  SARA_R5_error_t err;
+  char *command = sara_r5_calloc_char(strlen(SARA_R5_SECURE_SOCKET) + 32);
+  if (command == nullptr)
+    return SARA_R5_ERROR_OUT_OF_MEMORY;
+  if ((secprofile == -1) || !secure) sprintf(command, "%s=%d,%d", SARA_R5_SECURE_SOCKET, profile, secure);
+  else sprintf(command, "%s=%d,%d,%d", SARA_R5_SECURE_SOCKET, profile, secure, secprofile);
+  err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
+                                SARA_R5_STANDARD_RESPONSE_TIMEOUT);
+  free(command);
+  return err;
+}
+
 SARA_R5_error_t SARA_R5::socketClose(int socket, unsigned long timeout)
 {
   SARA_R5_error_t err;
@@ -4089,7 +4103,7 @@ SARA_R5_error_t SARA_R5::setHTTPsecure(int profile, bool secure, int secprofile)
   command = sara_r5_calloc_char(strlen(SARA_R5_HTTP_PROFILE) + 32);
   if (command == nullptr)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-  if (secprofile == -1)
+  if ((secprofile == -1) || !secure) 
       sprintf(command, "%s=%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
           secure);
   else sprintf(command, "%s=%d,%d,%d,%d", SARA_R5_HTTP_PROFILE, profile, SARA_R5_HTTP_OP_CODE_SECURE,
@@ -4302,7 +4316,7 @@ SARA_R5_error_t SARA_R5::setMQTTsecure(bool secure, int secprofile)
     command = sara_r5_calloc_char(strlen(SARA_R5_MQTT_PROFILE) + 16);
     if (command == nullptr)
       return SARA_R5_ERROR_OUT_OF_MEMORY;
-    if (secprofile == -1) sprintf(command, "%s=%d,%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SECURE, secure);
+    if ((secprofile == -1) || !secure) sprintf(command, "%s=%d,%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SECURE, secure);
     else sprintf(command, "%s=%d,%d,%d", SARA_R5_MQTT_PROFILE, SARA_R5_MQTT_PROFILE_SECURE, secure, secprofile);
     err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr,
                                   SARA_R5_STANDARD_RESPONSE_TIMEOUT);
