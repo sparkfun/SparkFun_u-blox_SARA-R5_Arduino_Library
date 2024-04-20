@@ -2705,7 +2705,7 @@ int SARA_R5::socketOpen(SARA_R5_socket_protocol_t protocol, unsigned int localPo
   return sockId;
 }
 
-$SARA_R5_error_t SARA_R5::socketSetSecure(int profile, bool secure, int secprofile)
+SARA_R5_error_t SARA_R5::socketSetSecure(int profile, bool secure, int secprofile)
 {
   SARA_R5_error_t err;
   char *command = sara_r5_calloc_char(strlen(SARA_R5_SECURE_SOCKET) + 32);
