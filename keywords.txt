@@ -145,6 +145,7 @@ querySocketTotalBytesReceived	KEYWORD2
 querySocketRemoteIPAddress	KEYWORD2
 querySocketStatusTCP	KEYWORD2
 querySocketOutUnackData	KEYWORD2
+socketSetSecure	KEYWORD2
 socketGetLastError	KEYWORD2
 lastRemoteIP	KEYWORD2
 ping	KEYWORD2
