@@ -1483,11 +1483,7 @@ SARA_R5_error_t SARA_R5::setUtimeConfiguration(int32_t offsetNanoseconds, int32_
   command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 48);
   if (command == nullptr)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-  sprintf(command, "%s=%d,%d", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
-#else
-  sprintf(command, "%s=%ld,%ld", SARA_R5_GNSS_TIME_CONFIGURATION, offsetNanoseconds, offsetSeconds);
-#endif
+  sprintf(command, "%s=%d,%d", SARA_R5_GNSS_TIME_CONFIGURATION, (int)offsetNanoseconds, (int)offsetSeconds);
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR,
                                 nullptr, SARA_R5_STANDARD_RESPONSE_TIMEOUT);
@@ -1501,8 +1497,8 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
   char *command;
   char *response;
 
-  int32_t ons;
-  int32_t os;
+  int ons;
+  int os;
 
   command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_TIME_CONFIGURATION) + 2);
   if (command == nullptr)
@@ -1528,11 +1524,7 @@ SARA_R5_error_t SARA_R5::getUtimeConfiguration(int32_t *offsetNanoseconds, int32
     {
       searchPtr += strlen("+UTIMECFG:"); //  Move searchPtr to first char
       while (*searchPtr == ' ') searchPtr++; // skip spaces
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
       scanned = sscanf(searchPtr, "%d,%d\r\n", &ons, &os);
-#else
-      scanned = sscanf(searchPtr, "%ld,%ld\r\n", &ons, &os);
-#endif
     }
     if (scanned == 2)
     {
@@ -2627,12 +2619,14 @@ SARA_R5::SARA_R5_gpio_mode_t SARA_R5::getGpioMode(SARA_R5_gpio_t gpio)
   sprintf(gpioChar, "%d", gpio);          // Convert GPIO to char array
   gpioStart = strstr(response, gpioChar); // Find first occurence of GPIO in response
 
+  if (gpioStart == nullptr) {
+    free(command);
+    free(response);
+    return GPIO_MODE_INVALID; // If not found return invalid
+  }
+  scanf(gpioStart, "%*d,%d\r\n", &gpioMode);
   free(command);
   free(response);
-
-  if (gpioStart == nullptr)
-    return GPIO_MODE_INVALID; // If not found return invalid
-  sscanf(gpioStart, "%*d,%d\r\n", &gpioMode);
 
   return (SARA_R5_gpio_mode_t)gpioMode;
 }
@@ -5255,13 +5249,8 @@ SARA_R5_error_t SARA_R5::gpsRequest(unsigned int timeout, uint32_t accuracy,
   command = sara_r5_calloc_char(strlen(SARA_R5_GNSS_REQUEST_LOCATION) + 24);
   if (command == nullptr)
     return SARA_R5_ERROR_OUT_OF_MEMORY;
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
   sprintf(command, "%s=2,%d,%d,%d,%d", SARA_R5_GNSS_REQUEST_LOCATION,
-          sensor, detailed ? 1 : 0, timeout, accuracy);
-#else
-  sprintf(command, "%s=2,%d,%d,%d,%ld", SARA_R5_GNSS_REQUEST_LOCATION,
-          sensor, detailed ? 1 : 0, timeout, accuracy);
-#endif
+          sensor, detailed ? 1 : 0, timeout, (int)accuracy);
 
   err = sendCommandWithResponse(command, SARA_R5_RESPONSE_OK_OR_ERROR, nullptr, SARA_R5_10_SEC_TIMEOUT);
 
