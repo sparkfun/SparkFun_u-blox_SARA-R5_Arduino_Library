@@ -705,6 +705,7 @@ public:
   virtual size_t write(uint8_t c);
   virtual size_t write(const char *str);
   virtual size_t write(const char *buffer, size_t size);
+  using Print::write;
 
   // General AT Commands
   SARA_R5_error_t at(void);
